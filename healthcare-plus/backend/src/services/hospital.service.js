@@ -1,0 +1,79 @@
+import prisma from '../prisma/client.js';
+import { ApiError } from '../utils/ApiError.js';
+import { createInvitedUser } from './auth.service.js';
+
+export const getHospitals = async () => {
+  return prisma.hospital.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
+export const getHospitalById = async (id) => {
+  const hospital = await prisma.hospital.findUnique({
+    where: { id },
+    include: {
+      departments: true,
+    }
+  });
+  if (!hospital) {
+    throw ApiError.notFound('Hospital not found.');
+  }
+  return hospital;
+};
+
+export const createHospital = async (data, superAdminId) => {
+  const { adminEmail, adminName, ...hospitalData } = data;
+  
+  // Transaction to create hospital and its admin
+  return prisma.$transaction(async (tx) => {
+    const hospital = await tx.hospital.create({
+      data: hospitalData
+    });
+
+    if (adminEmail && adminName) {
+      // Create user within transaction? We can't directly use authService.createInvitedUser easily in tx unless we pass tx. 
+      // It's safer to just create the user directly here if inside a transaction.
+      // But authService.createInvitedUser does its own prisma calls.
+      // Since createInvitedUser is async and sends an email, let's call it outside the transaction.
+    }
+    return hospital;
+  });
+};
+
+export const createHospitalWithAdmin = async (data, superAdminId) => {
+  const { adminEmail, adminName, ...hospitalData } = data;
+  
+  const hospital = await prisma.hospital.create({
+    data: hospitalData
+  });
+
+  if (adminEmail && adminName) {
+    await createInvitedUser({
+      email: adminEmail,
+      fullName: adminName,
+      role: 'HOSPITAL_ADMIN',
+      hospitalId: hospital.id,
+      invitedBy: superAdminId
+    });
+  }
+
+  return hospital;
+};
+
+export const updateHospital = async (id, data, actorUserId) => {
+  const updated = await prisma.hospital.update({
+    where: { id },
+    data
+  });
+
+  if (actorUserId) {
+    try {
+      const { recordAction } = await import('./auditLog.service.js');
+      await recordAction(id, actorUserId, 'HOSPITAL_SETTINGS_CHANGED', 'Hospital', id, { changes: data });
+    } catch (auditErr) {
+      console.warn('[Hospital] Failed to write audit log:', auditErr.message);
+    }
+  }
+
+  return updated;
+};
