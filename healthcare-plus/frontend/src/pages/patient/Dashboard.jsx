@@ -250,12 +250,13 @@ function AIHealthAssistant({ onFindDoctors }) {
 // ── Hospital Card ─────────────────────────────────────────────────────────────
 
 function HospitalCard({ hospital, onSelect }) {
-  const crowd = CROWD_CONFIG[hospital.crowd] || CROWD_CONFIG.moderate;
-  const specList = hospital.specialities || hospital.specialties || [];
-  const rating = hospital.averageRating || hospital.rating || '4.5';
-  const reviews = hospital.reviews || '120+';
-  const distance = hospital.distance || '2.5 km';
-  const fee = hospital.fee || '500';
+  const crowd = CROWD_CONFIG[hospital.crowd] || CROWD_CONFIG.low;
+  // departments from enriched getHospitals (or legacy specialities field)
+  const deptList = hospital.departments?.map((d) => d.name) || hospital.specialities || hospital.specialties || [];
+  const doctorCount = hospital._count?.doctors || hospital.doctorCount || 0;
+  const rating = Number(hospital.averageRating || 4.5).toFixed(1);
+  const distance = hospital.distance || null;
+  const lowestFee = hospital.lowestFee || null;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md transition-all cursor-pointer group" onClick={() => onSelect(hospital)}>
@@ -269,62 +270,84 @@ function HospitalCard({ hospital, onSelect }) {
         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
           <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
           <span className="text-xs font-semibold text-slate-700">{rating}</span>
-          <span className="text-xs text-slate-400">({reviews})</span>
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 mb-3">
-        {specList.map((s) => (
+        {deptList.slice(0, 4).map((s) => (
           <span key={s} className="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full">{s}</span>
         ))}
+        {deptList.length > 4 && (
+          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">+{deptList.length - 4} more</span>
+        )}
       </div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="flex items-center gap-1">
-            <Navigation className="w-3 h-3" /> {distance}
+          {distance && (
+            <span className="flex items-center gap-1">
+              <Navigation className="w-3 h-3" /> {distance}
+            </span>
+          )}
+          <span className="flex items-center gap-1.5">
+            <Users className="w-3 h-3" />
+            {doctorCount} doctor{doctorCount !== 1 ? 's' : ''}
           </span>
           <span className="flex items-center gap-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${crowd.dot}`} />
-            <span className={`px-1.5 py-0.5 rounded-full border text-xs ${crowd.badge}`}>{crowd.label} crowd</span>
+            <span className={`px-1.5 py-0.5 rounded-full border text-xs ${crowd.badge}`}>{crowd.label}</span>
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">From ₹{fee}</span>
-          <button className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold rounded-lg transition-colors">
-            Book
-          </button>
-        </div>
+        <button className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold rounded-lg transition-colors">
+          View
+        </button>
       </div>
     </div>
   );
 }
 
+
 // ── Home Tab ──────────────────────────────────────────────────────────────────
 
 function HomeTab({ user, navigate, onSOSSent }) {
   const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [hospitals, setHospitals] = useState([]);
   const [loadingHospitals, setLoadingHospitals] = useState(true);
   const [error, setError] = useState(null);
   const { coords } = useGeolocation();
 
+  const load = async () => {
+    setLoadingHospitals(true);
+    setError(null);
+    try {
+      const res = await patientService.getNearbyHospitals(coords?.latitude, coords?.longitude);
+      setHospitals(res.data || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load hospitals.');
+    } finally {
+      setLoadingHospitals(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await patientService.getNearbyHospitals(coords?.latitude, coords?.longitude);
-        setHospitals(res.data || []);
-      } catch (err) {
-        setError(err.message || 'Failed to load hospitals.');
-      } finally {
-        setLoadingHospitals(false);
-      }
-    };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = hospitals.filter((h) =>
-    !search || h.name.toLowerCase().includes(search.toLowerCase()) ||
-    h.specialties?.some((s) => s.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = hospitals.filter((h) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    // Match on hospital name
+    if (h.name?.toLowerCase().includes(q)) return true;
+    // Match on departments array (new enriched API)
+    if (h.departments?.some((d) => d.name?.toLowerCase().includes(q))) return true;
+    // Match on legacy specialities string array
+    if (h.specialities?.some((s) => s?.toLowerCase().includes(q))) return true;
+    return false;
+  });
+
+  // When the user is searching show all matches; otherwise cap at 6 unless showAll
+  const visible = search ? filtered : (showAll ? filtered : filtered.slice(0, 6));
+  const hasMore = !search && filtered.length > 6;
 
   const handleHospitalSelect = (hospital) => {
     navigate(`/hospitals/${hospital.id}`);
@@ -342,6 +365,7 @@ function HomeTab({ user, navigate, onSOSSent }) {
       {/* AI Health Assistant */}
       <AIHealthAssistant onFindDoctors={(specialty) => {
         setSearch(specialty);
+        setShowAll(true);
       }} />
 
       {/* Emergency SOS */}
@@ -362,24 +386,42 @@ function HomeTab({ user, navigate, onSOSSent }) {
 
       {/* Hospital Search */}
       <div>
+        {/* Search input with clear button */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search hospitals, specialties…"
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
+            placeholder="Search hospitals, departments, specialties…"
+            className="w-full pl-9 pr-9 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setShowAll(true); }}
           />
+          {search && (
+            <button
+              onClick={() => { setSearch(''); setShowAll(false); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 hover:text-slate-700 transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-slate-900 text-sm">
-            {search ? `Results for "${search}"` : 'Nearby Hospitals'}
+            {search
+              ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''} for "${search}"`
+              : `Hospitals (${hospitals.length})`}
           </h2>
-          <button className="text-xs text-cyan-600 font-medium hover:underline flex items-center gap-1">
-            View all <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          {hasMore && (
+            <button
+              onClick={() => setShowAll((v) => !v)}
+              className="text-xs text-cyan-600 font-medium hover:text-cyan-800 transition-colors flex items-center gap-1"
+            >
+              {showAll ? 'Show less' : `View all ${filtered.length}`}
+              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showAll ? 'rotate-90' : ''}`} />
+            </button>
+          )}
         </div>
 
         {loadingHospitals ? (
@@ -389,22 +431,43 @@ function HomeTab({ user, navigate, onSOSSent }) {
         ) : error ? (
           <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
             <AlertCircle className="w-5 h-5 text-red-400 mx-auto mb-2" />
-            <p className="text-sm text-red-600">{error}</p>
-            <button onClick={() => { setError(null); setLoadingHospitals(true); }}
-              className="text-xs text-red-600 hover:underline mt-2 flex items-center gap-1 mx-auto">
+            <p className="text-sm text-red-600 mb-2">{error}</p>
+            <button
+              onClick={load}
+              className="text-xs text-red-600 hover:underline flex items-center gap-1 mx-auto"
+            >
               <RefreshCw className="w-3 h-3" /> Retry
             </button>
           </div>
         ) : (
           <div className="space-y-3">
-            {filtered.slice(0, 6).map((h) => (
+            {visible.map((h) => (
               <HospitalCard key={h.id} hospital={h} onSelect={handleHospitalSelect} />
             ))}
             {filtered.length === 0 && hospitals.length === 0 && (
               <EmptyState icon={Building2} title="No hospitals found" description="No hospitals available in the system yet." />
             )}
             {filtered.length === 0 && hospitals.length > 0 && (
-              <EmptyState icon={Building2} title="No matches" description={`No hospitals match "${search}"`} />
+              <div className="bg-slate-50 rounded-2xl p-6 text-center">
+                <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-500 font-medium">No hospitals match "{search}"</p>
+                <button
+                  onClick={() => setSearch('')}
+                  className="mt-2 text-xs text-cyan-600 hover:underline"
+                >
+                  Clear search to see all hospitals
+                </button>
+              </div>
+            )}
+            {/* Show more indicator when collapsed */}
+            {hasMore && !showAll && (
+              <button
+                onClick={() => setShowAll(true)}
+                className="w-full py-3 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 text-sm font-medium rounded-2xl border border-dashed border-slate-200 transition-all flex items-center justify-center gap-2"
+              >
+                <Building2 className="w-4 h-4" />
+                Show {filtered.length - 6} more hospital{filtered.length - 6 !== 1 ? 's' : ''}
+              </button>
             )}
           </div>
         )}
@@ -412,6 +475,7 @@ function HomeTab({ user, navigate, onSOSSent }) {
     </div>
   );
 }
+
 
 // ── Appointments Tab ───────────────────────────────────────────────────────────
 

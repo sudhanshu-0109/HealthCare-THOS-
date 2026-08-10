@@ -591,17 +591,19 @@ function HistoryTab() {
             <div className="flex items-start justify-between mb-2">
               <div>
                 <p className="font-semibold text-slate-900 text-sm">
-                  {c.appointment?.patient?.fullName || 'Patient'}
+                  {c.patient?.fullName || c.appointment?.patient?.fullName || 'Patient'}
                 </p>
                 <p className="text-xs text-slate-400">
-                  {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  {c.startedAt ? new Date(c.startedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                 </p>
               </div>
               <StatusBadge status={c.status} size="xs" />
             </div>
-            {c.chiefComplaint && <p className="text-xs text-slate-500">{c.chiefComplaint}</p>}
+            {c.symptoms && <p className="text-xs text-slate-500 mb-1"><span className="font-medium">Symptoms:</span> {c.symptoms}</p>}
+            {c.diagnosis && <p className="text-xs text-slate-500"><span className="font-medium">Diagnosis:</span> {c.diagnosis}</p>}
           </div>
         ))}
+
       </div>
     </div>
   );

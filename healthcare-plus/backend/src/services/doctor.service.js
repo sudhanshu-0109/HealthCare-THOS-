@@ -7,6 +7,7 @@ export const getDoctors = async (filters) => {
     include: {
       user: { select: { fullName: true, email: true } },
       department: { select: { name: true } },
+      hospital: { select: { id: true, name: true } },
     }
   });
 };

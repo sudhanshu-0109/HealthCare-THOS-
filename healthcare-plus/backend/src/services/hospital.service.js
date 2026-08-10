@@ -4,9 +4,20 @@ import { createInvitedUser } from './auth.service.js';
 
 export const getHospitals = async () => {
   return prisma.hospital.findMany({
-    orderBy: { createdAt: 'desc' },
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+    include: {
+      departments: {
+        where: { isActive: true },
+        select: { id: true, name: true },
+      },
+      _count: {
+        select: { doctors: true },
+      },
+    },
   });
 };
+
 
 export const getHospitalById = async (id) => {
   const hospital = await prisma.hospital.findUnique({

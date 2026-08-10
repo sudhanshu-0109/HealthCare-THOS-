@@ -134,21 +134,31 @@ function OverviewTab() {
   const { user } = useAuthStore();
   const [depts, setDepts] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [todayAppts, setTodayAppts] = useState([]);
 
   useEffect(() => {
-    Promise.all([adminService.getDepartments(), adminService.getDoctors()])
-      .then(([d, doc]) => {
-        setDepts(d.data || []);
-        setDoctors(doc.data || []);
-      })
-      .catch(() => { /* keep empty arrays */ });
+    const todayStr = new Date().toISOString().split('T')[0];
+    Promise.allSettled([
+      adminService.getDepartments(),
+      adminService.getDoctors(),
+      import('../../services/appointments.service').then((svc) =>
+        svc.getHospitalAppointments?.({ limit: 50, date: todayStr })
+      ),
+    ]).then(([d, doc, appts]) => {
+      if (d.status === 'fulfilled') setDepts(d.value.data || []);
+      if (doc.status === 'fulfilled') setDoctors(doc.value.data || []);
+      if (appts.status === 'fulfilled') setTodayAppts(appts.value?.data?.appointments || []);
+    });
   }, []);
 
+  const activeDoctors = doctors.filter((d) => d.isActive).length;
+  const confirmedToday = todayAppts.filter((a) => a.status === 'CONFIRMED' || a.status === 'COMPLETED').length;
+
   const stats = [
-    { label: 'Doctors', value: doctors.length, icon: Stethoscope, color: 'bg-cyan-50 text-cyan-600', trend: 'Active' },
+    { label: 'Total Doctors', value: doctors.length, icon: Stethoscope, color: 'bg-cyan-50 text-cyan-600', trend: `${activeDoctors} active` },
     { label: 'Departments', value: depts.length, icon: Building2, color: 'bg-emerald-50 text-emerald-600', trend: 'Configured' },
-    { label: 'Doctors Active', value: doctors.filter((d) => d.isActive).length, icon: Activity, color: 'bg-violet-50 text-violet-600', trend: 'On duty' },
-    { label: 'Departments', value: depts.length, icon: Calendar, color: 'bg-amber-50 text-amber-600', trend: 'Hospital units' },
+    { label: "Today's Appointments", value: todayAppts.length, icon: Calendar, color: 'bg-amber-50 text-amber-600', trend: `${confirmedToday} confirmed` },
+    { label: 'Active Doctors', value: activeDoctors, icon: Activity, color: 'bg-violet-50 text-violet-600', trend: 'On duty today' },
   ];
 
   return (
@@ -172,17 +182,46 @@ function OverviewTab() {
           );
         })}
       </div>
+
+      {/* Today's appointments preview */}
+      {todayAppts.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <h3 className="font-semibold text-slate-900 text-sm mb-3">Today's Appointments Preview</h3>
+          <div className="space-y-2">
+            {todayAppts.slice(0, 5).map((a) => (
+              <div key={a.id} className="flex items-center gap-3 text-sm">
+                <div className="w-8 h-8 bg-cyan-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-3.5 h-3.5 text-cyan-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-slate-900 text-xs truncate">{a.patient?.fullName || 'Patient'}</p>
+                  <p className="text-xs text-slate-400">
+                    Dr. {a.doctor?.user?.fullName} • {a.scheduledTime}
+                  </p>
+                </div>
+                <StatusBadge status={a.status} size="xs" />
+              </div>
+            ))}
+            {todayAppts.length > 5 && (
+              <p className="text-xs text-slate-400 text-center pt-1">+{todayAppts.length - 5} more appointments today</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-slate-100 p-4">
         <h3 className="font-semibold text-slate-900 text-sm mb-3">Quick Summary</h3>
         <div className="space-y-2 text-sm text-slate-600">
-          <p>{doctors.filter((d) => d.isActive).length} of {doctors.length} doctors active</p>
+          <p>{activeDoctors} of {doctors.length} doctors active</p>
           <p>{depts.length} departments configured</p>
+          <p>{confirmedToday} appointments confirmed today</p>
           <p className="text-xs text-slate-400">{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
       </div>
     </div>
   );
 }
+
 
 // ── Doctors Tab ───────────────────────────────────────────────────────────────
 
@@ -355,11 +394,14 @@ function DepartmentsTab() {
           <div key={d.id} className="bg-white rounded-2xl border border-slate-100 p-4">
             <div className="flex items-start justify-between mb-1">
               <h3 className="font-semibold text-slate-900">{d.name}</h3>
-              <span className="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full">{d.doctorCount} doctors</span>
+              <span className="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full">
+                {d._count?.doctors ?? d.doctorCount ?? 0} doctors
+              </span>
             </div>
             {d.description && <p className="text-xs text-slate-500">{d.description}</p>}
           </div>
         ))}
+
       </div>
       <AddModal
         title="Add Department"

@@ -11,12 +11,18 @@ import { joinPatientRoom, onSocketEvent } from '../../services/socket';
 export default function PatientQueueTracker({ appointmentId }) {
   const [data, setData] = useState(null);
   const [called, setCalled] = useState(false);
+  const [approaching, setApproaching] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchPosition = async () => {
     try {
       const res = await queueService.getMyQueuePosition(appointmentId);
-      setData(res.data || res);
+      const info = res.data || res;
+      setData(info);
+      // If 2 or fewer ahead and not yet called, set approaching nudge
+      if (info?.patientsAhead <= 2 && info?.token?.status === 'WAITING') {
+        setApproaching(true);
+      }
     } catch (err) {
       console.error('[PatientQueueTracker]', err);
     } finally {
@@ -32,15 +38,21 @@ export default function PatientQueueTracker({ appointmentId }) {
       fetchPosition();
     });
 
-    const offCalled = onSocketEvent('queue:token-called', (payload) => {
+    const offCalled = onSocketEvent('queue:token-called', () => {
       setCalled(true);
+      setApproaching(false);
       // Auto-dismiss after 30 seconds
       setTimeout(() => setCalled(false), 30000);
+    });
+
+    const offApproaching = onSocketEvent('queue:approaching', () => {
+      setApproaching(true);
     });
 
     return () => {
       offUpdate();
       offCalled();
+      offApproaching();
     };
   }, [appointmentId]);
 
@@ -102,6 +114,14 @@ export default function PatientQueueTracker({ appointmentId }) {
         <p className="text-sm opacity-80 mt-2 capitalize">{token.status.toLowerCase().replace('_', ' ')}</p>
       </div>
 
+      {/* Approaching nudge */}
+      {approaching && !called && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
+          <Bell className="w-5 h-5 text-amber-500 flex-shrink-0" />
+          <p className="text-sm text-amber-700 font-medium">Almost your turn! Please make your way to the clinic.</p>
+        </div>
+      )}
+
       {/* Stats grid */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white rounded-xl border border-slate-100 p-3 text-center">
@@ -121,7 +141,7 @@ export default function PatientQueueTracker({ appointmentId }) {
         </div>
       </div>
 
-      <p className="text-xs text-slate-400 text-center">Estimated wait is based on an average consultation time of 10 minutes.</p>
+      <p className="text-xs text-slate-400 text-center">Estimated wait is based on an average consultation time of 15 minutes.</p>
     </div>
   );
 }

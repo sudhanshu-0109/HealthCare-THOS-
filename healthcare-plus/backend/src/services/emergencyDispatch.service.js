@@ -238,31 +238,65 @@ export const markArrived = async (emergencyRequestId, driverId) => {
 
 /**
  * getDriverState — rehydrates a driver's dashboard after a page reload: their
- * ambulance's online status, any in-flight assignment, and past dispatches.
+ * ambulance's online status, any in-flight assignment, pending SEARCHING requests
+ * (that were dispatched while the driver was offline), and past dispatches.
  * Without this, a refresh mid-trip would silently drop the active emergency from
  * the UI even though the backend still holds it. (R15)
  * @param {string} userId — the authenticated driver's User id.
  */
 export const getDriverState = async (userId) => {
-  const ambulance = await findAmbulanceByUserId(userId);
+  const ambulance = await findAmbulanceByUserId(userId, {
+    driver: { select: { hospitalId: true } },
+  });
   if (!ambulance) {
-    return { isOnline: false, ambulance: null, activeRequest: null, history: [] };
+    return { isOnline: false, ambulance: null, activeRequest: null, pendingRequests: [], history: [] };
   }
 
   const ACTIVE = ['DRIVER_ASSIGNED', 'EN_ROUTE', 'PICKED_UP'];
-  const [activeRequest, history] = await Promise.all([
+  const [activeRequest, pendingSearching, history] = await Promise.all([
     prisma.emergencyRequest.findFirst({
       where: { ambulanceId: ambulance.id, status: { in: ACTIVE } },
       include: { patient: { select: { fullName: true } } },
       orderBy: { acceptedAt: 'desc' },
     }),
+    // Return all SEARCHING requests — the driver can see and accept them on login
     prisma.emergencyRequest.findMany({
-      where: { ambulanceId: ambulance.id, status: { in: ['ARRIVED', 'CANCELLED'] } },
+      where: { status: 'SEARCHING' },
+      include: { patient: { select: { fullName: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    prisma.emergencyRequest.findMany({
+      where: { ambulanceId: ambulance.id, status: { in: ['ARRIVED', 'CANCELLED', 'NO_DRIVER_FALLBACK'] } },
       include: { patient: { select: { fullName: true } } },
       orderBy: { updatedAt: 'desc' },
       take: 50,
     }),
   ]);
+
+  // Compute distance for each pending request (if ambulance has coordinates)
+  const pendingRequests = pendingSearching.map((r) => {
+    let distanceKm = null;
+    if (
+      ambulance.currentLatitude != null &&
+      ambulance.currentLongitude != null &&
+      r.latitude != null &&
+      r.longitude != null
+    ) {
+      distanceKm = calculateDistance(
+        r.latitude, r.longitude,
+        ambulance.currentLatitude, ambulance.currentLongitude
+      ).toFixed(2);
+    }
+    return {
+      requestId: r.id,
+      patientName: r.patient?.fullName || null,
+      patientLat: r.latitude,
+      patientLng: r.longitude,
+      distanceKm,
+      timestamp: r.createdAt,
+    };
+  });
 
   return {
     isOnline: Boolean(ambulance.isOnline),
@@ -282,6 +316,7 @@ export const getDriverState = async (userId) => {
           acceptedAt: activeRequest.acceptedAt,
         }
       : null,
+    pendingRequests,
     history: history.map((r) => ({
       id: r.id,
       status: r.status,
@@ -295,6 +330,7 @@ export const getDriverState = async (userId) => {
     })),
   };
 };
+
 
 /**
  * checkAndApplyFallback — triggered after 3 minutes if still SEARCHING.

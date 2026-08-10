@@ -107,7 +107,8 @@ export const getPatientQueuePosition = async (appointmentId, patientId) => {
   if (!token) throw ApiError.notFound('Queue token not found.');
   if (token.appointment?.patient?.id !== patientId) throw ApiError.forbidden('Not your queue token.');
 
-  // Count patients ahead: WAITING or CALLED with smaller tokenNumber
+  // Count patients ahead: only WAITING tokens with smaller token number.
+  // CALLED / IN_PROGRESS is the patient currently at the desk, they're NOT blocking the queue.
   const patientsAhead = await prisma.queueToken.count({
     where: {
       doctorId: token.doctorId,
@@ -117,10 +118,11 @@ export const getPatientQueuePosition = async (appointmentId, patientId) => {
     },
   });
 
-  const AVG_CONSULTATION_MINUTES = 10; // placeholder constant — refine with real data in later phases
+  // Use 15 minutes per slot (matches default doctor availability slotMinutes)
+  const AVG_CONSULTATION_MINUTES = 15;
   const estimatedWaitMinutes = patientsAhead * AVG_CONSULTATION_MINUTES;
 
-  // Get currently serving token number
+  // Get currently serving token number (IN_PROGRESS or CALLED)
   const currentlyServing = await prisma.queueToken.findFirst({
     where: {
       doctorId: token.doctorId,
@@ -138,6 +140,7 @@ export const getPatientQueuePosition = async (appointmentId, patientId) => {
     currentlyServing: currentlyServing?.tokenNumber || null,
   };
 };
+
 
 /**
  * Call the next waiting patient.

@@ -3,8 +3,13 @@ import prisma from '../prisma/client.js';
 export const getDepartments = async (hospitalId) => {
   return prisma.department.findMany({
     where: { hospitalId, isActive: true },
+    include: {
+      _count: { select: { doctors: { where: { isActive: true } } } },
+    },
+    orderBy: { name: 'asc' },
   });
 };
+
 
 export const createDepartment = async (hospitalId, data, creatorUserId) => {
   const dept = await prisma.department.create({
