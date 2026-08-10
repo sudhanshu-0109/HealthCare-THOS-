@@ -10,6 +10,7 @@ const router = Router();
 
 router.use(authenticate, checkRole('AMBULANCE_DRIVER'));
 
+router.get('/me', ctrl.getDriverState);
 router.post('/go-online', ctrl.goOnline);
 router.post('/go-offline', ctrl.goOffline);
 router.post('/location', ctrl.updateLocation);

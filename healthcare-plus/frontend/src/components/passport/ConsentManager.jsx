@@ -30,7 +30,7 @@ export default function ConsentManager({ consents = [], passportId, onUpdate }) 
       setShowForm(false);
       onUpdate();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to grant consent.');
+      setError(err.message || 'Failed to grant consent.');
     } finally {
       setGranting(false);
     }

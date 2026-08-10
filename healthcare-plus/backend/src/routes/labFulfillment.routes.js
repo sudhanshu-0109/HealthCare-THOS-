@@ -13,6 +13,8 @@ const router = Router();
 router.get('/hospital', authenticate, checkRole('LAB_STAFF'), scopeToHospital, ctrl.getHospitalLabRequests);
 // Lab staff confirms tests and initiates billing
 router.post('/:id/confirm', authenticate, checkRole('LAB_STAFF'), scopeToHospital, ctrl.confirmLabRequest);
+// Lab staff advances a paid request (SAMPLE_COLLECTED → PROCESSING)
+router.patch('/:id/status', authenticate, checkRole('LAB_STAFF'), scopeToHospital, ctrl.advanceLabStatus);
 // Lab staff uploads report
 router.post('/:id/upload-report', authenticate, checkRole('LAB_STAFF'), scopeToHospital, ctrl.uploadLabReport);
 

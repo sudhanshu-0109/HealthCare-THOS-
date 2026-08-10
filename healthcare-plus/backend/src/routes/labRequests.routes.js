@@ -9,6 +9,7 @@ router.use(requireAuth);
 
 router.post('/', requireRole('DOCTOR'), controller.createLabRequest);
 router.get('/my', requireRole('PATIENT'), controller.getMyLabRequests);
+router.post('/:id/accept', requireRole('PATIENT'), controller.acceptLabRequest);
 router.get('/:id', controller.getLabRequest); // internal gating handles role check
 
 export default router;

@@ -5,6 +5,7 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { addTimelineEvent } from './passport.service.js';
+import { createBillAndInitiatePayment } from './billing.service.js';
 
 const LAB_REQUEST_SELECT = {
   id: true,
@@ -80,22 +81,30 @@ export const createLabRequest = async (consultationId, { priority, notes, items 
 };
 
 /**
- * Get a lab request by ID.
- * Patient: own requests only.
- * Doctor: own requests only (for Phase 8).
+ * Get a lab request by ID with default-deny authorization.
+ * PATIENT: own only. DOCTOR: own only. LAB_STAFF/HOSPITAL_ADMIN: same-hospital.
+ * SUPER_ADMIN: any. All other roles: denied.
  */
-export const getLabRequest = async (labRequestId, requesterId, requesterRole) => {
+export const getLabRequest = async (labRequestId, requesterId, requesterRole, requesterHospitalId) => {
   const labRequest = await prisma.labRequest.findUnique({
     where: { id: labRequestId },
     select: LAB_REQUEST_SELECT,
   });
   if (!labRequest) throw ApiError.notFound('Lab request not found.');
 
-  if (requesterRole === 'PATIENT' && labRequest.patientId !== requesterId) {
-    throw ApiError.forbidden('Not your lab request.');
-  }
-  if (requesterRole === 'DOCTOR' && labRequest.doctorId !== requesterId) {
-    throw ApiError.forbidden('Not your lab request.');
+  if (requesterRole === 'PATIENT') {
+    if (labRequest.patientId !== requesterId) throw ApiError.forbidden('Not your lab request.');
+  } else if (requesterRole === 'SUPER_ADMIN') {
+    // Cross-hospital read allowed.
+  } else if (requesterRole === 'DOCTOR') {
+    const doctor = await prisma.doctor.findUnique({ where: { userId: requesterId }, select: { id: true } });
+    if (!doctor || labRequest.doctorId !== doctor.id) throw ApiError.forbidden('Not your lab request.');
+  } else if (requesterRole === 'LAB_STAFF' || requesterRole === 'HOSPITAL_ADMIN') {
+    if (!requesterHospitalId || labRequest.hospitalId !== requesterHospitalId) {
+      throw ApiError.forbidden('Lab request does not belong to your hospital.');
+    }
+  } else {
+    throw ApiError.forbidden('You are not permitted to view this lab request.');
   }
 
   return labRequest;
@@ -110,4 +119,44 @@ export const getMyLabRequests = async (patientId) => {
     select: LAB_REQUEST_SELECT,
     orderBy: { createdAt: 'desc' },
   });
+};
+
+/**
+ * Patient accepts a lab request and initiates payment (must happen before sample collection).
+ */
+export const acceptLabRequestByPatient = async (labRequestId, patientId) => {
+  const labRequest = await prisma.labRequest.findUnique({
+    where: { id: labRequestId },
+    include: { items: true },
+  });
+
+  if (!labRequest) throw ApiError.notFound('Lab request not found.');
+  if (labRequest.patientId !== patientId) throw ApiError.forbidden('Not your lab request.');
+  if (labRequest.status !== 'PENDING') {
+    throw ApiError.badRequest(`Cannot accept lab request in status: ${labRequest.status}`);
+  }
+
+  const missingPrices = labRequest.items.filter((item) => item.estimatedPrice == null);
+  if (missingPrices.length > 0) {
+    throw ApiError.badRequest('Test prices are not available yet. Please contact the hospital.');
+  }
+
+  await prisma.labRequest.update({
+    where: { id: labRequestId },
+    data: { status: 'CONFIRMED' },
+  });
+
+  const billingResult = await createBillAndInitiatePayment({
+    patientId,
+    hospitalId: labRequest.hospitalId,
+    sourceType: 'LAB_REQUEST',
+    sourceId: labRequestId,
+    items: labRequest.items.map((item) => ({
+      description: item.testName,
+      quantity: 1,
+      unitPrice: Number(item.estimatedPrice),
+    })),
+  });
+
+  return { labRequestId, ...billingResult };
 };

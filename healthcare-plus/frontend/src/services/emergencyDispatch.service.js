@@ -15,3 +15,6 @@ export const markPickedUp = (requestId, destinationHospitalId) => api.post(`/dri
 export const markArrived = (requestId) => api.post(`/driver/requests/${requestId}/arrived`);
 
 export const getEmergencyStatus = (requestId) => api.get(`/emergency/${requestId}/status`);
+
+// Rehydrates the driver dashboard after reload: online status, active trip, history.
+export const getDriverState = () => api.get('/driver/me');

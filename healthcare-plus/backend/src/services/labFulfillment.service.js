@@ -20,14 +20,16 @@ import { notify } from './notifications.service.js';
  * @param {string} labRequestId
  * @param {string} staffUserId
  * @param {{ finalItems: Array<{ labRequestItemId, description, unitPrice }> }} params
+ * @param {string} hospitalId — lab staff's hospital, for cross-hospital isolation
  */
-export const confirmLabRequest = async (labRequestId, staffUserId, { finalItems }) => {
+export const confirmLabRequest = async (labRequestId, staffUserId, { finalItems }, hospitalId) => {
   const labRequest = await prisma.labRequest.findUnique({
     where: { id: labRequestId },
     include: { items: true },
   });
 
   if (!labRequest) throw ApiError.notFound('Lab request not found.');
+  if (labRequest.hospitalId !== hospitalId) throw ApiError.forbidden('Lab request does not belong to your hospital.');
   if (labRequest.status !== 'PENDING') {
     throw ApiError.badRequest(`Cannot confirm lab request in status: ${labRequest.status}`);
   }
@@ -78,15 +80,50 @@ export const onBillPaid = async (labRequestId) => {
 };
 
 /**
+ * Lab staff advances a lab request through its post-payment stages.
+ * The only staff-driven transition is SAMPLE_COLLECTED → PROCESSING; earlier
+ * transitions are gated by confirm (PENDING → CONFIRMED) and payment
+ * (CONFIRMED → SAMPLE_COLLECTED via onBillPaid), and PROCESSING → COMPLETED
+ * happens through uploadReport. This replaces the old frontend hack that abused
+ * uploadReport to fake status changes.
+ *
+ * @param {string} labRequestId
+ * @param {string} status — target status (must be a valid next state)
+ * @param {string} staffUserId
+ * @param {string} hospitalId — lab staff's hospital, for cross-hospital isolation
+ */
+export const advanceLabStatus = async (labRequestId, status, staffUserId, hospitalId) => {
+  const validTransitions = {
+    SAMPLE_COLLECTED: 'PROCESSING',
+  };
+
+  const labRequest = await prisma.labRequest.findUnique({ where: { id: labRequestId } });
+  if (!labRequest) throw ApiError.notFound('Lab request not found.');
+  if (labRequest.hospitalId !== hospitalId) throw ApiError.forbidden('Lab request does not belong to your hospital.');
+
+  const allowedNext = validTransitions[labRequest.status];
+  if (!allowedNext || allowedNext !== status) {
+    throw ApiError.badRequest(`Cannot transition lab request from ${labRequest.status} to ${status}.`);
+  }
+
+  return prisma.labRequest.update({
+    where: { id: labRequestId },
+    data: { status },
+  });
+};
+
+/**
  * Upload lab report and notify patient.
  *
  * @param {string} labRequestId
  * @param {{ reportFileUrl: string, resultSummary?: string, labRequestItemId?: string }} params
  * @param {string} staffUserId
+ * @param {string} hospitalId — lab staff's hospital, for cross-hospital isolation
  */
-export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary, labRequestItemId }, staffUserId) => {
+export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary, labRequestItemId }, staffUserId, hospitalId) => {
   const labRequest = await prisma.labRequest.findUnique({ where: { id: labRequestId } });
   if (!labRequest) throw ApiError.notFound('Lab request not found.');
+  if (labRequest.hospitalId !== hospitalId) throw ApiError.forbidden('Lab request does not belong to your hospital.');
 
   const allowedStatuses = ['SAMPLE_COLLECTED', 'PROCESSING', 'CONFIRMED'];
   if (!allowedStatuses.includes(labRequest.status)) {

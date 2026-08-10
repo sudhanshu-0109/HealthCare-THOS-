@@ -7,6 +7,15 @@ import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 
 /**
+ * Resolve a driver's ambulance from their USER id.
+ * NOTE: Ambulance.driverId references AmbulanceDriver.id — NOT the User id — so a
+ * driver's ambulance must be looked up through the driver relation, never by the
+ * raw authenticated user id.
+ */
+const findAmbulanceByUserId = (userId, include) =>
+  prisma.ambulance.findFirst({ where: { driver: { userId } }, include });
+
+/**
  * Register an ambulance for a hospital (hospital admin).
  */
 export const registerAmbulance = async (hospitalId, { driverId, vehicleNumber }) => {
@@ -58,14 +67,15 @@ export const setAmbulanceStatus = async (ambulanceId, isActive, hospitalId) => {
 
 /**
  * Driver goes online — marks ambulance online with initial location.
+ * @param {string} userId — the authenticated driver's User id.
  */
-export const goOnline = async (driverId, { latitude, longitude }) => {
-  const ambulance = await prisma.ambulance.findUnique({ where: { driverId } });
+export const goOnline = async (userId, { latitude, longitude }) => {
+  const ambulance = await findAmbulanceByUserId(userId);
   if (!ambulance) throw ApiError.notFound('No ambulance assigned to this driver.');
   if (!ambulance.isActive) throw ApiError.badRequest('Your ambulance is deactivated by admin.');
 
   return prisma.ambulance.update({
-    where: { driverId },
+    where: { id: ambulance.id },
     data: {
       isOnline: true,
       currentLatitude: latitude,
@@ -77,27 +87,28 @@ export const goOnline = async (driverId, { latitude, longitude }) => {
 
 /**
  * Driver goes offline.
+ * @param {string} userId — the authenticated driver's User id.
  */
-export const goOffline = async (driverId) => {
-  const ambulance = await prisma.ambulance.findUnique({ where: { driverId } });
+export const goOffline = async (userId) => {
+  const ambulance = await findAmbulanceByUserId(userId);
   if (!ambulance) throw ApiError.notFound('No ambulance assigned to this driver.');
 
   return prisma.ambulance.update({
-    where: { driverId },
+    where: { id: ambulance.id },
     data: { isOnline: false },
   });
 };
 
 /**
  * Update driver's current location.
- * Returns the ambulanceId for the caller to use in socket emit.
+ * @param {string} userId — the authenticated driver's User id.
  */
-export const updateDriverLocation = async (driverId, { latitude, longitude }) => {
-  const ambulance = await prisma.ambulance.findUnique({ where: { driverId } });
+export const updateDriverLocation = async (userId, { latitude, longitude }) => {
+  const ambulance = await findAmbulanceByUserId(userId);
   if (!ambulance) throw ApiError.notFound('No ambulance assigned to this driver.');
 
   return prisma.ambulance.update({
-    where: { driverId },
+    where: { id: ambulance.id },
     data: {
       currentLatitude: latitude,
       currentLongitude: longitude,

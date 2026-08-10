@@ -51,7 +51,7 @@ export default function ConsultationScreen() {
         }
       })
       .catch(err => {
-        setError(err.response?.data?.message || 'Failed to start consultation.');
+        setError(err.message || 'Failed to start consultation.');
       })
       .finally(() => setLoading(false));
   }, [appointmentId, queueTokenId]);
@@ -78,7 +78,7 @@ export default function ConsultationScreen() {
       await consultationsService.completeConsultation(consultation.id);
       navigate('/doctor/dashboard');
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to complete consultation.');
+      alert(err.message || 'Failed to complete consultation.');
     }
   };
 

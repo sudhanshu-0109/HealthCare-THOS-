@@ -10,6 +10,11 @@ export const goOnline = async (req, res) => {
   res.json({ success: true, data: ambulance });
 };
 
+export const getDriverState = async (req, res) => {
+  const state = await dispatchService.getDriverState(req.user.id);
+  res.json({ success: true, data: state });
+};
+
 export const goOffline = async (req, res) => {
   const ambulance = await ambulancesService.goOffline(req.user.id);
   res.json({ success: true, data: ambulance });

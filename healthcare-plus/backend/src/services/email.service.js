@@ -45,14 +45,19 @@ const renderTemplate = (templateName, vars) => {
 };
 
 const sendEmail = async ({ to, subject, text, html }) => {
-  console.log(`\n📨 [EMAIL DISPATCH] ─────────────────────────────────────────`);
-  console.log(`   Sender (From):    ${env.EMAIL_FROM || 'healthcare+ <sudhanshuranjan0109@gmail.com>'}`);
-  console.log(`   Recipient (To):   ${to}`);
-  console.log(`   Subject:          ${subject}`);
-  console.log(`─────────────────────────────────────────────────────────────\n`);
+  // Verbose dispatch banner and the OTP echo are development aids only. In
+  // production they would write recipient PII and live OTP codes into server
+  // logs, so they are gated behind NODE_ENV.
+  if (env.NODE_ENV !== 'production') {
+    console.log(`\n📨 [EMAIL DISPATCH] ─────────────────────────────────────────`);
+    console.log(`   Sender (From):    ${env.EMAIL_FROM || `"healthcare+" <${env.EMAIL_USER || 'no-reply'}>`}`);
+    console.log(`   Recipient (To):   ${to}`);
+    console.log(`   Subject:          ${subject}`);
+    console.log(`─────────────────────────────────────────────────────────────\n`);
 
-  const otpMatch = html.match(/class="otp-code">(\d{6})</);
-  if (otpMatch) console.log(`   [DEV OTP CODE]: ${otpMatch[1]}`);
+    const otpMatch = html.match(/class="otp-code">(\d{6})</);
+    if (otpMatch) console.log(`   [DEV OTP CODE]: ${otpMatch[1]}`);
+  }
 
   // 1. Primary: Nodemailer SMTP (Gmail SMTP)
   if (transporter) {

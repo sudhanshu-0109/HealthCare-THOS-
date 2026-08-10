@@ -3,6 +3,7 @@
  */
 
 import * as appointmentsService from '../services/appointments.service.js';
+import prisma from '../prisma/client.js';
 
 export const initiateBooking = async (req, res) => {
   const { doctorId, scheduledDate, scheduledTime } = req.body;
@@ -30,6 +31,7 @@ export const getAppointmentById = async (req, res) => {
     req.params.id,
     req.user.id,
     req.user.role,
+    req.user.hospitalId,
   );
   res.json({ success: true, data });
 };
@@ -41,4 +43,47 @@ export const cancelAppointment = async (req, res) => {
     reason: req.body.reason,
   });
   res.json({ success: true, data });
+};
+
+/**
+ * GET /appointments — HOSPITAL_ADMIN lists all appointments in their hospital.
+ */
+export const getHospitalAppointments = async (req, res) => {
+  const { status, page = 1, limit = 20, date } = req.query;
+  const hospitalId = req.hospitalId; // set by scopeToHospital middleware
+
+  const where = {
+    hospitalId,
+    ...(status && { status }),
+    ...(date && { scheduledDate: new Date(date) }),
+  };
+
+  const [appointments, total] = await Promise.all([
+    prisma.appointment.findMany({
+      where,
+      orderBy: [{ scheduledDate: 'desc' }, { scheduledTime: 'asc' }],
+      skip: (parseInt(page) - 1) * parseInt(limit),
+      take: parseInt(limit),
+      select: {
+        id: true,
+        scheduledDate: true,
+        scheduledTime: true,
+        status: true,
+        fee: true,
+        patient: { select: { id: true, fullName: true } },
+        doctor: {
+          select: {
+            id: true,
+            specialization: true,
+            user: { select: { fullName: true } },
+            department: { select: { name: true } },
+          },
+        },
+        queueToken: { select: { tokenNumber: true, status: true } },
+      },
+    }),
+    prisma.appointment.count({ where }),
+  ]);
+
+  res.json({ success: true, data: { appointments, total, page: parseInt(page), limit: parseInt(limit) } });
 };

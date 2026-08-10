@@ -17,7 +17,35 @@ const getDoctorId = async (userId) => {
 };
 
 export const getDoctorQueue = async (req, res) => {
-  const doctorId = req.params.doctorId || await getDoctorId(req.user.id);
+  const role = req.user.role;
+  let doctorId;
+
+  if (role === 'DOCTOR') {
+    // A doctor may only view their OWN queue — the URL param is ignored to
+    // prevent reading another doctor's queue (patient PHI).
+    doctorId = await getDoctorId(req.user.id);
+  } else if (role === 'HOSPITAL_ADMIN') {
+    doctorId = req.params.doctorId;
+    if (!doctorId) {
+      return res.status(400).json({ success: false, message: 'doctorId is required.' });
+    }
+    // Ensure the target doctor belongs to the admin's hospital.
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: doctorId },
+      select: { hospitalId: true },
+    });
+    if (!doctor || doctor.hospitalId !== req.user.hospitalId) {
+      return res.status(403).json({ success: false, message: 'Doctor does not belong to your hospital.' });
+    }
+  } else if (role === 'SUPER_ADMIN') {
+    doctorId = req.params.doctorId;
+    if (!doctorId) {
+      return res.status(400).json({ success: false, message: 'doctorId is required.' });
+    }
+  } else {
+    return res.status(403).json({ success: false, message: 'You are not permitted to view this queue.' });
+  }
+
   const { date } = req.query;
   const queue = await queueService.getDoctorQueue(doctorId, date);
   res.json({ success: true, data: queue });

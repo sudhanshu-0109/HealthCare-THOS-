@@ -25,7 +25,8 @@ export const getPrescription = catchAsync(async (req, res) => {
   const prescription = await prescriptionsService.getPrescription(
     req.params.id,
     req.user.id,
-    req.user.role
+    req.user.role,
+    req.user.hospitalId
   );
   res.json({ success: true, data: prescription });
 });

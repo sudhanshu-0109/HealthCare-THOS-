@@ -114,10 +114,11 @@ export const register = asyncHandler(async (req, res) => {
 export const login = asyncHandler(async (req, res) => {
   const { user, accessToken, refreshToken } = await authService.login(req.body);
   setRefreshTokenCookie(res, refreshToken);
+  // Refresh token is delivered only via the httpOnly cookie — never echoed to JS.
   res.status(200).json({
     success: true,
     message: 'Login successful.',
-    data: { user, accessToken, refreshToken },
+    data: { user, accessToken },
   });
 });
 
@@ -132,7 +133,6 @@ export const acceptInvite = asyncHandler(async (req, res) => {
 export const verifyOtp = asyncHandler(async (req, res) => {
   const plainOtp = req.body.otp || req.params.token;
   const email = req.body.email;
-  console.log('[verifyOtp] Received OTP:', plainOtp, 'for email:', email);
   const result = await authService.verifyEmail(plainOtp, email);
 
   if (result.refreshToken) {
@@ -157,10 +157,11 @@ export const resendVerification = asyncHandler(async (req, res) => {
 export const googleAuth = asyncHandler(async (req, res) => {
   const { user, accessToken, refreshToken } = await authService.googleAuth(req.body.idToken);
   setRefreshTokenCookie(res, refreshToken);
+  // Refresh token is delivered only via the httpOnly cookie — never echoed to JS.
   res.status(200).json({
     success: true,
     message: 'Google authentication successful.',
-    data: { user, accessToken, refreshToken },
+    data: { user, accessToken },
   });
 });
 
@@ -232,11 +233,11 @@ export const refreshToken = asyncHandler(async (req, res) => {
 
   setRefreshTokenCookie(res, newRefreshToken);
 
+  // Rotated refresh token is delivered only via the httpOnly cookie — never echoed to JS.
   res.status(200).json({
     success: true,
     data: {
       accessToken,
-      refreshToken: newRefreshToken,
       user: {
         id: user.id,
         email: user.email,

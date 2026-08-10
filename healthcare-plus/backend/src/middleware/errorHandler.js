@@ -34,11 +34,11 @@ export const errorHandler = (err, req, res, next) => {
   if (err.code) {
     switch (err.code) {
       case 'P2002':
-        // Unique constraint violation
+        // Unique constraint violation. Do NOT echo err.meta.target — that leaks
+        // internal DB column names to the client. The frontend only reads message.
         return res.status(409).json({
           success: false,
           message: 'A record with this value already exists.',
-          errors: { fields: err.meta?.target },
         });
       case 'P2025':
         // Record not found

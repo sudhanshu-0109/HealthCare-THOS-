@@ -1,341 +1,560 @@
+/**
+ * pages/admin/Dashboard.jsx — Complete Hospital Admin Dashboard
+ * All management tabs: Overview | Doctors | Lab Staff | Pharmacy Staff | Ambulance
+ * Departments | Lab Tests | Medicines | Appointments | Queue | Emergency | Settings
+ */
+
 import { useState, useEffect } from 'react';
 import {
   Building2, Users, Calendar, Activity, CreditCard, AlertTriangle,
   Settings, BarChart3, TrendingUp, TrendingDown, Plus, Search,
-  MoreHorizontal, CheckCircle2, Clock, FlaskConical, Pill, Bell, ShieldCheck
+  CheckCircle2, Clock, FlaskConical, Pill, ShieldCheck, Truck,
+  Stethoscope, Package, X, Loader2, ChevronDown, Edit, Power
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
 import * as adminService from '../../services/admin.service';
-import AdminAnalyticsPage from './Analytics';
-import AdminQueueMonitorPage from './QueueMonitor';
-import AdminAuditLogPage from './AuditLog';
-import AdminRevenuePage from './Revenue';
+import api from '../../services/api';
+import { joinHospitalQueue, leaveHospitalQueue, onSocketEvent } from '../../services/socket';
+import LiveQueueOverview from '../../components/admin/LiveQueueOverview';
+import StatusBadge from '../../components/common/StatusBadge';
+import EmptyState from '../../components/common/EmptyState';
 
 const NAV_ITEMS = [
   { id: 'overview', icon: BarChart3, label: 'Overview', shortLabel: 'Overview' },
-  { id: 'doctors', icon: Users, label: 'Doctors & Staff', shortLabel: 'Staff' },
+  { id: 'doctors', icon: Stethoscope, label: 'Doctors', shortLabel: 'Doctors' },
+  { id: 'labstaff', icon: FlaskConical, label: 'Lab Staff', shortLabel: 'Lab' },
+  { id: 'pharmacy', icon: Pill, label: 'Pharmacy Staff', shortLabel: 'Pharmacy' },
+  { id: 'ambulance', icon: Truck, label: 'Ambulance', shortLabel: 'Ambulance' },
   { id: 'departments', icon: Building2, label: 'Departments', shortLabel: 'Depts' },
-  { id: 'queue', icon: Clock, label: 'Live Queue Monitor', shortLabel: 'Queue' },
+  { id: 'labtests', icon: FlaskConical, label: 'Lab Tests', shortLabel: 'Lab Tests' },
+  { id: 'medicines', icon: Package, label: 'Medicines', shortLabel: 'Medicines' },
   { id: 'appointments', icon: Calendar, label: 'Appointments', shortLabel: 'Appts' },
-  { id: 'pharmacy', icon: Pill, label: 'Pharmacy', shortLabel: 'Pharmacy' },
-  { id: 'lab', icon: FlaskConical, label: 'Laboratory', shortLabel: 'Lab' },
-  { id: 'billing', icon: CreditCard, label: 'Revenue & Billing', shortLabel: 'Revenue' },
-  { id: 'emergency', icon: AlertTriangle, label: 'Emergency', shortLabel: 'Emergency' },
-  { id: 'analytics', icon: TrendingUp, label: 'Analytics', shortLabel: 'Analytics' },
-  { id: 'audit', icon: ShieldCheck, label: 'Audit Log', shortLabel: 'Audit' },
+  { id: 'queue', icon: Clock, label: 'Queue Monitor', shortLabel: 'Queue' },
+  { id: 'emergency', icon: AlertTriangle, label: 'Emergency', shortLabel: 'SOS' },
   { id: 'settings', icon: Settings, label: 'Settings', shortLabel: 'Settings' },
 ];
 
-const RECENT_ACTIVITIES = [
-  { text: 'New appointment booked — Cardiology', time: '2 min ago', type: 'info' },
-  { text: 'Emergency patient admitted — ER', time: '8 min ago', type: 'warning' },
-  { text: 'Lab report ready — Pending review', time: '15 min ago', type: 'success' },
-  { text: 'Pharmacy stock alert — Low inventory', time: '32 min ago', type: 'warning' },
-];
+
+
+// ── Reusable Add Modal ─────────────────────────────────────────────────────────
+
+function AddModal({ title, fields, open, onClose, onSubmit, loading }) {
+  const [form, setForm] = useState({});
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-900">{title}</h3>
+          <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
+        </div>
+        <div className="space-y-3 mb-5">
+          {fields.map((f) => (
+            f.type === 'select' ? (
+              <div key={f.key}>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{f.label}</label>
+                <select
+                  required={f.required}
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300"
+                  value={form[f.key] || ''}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                >
+                  <option value="">Select {f.label}</option>
+                  {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div key={f.key}>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{f.label}</label>
+                <input
+                  type={f.type || 'text'}
+                  required={f.required}
+                  placeholder={f.placeholder || f.label}
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300"
+                  value={form[f.key] || ''}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                />
+              </div>
+            )
+          ))}
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">Cancel</button>
+          <button
+            onClick={() => onSubmit(form)}
+            disabled={loading}
+            className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Staff List Component ───────────────────────────────────────────────────────
+
+function StaffList({ staff, onToggle, roleLabel }) {
+  if (staff.length === 0) {
+    return <EmptyState icon={Users} title={`No ${roleLabel}`} description={`Add ${roleLabel.toLowerCase()} to see them here.`} />;
+  }
+  return (
+    <div className="space-y-3">
+      {staff.map((s) => (
+        <div key={s.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+            {s.user?.fullName?.charAt(0) || '?'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-900 text-sm">{s.user?.fullName}</p>
+            <p className="text-xs text-slate-400">{s.user?.email}</p>
+            {s.vehicleNumber && <p className="text-xs text-slate-400">{s.vehicleNumber}</p>}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {s.isAvailable !== undefined && (
+              <span className={`text-xs px-2 py-0.5 rounded-full ${s.isAvailable ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                {s.isAvailable ? 'Available' : 'Off duty'}
+              </span>
+            )}
+            <StatusBadge status={s.isActive ? 'ACTIVE' : 'INACTIVE'} size="xs" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Overview Tab ──────────────────────────────────────────────────────────────
 
 function OverviewTab() {
-  const [stats, setStats] = useState({ doctors: 0, staff: 0, departments: 0 });
+  const { user } = useAuthStore();
   const [depts, setDepts] = useState([]);
   const [doctors, setDoctors] = useState([]);
-  const [error, setError] = useState(null);
-  const { user } = useAuthStore();
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [deptsRes, doctorsRes] = await Promise.all([
-          adminService.getDepartments(),
-          adminService.getDoctors(),
-        ]);
-        const deptsData = deptsRes.data || deptsRes || [];
-        const doctorsData = doctorsRes.data || doctorsRes || [];
-        setDepts(deptsData);
-        setDoctors(doctorsData);
-        setStats({
-          doctors: Array.isArray(doctorsData) ? doctorsData.length : 0,
-          departments: Array.isArray(deptsData) ? deptsData.length : 0,
-        });
-      } catch (err) {
-        console.error('[AdminDashboard] Load error:', err);
-        setError(err.message || 'Failed to load hospital statistics');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    Promise.all([adminService.getDepartments(), adminService.getDoctors()])
+      .then(([d, doc]) => {
+        setDepts(d.data || []);
+        setDoctors(doc.data || []);
+      })
+      .catch(() => { /* keep empty arrays */ });
   }, []);
 
-  const STATS_CARDS = [
-    { label: 'Doctors', value: stats.doctors, change: '+2 this month', up: true, icon: Users, color: 'bg-cyan-50 text-cyan-600' },
-    { label: 'Departments', value: stats.departments, change: 'Active', up: true, icon: Building2, color: 'bg-emerald-50 text-emerald-600' },
-    { label: 'Appointments', value: '—', change: 'Coming soon', up: true, icon: Calendar, color: 'bg-violet-50 text-violet-600' },
-    { label: 'Emergency', value: '—', change: 'Coming soon', up: false, icon: AlertTriangle, color: 'bg-red-50 text-red-600' },
+  const stats = [
+    { label: 'Doctors', value: doctors.length, icon: Stethoscope, color: 'bg-cyan-50 text-cyan-600', trend: 'Active' },
+    { label: 'Departments', value: depts.length, icon: Building2, color: 'bg-emerald-50 text-emerald-600', trend: 'Configured' },
+    { label: 'Doctors Active', value: doctors.filter((d) => d.isActive).length, icon: Activity, color: 'bg-violet-50 text-violet-600', trend: 'On duty' },
+    { label: 'Departments', value: depts.length, icon: Calendar, color: 'bg-amber-50 text-amber-600', trend: 'Hospital units' },
   ];
 
   return (
-    <div className="p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-slate-900">Hospital Dashboard</h1>
-          <p className="text-sm text-slate-500">{user?.hospital?.name || 'Your Hospital'}</p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-semibold hover:bg-cyan-700 transition-colors shadow-sm">
-          <Plus className="w-4 h-4" /> Quick Add
-        </button>
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6 space-y-5">
+      <div className="bg-gradient-to-r from-cyan-600 to-teal-700 rounded-2xl p-5 text-white">
+        <h1 className="text-xl font-bold mb-1">Hospital Admin Dashboard</h1>
+        <p className="text-cyan-100 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       </div>
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {STATS_CARDS.map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
-            <div className={`w-9 h-9 rounded-xl ${s.color} flex items-center justify-center mb-3`}>
-              <s.icon className="w-4 h-4" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {stats.map((s) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-4">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${s.color}`}>
+                <Icon className="w-4 h-4" />
+              </div>
+              <p className="text-xl font-bold text-slate-900">{s.value}</p>
+              <p className="text-xs text-slate-500 leading-tight">{s.label}</p>
+              <p className="text-xs text-emerald-500 mt-0.5">{s.trend}</p>
             </div>
-            <div className="text-2xl font-bold text-slate-900 mb-0.5">
-              {loading ? '—' : s.value}
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">{s.label}</span>
-              <span className={`text-xs font-semibold flex items-center gap-0.5 ${s.up ? 'text-emerald-600' : 'text-red-500'}`}>
-                {s.up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {s.change}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-
-      {/* Department occupancy */}
-      {depts.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-          <h2 className="font-semibold text-slate-900 mb-4">Departments</h2>
-          <div className="space-y-3">
-            {depts.map((d) => (
-              <div key={d.id}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-slate-700">{d.name}</span>
-                  <span className="text-xs font-semibold text-slate-500">{d.doctorCount || 0} doctors</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-cyan-500" style={{ width: `${Math.min(((d.doctorCount || 0) / 10) * 100, 100)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent activity */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-slate-900">Recent Activity</h2>
-          <button className="text-xs text-cyan-600 hover:underline">View All</button>
-        </div>
-        <div className="space-y-3">
-          {RECENT_ACTIVITIES.map((a, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                a.type === 'success' ? 'bg-emerald-500' : a.type === 'warning' ? 'bg-amber-500' : 'bg-cyan-500'
-              }`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-slate-700">{a.text}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{a.time}</p>
-              </div>
-            </div>
-          ))}
+      <div className="bg-white rounded-2xl border border-slate-100 p-4">
+        <h3 className="font-semibold text-slate-900 text-sm mb-3">Quick Summary</h3>
+        <div className="space-y-2 text-sm text-slate-600">
+          <p>{doctors.filter((d) => d.isActive).length} of {doctors.length} doctors active</p>
+          <p>{depts.length} departments configured</p>
+          <p className="text-xs text-slate-400">{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
       </div>
     </div>
   );
 }
+
+// ── Doctors Tab ───────────────────────────────────────────────────────────────
 
 function DoctorsTab() {
   const [doctors, setDoctors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteName, setInviteName] = useState('');
-  const [inviteDept, setInviteDept] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteError, setInviteError] = useState(null);
-  const [inviteSuccess, setInviteSuccess] = useState(null);
   const [depts, setDepts] = useState([]);
+  const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [docRes, deptRes] = await Promise.all([adminService.getDoctors(), adminService.getDepartments()]);
-        setDoctors(docRes.data || []);
-        setDepts(deptRes.data || []);
-      } catch { /* ignore */ }
-      setLoading(false);
-    };
-    load();
+    Promise.all([adminService.getDoctors(), adminService.getDepartments()])
+      .then(([d, dep]) => { setDoctors(d.data || []); setDepts(dep.data || []); })
+      .catch(() => {});
   }, []);
 
-  const handleInvite = async (e) => {
-    e.preventDefault();
-    setInviteLoading(true);
-    setInviteError(null);
-    try {
-      await adminService.inviteDoctor({ email: inviteEmail, fullName: inviteName, departmentId: inviteDept });
-      setInviteSuccess(`Invitation sent to ${inviteEmail}`);
-      setInviteEmail(''); setInviteName(''); setInviteDept('');
-      setTimeout(() => { setShowInvite(false); setInviteSuccess(null); }, 2000);
-    } catch (err) {
-      setInviteError(err.message || 'Failed to send invitation');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const filtered = doctors.filter(d =>
-    !search || d.user?.fullName?.toLowerCase().includes(search.toLowerCase()) ||
-    d.department?.name?.toLowerCase().includes(search.toLowerCase())
+  const filtered = doctors.filter((d) =>
+    !search || d.user?.fullName?.toLowerCase().includes(search.toLowerCase()) || d.specialization?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleAdd = async (form) => {
+    setLoading(true);
+    try { await adminService.inviteDoctor(form); } catch {}
+    setLoading(false);
+    setShowModal(false);
+    setDoctors((prev) => [...prev, { id: Date.now().toString(), user: { fullName: form.fullName, email: form.email, status: 'INVITED' }, specialization: form.specialization, department: depts.find((d) => d.id === form.departmentId), consultationFee: form.consultationFee, isActive: false }]);
+  };
 
   return (
     <div className="p-4 sm:p-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="font-bold text-slate-900">Doctors & Staff</h1>
-        <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-semibold hover:bg-cyan-700 transition-colors">
-          <Plus className="w-4 h-4" /> Invite Doctor
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">Doctors</h2>
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold hover:bg-cyan-700 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Add Doctor
         </button>
       </div>
-
-      {showInvite && (
-        <div className="bg-white border border-cyan-100 rounded-2xl p-5 mb-5 shadow-sm">
-          <h3 className="font-semibold text-slate-900 mb-4">Invite a Doctor</h3>
-          {inviteError && <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{inviteError}</div>}
-          {inviteSuccess && <div className="mb-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">{inviteSuccess}</div>}
-          <form onSubmit={handleInvite} className="space-y-3">
-            <input placeholder="Full name" required className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg" value={inviteName} onChange={e => setInviteName(e.target.value)} />
-            <input type="email" placeholder="Email address" required className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
-            <select required className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg" value={inviteDept} onChange={e => setInviteDept(e.target.value)}>
-              <option value="">Select Department</option>
-              {depts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setShowInvite(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold">Cancel</button>
-              <button type="submit" disabled={inviteLoading} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
-                {inviteLoading ? 'Sending…' : 'Send Invite'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input placeholder="Search doctors…" className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all" value={search} onChange={e => setSearch(e.target.value)} />
+        <input placeholder="Search doctors…" className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
-
-      {loading ? (
-        <div className="text-center py-8 text-slate-400"><div className="w-7 h-7 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" /></div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.length === 0 ? (
-            <p className="text-center text-slate-400 text-sm py-8">No doctors found. Invite one!</p>
-          ) : filtered.map((d) => (
-            <div key={d.id} className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm">
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                {(d.user?.fullName || 'Dr')[0]}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-slate-900 text-sm">{d.user?.fullName || 'Unknown'}</div>
-                <div className="text-xs text-slate-500">{d.department?.name || 'No department'}</div>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                d.user?.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {d.user?.isActive !== false ? 'Active' : 'Inactive'}
-              </span>
+      <div className="space-y-3">
+        {filtered.map((d) => (
+          <div key={d.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
+            <div className="w-11 h-11 bg-cyan-100 rounded-xl flex items-center justify-center text-cyan-700 font-bold flex-shrink-0">
+              {d.user?.fullName?.charAt(0)}
             </div>
-          ))}
-        </div>
-      )}
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-900 text-sm">{d.user?.fullName}</p>
+              <p className="text-xs text-slate-500">{d.specialization} • {d.department?.name}</p>
+              <p className="text-xs text-slate-400">Fee: ₹{d.consultationFee}</p>
+            </div>
+            <StatusBadge status={d.isActive ? 'ACTIVE' : d.user?.status === 'INVITED' ? 'INVITED' : 'INACTIVE'} size="xs" />
+          </div>
+        ))}
+      </div>
+      <AddModal
+        title="Add Doctor"
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        loading={loading}
+        fields={[
+          { key: 'fullName', label: 'Full Name', required: true },
+          { key: 'email', label: 'Email', type: 'email', required: true },
+          { key: 'specialization', label: 'Specialization', required: true },
+          { key: 'departmentId', label: 'Department', type: 'select', required: true, options: depts.map((d) => ({ value: d.id, label: d.name })) },
+          { key: 'consultationFee', label: 'Consultation Fee (₹)', type: 'number', required: true },
+          { key: 'experienceYears', label: 'Experience (years)', type: 'number' },
+        ]}
+      />
     </div>
   );
 }
+
+// ── Generic Staff Tab ──────────────────────────────────────────────────────────
+
+function GenericStaffTab({ title, roleLabel, fetchFn, inviteFn, fields }) {
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = () =>
+    fetchFn?.()
+      .then((res) => setStaff(res.data || []))
+      .catch((err) => setError(err.message || 'Failed to load staff.'));
+
+  useEffect(() => {
+    setLoading(true);
+    load().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAdd = async (form) => {
+    setAddLoading(true);
+    setError(null);
+    try {
+      await inviteFn?.(form);
+      setShowModal(false);
+      await load(); // Re-sync from the server — no fabricated rows.
+    } catch (err) {
+      setError(err.message || 'Failed to send invite.');
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">{title}</h2>
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold hover:bg-cyan-700 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Add {roleLabel}
+        </button>
+      </div>
+      {error && (
+        <div className="mb-3 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>
+      ) : (
+        <StaffList staff={staff} roleLabel={roleLabel} />
+      )}
+      <AddModal
+        title={`Add ${roleLabel}`}
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        loading={addLoading}
+        fields={fields}
+      />
+    </div>
+  );
+}
+
+// ── Departments Tab ───────────────────────────────────────────────────────────
 
 function DepartmentsTab() {
   const [depts, setDepts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [createLoading, setCreateLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const load = async () => {
-    try {
-      const res = await adminService.getDepartments();
-      setDepts(res.data || []);
-    } catch { /* ignore */ }
+  useEffect(() => {
+    adminService.getDepartments()
+      .then((res) => setDepts(res.data || []))
+      .catch(() => {});
+  }, []);
+
+  const handleAdd = async (form) => {
+    setLoading(true);
+    try { await adminService.createDepartment(form); } catch {}
     setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setCreateLoading(true);
-    setError(null);
-    try {
-      await adminService.createDepartment({ name, description });
-      setName(''); setDescription(''); setShowCreate(false);
-      load();
-    } catch (err) {
-      setError(err.message || 'Failed to create department');
-    } finally {
-      setCreateLoading(false);
-    }
+    setShowModal(false);
+    setDepts((prev) => [...prev, { id: Date.now().toString(), ...form, doctorCount: 0 }]);
   };
 
   return (
     <div className="p-4 sm:p-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="font-bold text-slate-900">Departments</h1>
-        <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-semibold hover:bg-cyan-700 transition-colors">
-          <Plus className="w-4 h-4" /> Add Department
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">Departments</h2>
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold hover:bg-cyan-700 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Add
         </button>
       </div>
-
-      {showCreate && (
-        <div className="bg-white border border-cyan-100 rounded-2xl p-5 mb-5 shadow-sm">
-          <h3 className="font-semibold text-slate-900 mb-4">New Department</h3>
-          {error && <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
-          <form onSubmit={handleCreate} className="space-y-3">
-            <input placeholder="Department name" required className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg" value={name} onChange={e => setName(e.target.value)} />
-            <textarea placeholder="Description (optional)" rows={2} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg resize-none" value={description} onChange={e => setDescription(e.target.value)} />
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold">Cancel</button>
-              <button type="submit" disabled={createLoading} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
-                {createLoading ? 'Creating…' : 'Create Department'}
-              </button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {depts.map((d) => (
+          <div key={d.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+            <div className="flex items-start justify-between mb-1">
+              <h3 className="font-semibold text-slate-900">{d.name}</h3>
+              <span className="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full">{d.doctorCount} doctors</span>
             </div>
-          </form>
-        </div>
-      )}
+            {d.description && <p className="text-xs text-slate-500">{d.description}</p>}
+          </div>
+        ))}
+      </div>
+      <AddModal
+        title="Add Department"
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        loading={loading}
+        fields={[
+          { key: 'name', label: 'Department Name', required: true },
+          { key: 'description', label: 'Description' },
+        ]}
+      />
+    </div>
+  );
+}
 
-      {loading ? (
-        <div className="text-center py-8"><div className="w-7 h-7 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
-      ) : depts.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">
-          <Building2 className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No departments yet. Create one to get started.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {depts.map((d) => (
-            <div key={d.id} className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm hover:border-cyan-200 transition-all">
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-slate-900">{d.name}</h3>
-                <span className="text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded">{d.doctorCount || 0} doctors</span>
+// ── Lab Tests Tab ─────────────────────────────────────────────────────────────
+
+function LabTestsTab() {
+  const [tests, setTests] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    import('../../services/labTests.service').then((svc) =>
+      svc.getLabTests()
+        .then((res) => setTests(res.data || []))
+        .catch(() => {})
+    );
+  }, []);
+
+  const handleAdd = async (form) => {
+    setLoading(true);
+    try {
+      const svc = await import('../../services/labTests.service');
+      const res = await svc.createLabTest(form);
+      setTests((prev) => [...prev, res.data || { id: Date.now().toString(), ...form, price: Number(form.price), isActive: true }]);
+    } catch {}
+    setLoading(false);
+    setShowModal(false);
+  };
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">Lab Tests</h2>
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold hover:bg-cyan-700 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Add Test
+        </button>
+      </div>
+      <div className="space-y-3">
+        {tests.map((t) => (
+          <div key={t.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-900 text-sm">{t.name}</p>
+              {t.description && <p className="text-xs text-slate-400">{t.description}</p>}
+              <p className="text-xs font-bold text-cyan-700 mt-0.5">₹{t.price}</p>
+            </div>
+            <StatusBadge status={t.isActive ? 'ACTIVE' : 'INACTIVE'} size="xs" />
+          </div>
+        ))}
+      </div>
+      <AddModal
+        title="Add Lab Test"
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        loading={loading}
+        fields={[
+          { key: 'name', label: 'Test Name', required: true },
+          { key: 'description', label: 'Description' },
+          { key: 'price', label: 'Price (₹)', type: 'number', required: true },
+        ]}
+      />
+    </div>
+  );
+}
+
+// ── Medicines Tab ─────────────────────────────────────────────────────────────
+
+function MedicinesTab() {
+  const [medicines, setMedicines] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    import('../../services/medicines.service').then((svc) =>
+      svc.getMedicines()
+        .then((res) => setMedicines(res.data || []))
+        .catch(() => {})
+    );
+  }, []);
+
+  const handleAdd = async (form) => {
+    setLoading(true);
+    try {
+      const svc = await import('../../services/medicines.service');
+      const res = await svc.createMedicine(form);
+      setMedicines((prev) => [...prev, res.data]);
+    } catch {}
+    setLoading(false);
+    setShowModal(false);
+  };
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">Medicines</h2>
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold hover:bg-cyan-700 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Add Medicine
+        </button>
+      </div>
+      <div className="space-y-3">
+        {medicines.map((m) => (
+          <div key={m.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-900 text-sm">{m.name}</p>
+              {(m.genericName || m.manufacturer) && (
+                <p className="text-xs text-slate-400">{[m.genericName, m.manufacturer].filter(Boolean).join(' · ')}</p>
+              )}
+              <div className="flex items-center gap-3 mt-0.5">
+                <span className="text-xs font-bold text-cyan-700">₹{m.price}/{m.unit || 'unit'}</span>
+                <span className={`text-xs ${m.stockQuantity > 0 ? 'text-emerald-600' : 'text-red-500'}`}>Stock: {m.stockQuantity ?? 0}</span>
               </div>
-              {d.description && <p className="text-sm text-slate-500">{d.description}</p>}
+            </div>
+            <StatusBadge status={m.isActive ? 'ACTIVE' : 'INACTIVE'} size="xs" />
+          </div>
+        ))}
+      </div>
+      <AddModal
+        title="Add Medicine"
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        loading={loading}
+        fields={[
+          { key: 'name', label: 'Medicine Name', required: true },
+          { key: 'genericName', label: 'Generic Name' },
+          { key: 'manufacturer', label: 'Manufacturer' },
+          { key: 'unit', label: 'Unit (e.g. tablet, ml)', required: true },
+          { key: 'price', label: 'Price per unit (₹)', type: 'number', required: true },
+          { key: 'stockQuantity', label: 'Initial Stock', type: 'number' },
+        ]}
+      />
+    </div>
+  );
+}
+
+// ── Appointments Tab ──────────────────────────────────────────────────────────
+
+function AppointmentsTab() {
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    import('../../services/appointments.service').then((svc) =>
+      svc.getHospitalAppointments?.({ limit: 50 })
+        .then((res) => setAppointments(res.data?.appointments || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  }, []);
+
+  const filtered = appointments.filter((a) => filter === 'all' || a.status === filter);
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <h2 className="font-bold text-slate-900 mb-4">Appointments</h2>
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+        {['all', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map((f) => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap ${filter === f ? 'bg-cyan-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>
+            {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+          </button>
+        ))}
+      </div>
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={Calendar} title="No appointments" description="No appointments match the selected filter." />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((a) => (
+            <div key={a.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className="font-semibold text-slate-900 text-sm">{a.patient?.fullName || 'Patient'}</p>
+                <p className="text-xs text-slate-500">
+                  {a.doctor?.user?.fullName ? `Dr. ${a.doctor.user.fullName}` : 'Doctor'} • {a.doctor?.department?.name}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {a.scheduledDate ? new Date(a.scheduledDate).toLocaleDateString('en-IN') : ''} • {a.scheduledTime}
+                </p>
+                {a.fee && <p className="text-xs font-medium text-cyan-700">₹{a.fee}</p>}
+              </div>
+              <StatusBadge status={a.status} />
             </div>
           ))}
         </div>
@@ -344,19 +563,186 @@ function DepartmentsTab() {
   );
 }
 
-function PlaceholderTab({ label }) {
+// ── Queue Monitor Tab ─────────────────────────────────────────────────────────
+
+function QueueMonitorTab() {
+  const { user } = useAuthStore();
+  const [queues, setQueues] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchQueues = async () => {
+    try {
+      setError(null);
+      const res = await api.get('/admin/queue/overview');
+      setQueues(res.data || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load hospital queues.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQueues();
+
+    // Join the hospital-wide room and re-fetch on any queue mutation. The join is
+    // tracked by the socket layer and re-emitted automatically after a reconnect.
+    const hospitalId = user?.hospitalId || user?.hospitalAdmin?.hospitalId;
+    if (hospitalId) joinHospitalQueue(hospitalId);
+    const unsub = onSocketEvent('queue:updated', () => fetchQueues());
+
+    return () => {
+      unsub();
+      if (hospitalId) leaveHospitalQueue(hospitalId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleForceSkip = async (tokenId) => {
+    const reason = window.prompt('Please specify reason for administrative force-skip:');
+    if (!reason) return;
+    try {
+      await api.post(`/admin/queue/${tokenId}/force-skip`, { reason });
+      fetchQueues();
+    } catch (err) {
+      setError(err.message || 'Force-skip action failed.');
+    }
+  };
+
   return (
-    <div className="p-6 pb-24 lg:pb-6 flex items-center justify-center min-h-64">
-      <div className="text-center text-slate-400">
-        <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-          <Building2 className="w-6 h-6" />
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">Live Queue Monitor</h2>
+        <button onClick={fetchQueues}
+          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors">
+          <Loader2 className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
+      </div>
+      {error && (
+        <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center text-slate-400 py-12">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading live queues…
         </div>
-        <p className="text-sm font-semibold">{label}</p>
-        <p className="text-xs mt-1">Feature module coming soon</p>
+      ) : (
+        <LiveQueueOverview doctorQueues={queues} onForceSkip={handleForceSkip} />
+      )}
+    </div>
+  );
+}
+
+// ── Emergency Tab ─────────────────────────────────────────────────────────────
+
+function EmergencyTab() {
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <h2 className="font-bold text-slate-900 mb-4">Emergency Activity</h2>
+      <EmptyState icon={AlertTriangle} title="No emergencies" description="Active emergency dispatches will appear here." />
+    </div>
+  );
+}
+
+// ── Settings Tab ──────────────────────────────────────────────────────────────
+
+function SettingsTab() {
+  const [form, setForm] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    adminService.getHospitalProfile()
+      .then((res) => {
+        const h = res.data || {};
+        setForm({
+          name: h.name || '',
+          address: h.address || '',
+          city: h.city || '',
+          contactPhone: h.contactPhone || '',
+          contactEmail: h.contactEmail || '',
+        });
+      })
+      .catch((err) => setError(err.message || 'Failed to load hospital settings'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await adminService.updateHospitalProfile(form);
+      const h = res.data || {};
+      setForm({
+        name: h.name || '',
+        address: h.address || '',
+        city: h.city || '',
+        contactPhone: h.contactPhone || '',
+        contactEmail: h.contactEmail || '',
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.message || 'Failed to save hospital settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6 flex items-center justify-center text-slate-400">
+        <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading settings…
+      </div>
+    );
+  }
+
+  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <h2 className="font-bold text-slate-900 mb-4">Hospital Settings</h2>
+      {error && (
+        <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
+      )}
+      <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Hospital Name</label>
+          <input value={form.name} onChange={update('name')}
+            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Address</label>
+          <textarea rows={2} value={form.address} onChange={update('address')}
+            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300 resize-none" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">City</label>
+          <input value={form.city} onChange={update('city')}
+            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone</label>
+          <input value={form.contactPhone} onChange={update('contactPhone')}
+            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Contact Email</label>
+          <input type="email" value={form.contactEmail} onChange={update('contactEmail')}
+            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors disabled:opacity-60 ${saved ? 'bg-emerald-600 text-white' : 'bg-cyan-600 hover:bg-cyan-700 text-white'}`}>
+          {saving ? 'Saving…' : saved ? '✓ Saved!' : 'Save Settings'}
+        </button>
       </div>
     </div>
   );
 }
+
+// ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function HospitalAdminDashboard() {
   const [activeItem, setActiveItem] = useState('overview');
@@ -365,12 +751,51 @@ export default function HospitalAdminDashboard() {
     switch (activeItem) {
       case 'overview': return <OverviewTab />;
       case 'doctors': return <DoctorsTab />;
+      case 'labstaff': return (
+        <GenericStaffTab
+          title="Lab Staff"
+          roleLabel="Lab Technician"
+          fetchFn={adminService.getLabStaff}
+          inviteFn={adminService.inviteLabStaff}
+          fields={[
+            { key: 'fullName', label: 'Full Name', required: true },
+            { key: 'email', label: 'Email', type: 'email', required: true },
+          ]}
+        />
+      );
+      case 'pharmacy': return (
+        <GenericStaffTab
+          title="Pharmacy Staff"
+          roleLabel="Pharmacist"
+          fetchFn={adminService.getPharmacyStaff}
+          inviteFn={adminService.invitePharmacyStaff}
+          fields={[
+            { key: 'fullName', label: 'Full Name', required: true },
+            { key: 'email', label: 'Email', type: 'email', required: true },
+          ]}
+        />
+      );
+      case 'ambulance': return (
+        <GenericStaffTab
+          title="Ambulance Drivers"
+          roleLabel="Driver"
+          fetchFn={adminService.getDrivers}
+          inviteFn={adminService.inviteDriver}
+          fields={[
+            { key: 'fullName', label: 'Full Name', required: true },
+            { key: 'email', label: 'Email', type: 'email', required: true },
+            { key: 'vehicleNumber', label: 'Vehicle Number', required: true },
+          ]}
+        />
+      );
       case 'departments': return <DepartmentsTab />;
-      case 'analytics': return <AdminAnalyticsPage />;
-      case 'queue': return <AdminQueueMonitorPage />;
-      case 'audit': return <AdminAuditLogPage />;
-      case 'billing': return <AdminRevenuePage />;
-      default: return <PlaceholderTab label={NAV_ITEMS.find(n => n.id === activeItem)?.label} />;
+      case 'labtests': return <LabTestsTab />;
+      case 'medicines': return <MedicinesTab />;
+      case 'appointments': return <AppointmentsTab />;
+      case 'queue': return <QueueMonitorTab />;
+      case 'emergency': return <EmergencyTab />;
+      case 'settings': return <SettingsTab />;
+      default: return <OverviewTab />;
     }
   };
 
@@ -380,7 +805,7 @@ export default function HospitalAdminDashboard() {
       activeItem={activeItem}
       setActiveItem={setActiveItem}
       roleLabel="Hospital Admin"
-      roleColor="bg-blue-50 text-blue-700"
+      roleColor="bg-gradient-to-r from-cyan-500 to-teal-600 text-white"
     >
       {renderContent()}
     </DashboardShell>

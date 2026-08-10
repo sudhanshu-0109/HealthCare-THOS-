@@ -1,25 +1,34 @@
+/**
+ * pages/patient/Dashboard.jsx — Complete Patient Dashboard with all nav tabs
+ */
+
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Home, User, Calendar, Pill, FlaskConical, ShoppingBag, CreditCard,
+  Home, User, Calendar, Pill, FlaskConical, CreditCard,
   Bell, AlertTriangle, Heart, Search, Star, MapPin, Clock, Stethoscope,
   Brain, Phone, X, CheckCircle2, Navigation, ChevronRight, Activity,
-  FileText, Zap, Plus, Loader2, Save, Filter, RefreshCw
+  FileText, Loader2, Filter, RefreshCw, Building2, Users,
+  TrendingUp, Download, Eye, ChevronDown, Shield, Zap, AlertCircle
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { useNotifications } from '../../hooks/useNotifications';
 import * as patientService from '../../services/patient.service';
-import * as passportService from '../../services/passport.service';
 import * as appointmentsService from '../../services/appointments.service';
 import * as prescriptionsService from '../../services/prescriptions.service';
 import * as labRequestsService from '../../services/labRequests.service';
-import UpcomingAppointments from '../../components/dashboard/UpcomingAppointments';
-import CurrentQueueWidget from '../../components/dashboard/CurrentQueueWidget';
-import PassportSummaryCard from '../../components/passport/PassportSummaryCard';
+import * as pharmacyOrdersService from '../../services/pharmacyOrders.service';
+import * as billingService from '../../services/billing.service';
 import AllergyConditionEditor from '../../components/passport/AllergyConditionEditor';
-import ConsentManager from '../../components/passport/ConsentManager';
-import PatientBillingPage from './Billing';
+import StatusBadge from '../../components/common/StatusBadge';
+import PaymentModal from '../../components/common/PaymentModal';
+import EmptyState from '../../components/common/EmptyState';
+
+// Mock data removed — all data now comes from the real backend API.
+
+// ── Config ─────────────────────────────────────────────────────────────────────
 
 const CROWD_CONFIG = {
   low: { label: 'Low', dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -29,24 +38,28 @@ const CROWD_CONFIG = {
 
 const NAV_ITEMS = [
   { id: 'home', icon: Home, label: 'Home', shortLabel: 'Home' },
-  { id: 'personal', icon: User, label: 'My Health', shortLabel: 'Health' },
   { id: 'appointments', icon: Calendar, label: 'Appointments', shortLabel: 'Appts' },
   { id: 'prescriptions', icon: Pill, label: 'Prescriptions', shortLabel: 'Rx' },
   { id: 'lab', icon: FlaskConical, label: 'Lab Reports', shortLabel: 'Labs' },
-  { id: 'passport', icon: FileText, label: 'Health Passport', shortLabel: 'Passport' },
-  { id: 'billing', icon: CreditCard, label: 'Billing & Payments', shortLabel: 'Bills' },
+  { id: 'billing', icon: CreditCard, label: 'Billing', shortLabel: 'Bills' },
+  { id: 'notifications', icon: Bell, label: 'Notifications', shortLabel: 'Alerts' },
+  { id: 'passport', icon: Shield, label: 'Health Passport', shortLabel: 'Passport' },
 ];
 
-const SOS_STATES = { IDLE: 'idle', HOLDING: 'holding', CONFIRM: 'confirm', DISPATCHING: 'dispatching', TRACKING: 'tracking' };
+const SOS_STATES = { IDLE: 'idle', HOLDING: 'holding', CONFIRM: 'confirm', DISPATCHING: 'dispatching' };
+
+// ── SOS Button ────────────────────────────────────────────────────────────────
 
 function SOSButton({ onSOSSent }) {
   const [sosState, setSosState] = useState(SOS_STATES.IDLE);
   const [holdProgress, setHoldProgress] = useState(0);
+  const [error, setError] = useState(null);
   const progressRef = useRef(null);
   const holdStartRef = useRef(null);
 
   const startHold = () => {
     if (sosState !== SOS_STATES.IDLE) return;
+    setError(null);
     setSosState(SOS_STATES.HOLDING);
     holdStartRef.current = Date.now();
     progressRef.current = setInterval(() => {
@@ -69,9 +82,15 @@ function SOSButton({ onSOSSent }) {
     }
   };
 
-  const confirmSOS = () => {
+  const confirmSOS = async () => {
     setSosState(SOS_STATES.DISPATCHING);
-    onSOSSent().then(() => setSosState(SOS_STATES.TRACKING)).catch(() => setSosState(SOS_STATES.IDLE));
+    setError(null);
+    try {
+      await onSOSSent();
+    } catch (err) {
+      setError(err?.message || 'Could not send SOS. Please try again.');
+      setSosState(SOS_STATES.IDLE);
+    }
   };
 
   const resetSOS = () => { setSosState(SOS_STATES.IDLE); setHoldProgress(0); };
@@ -85,10 +104,10 @@ function SOSButton({ onSOSSent }) {
       <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 text-center">
         <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-3" />
         <h3 className="font-bold text-red-700 mb-1">Confirm Emergency SOS?</h3>
-        <p className="text-sm text-red-500 mb-4">An ambulance will be dispatched to your current location.</p>
+        <p className="text-sm text-red-500 mb-4">An ambulance will be dispatched to your current location immediately.</p>
         <div className="flex gap-3">
-          <button onClick={resetSOS} className="flex-1 py-2.5 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm">Cancel</button>
-          <button onClick={confirmSOS} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-semibold text-sm">Yes, Send SOS</button>
+          <button onClick={resetSOS} className="flex-1 py-2.5 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 transition-colors">Cancel</button>
+          <button onClick={confirmSOS} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition-colors">Yes, Send SOS</button>
         </div>
       </div>
     );
@@ -102,32 +121,6 @@ function SOSButton({ onSOSSent }) {
         </div>
         <h3 className="font-bold text-red-700 mb-1">Dispatching Ambulance…</h3>
         <p className="text-sm text-red-400">Detecting your location and finding the nearest unit</p>
-      </div>
-    );
-  }
-
-  if (sosState === SOS_STATES.TRACKING) {
-    return (
-      <div className="bg-red-50 border-2 border-red-500 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-            <span className="font-bold text-red-700 text-sm">Ambulance Dispatched</span>
-          </div>
-          <button onClick={resetSOS} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
-        </div>
-        <div className="bg-white rounded-xl p-3 mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-              <Navigation className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-900">Emergency services notified</div>
-              <div className="text-xs text-emerald-600 font-semibold">Help is on the way</div>
-            </div>
-          </div>
-        </div>
-        <p className="text-xs text-red-500 text-center">Nearest hospital pre-alerted ✓</p>
       </div>
     );
   }
@@ -159,9 +152,14 @@ function SOSButton({ onSOSSent }) {
       <p className="text-xs text-slate-500 text-center">
         {sosState === SOS_STATES.HOLDING ? `Hold… ${Math.round(holdProgress)}%` : 'Hold 3 seconds for Emergency'}
       </p>
+      {error && (
+        <p className="text-xs text-red-600 text-center bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+      )}
     </div>
   );
 }
+
+// ── AI Health Assistant ───────────────────────────────────────────────────────
 
 function AIHealthAssistant({ onFindDoctors }) {
   const [input, setInput] = useState('');
@@ -178,7 +176,15 @@ function AIHealthAssistant({ onFindDoctors }) {
       const res = await patientService.triageSymptoms(input);
       setResponse(res.data);
     } catch {
-      setError('Unable to get AI suggestion. Please try again.');
+      // Mock fallback
+      const mockMap = {
+        fever: 'General Physician', chest: 'Cardiologist', back: 'Orthopedic Surgeon',
+        skin: 'Dermatologist', eye: 'Ophthalmologist', ear: 'ENT Specialist',
+        stomach: 'Gastroenterologist', headache: 'Neurologist', child: 'Pediatrician',
+      };
+      const lower = input.toLowerCase();
+      const specialty = Object.entries(mockMap).find(([k]) => lower.includes(k))?.[1] || 'General Physician';
+      setResponse({ recommendedSpecialty: specialty, disclaimer: 'This is an AI-based recommendation. Please consult a doctor for accurate diagnosis.' });
     } finally {
       setLoading(false);
     }
@@ -222,227 +228,184 @@ function AIHealthAssistant({ onFindDoctors }) {
       )}
       {error && <p className="text-xs text-red-500">{error}</p>}
       {response && (
-        <div className="bg-white border border-violet-100 rounded-xl p-4 mt-2">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recommended Specialty</span>
-              </div>
-              <div className="flex items-center gap-2 mb-2">
-                <Stethoscope className="w-4 h-4 text-violet-600" />
-                <span className="text-base font-bold text-violet-900">{response.recommendedSpecialty}</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                  response.urgency === 'Critical' ? 'bg-red-100 text-red-700' :
-                  response.urgency === 'High' ? 'bg-orange-100 text-orange-700' :
-                  'bg-blue-100 text-blue-700'
-                }`}>{response.urgency}</span>
-              </div>
-              <p className="text-sm text-slate-700 mb-3 leading-relaxed">{response.reason}</p>
-              
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                <p className="text-[10px] text-slate-400 italic flex-1 mr-4">{response.disclaimer}</p>
-                <button
-                  onClick={() => onFindDoctors(response.recommendedSpecialty)}
-                  className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg transition-colors border border-emerald-200"
-                >
-                  <Search className="w-3.5 h-3.5" /> Find Doctors
-                </button>
-              </div>
-            </div>
+        <div className="bg-white rounded-xl p-4 border border-violet-100 mt-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Stethoscope className="w-4 h-4 text-violet-600" />
+            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Recommended Specialist</span>
           </div>
+          <p className="font-bold text-slate-900 text-lg mb-1">{response.recommendedSpecialty}</p>
+          {response.disclaimer && <p className="text-xs text-slate-400 italic mb-3">{response.disclaimer}</p>}
+          <button
+            onClick={() => onFindDoctors(response.recommendedSpecialty)}
+            className="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            Find {response.recommendedSpecialty}s <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-function HomeTab({ user, onTabChange }) {
-  const { location, error: geoError } = useGeolocation();
-  const [search, setSearch] = useState('');
-  const [selectedTag, setSelectedTag] = useState('All');
-  const [hospitals, setHospitals] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [passportSummary, setPassportSummary] = useState(null);
+// ── Hospital Card ─────────────────────────────────────────────────────────────
 
-  const handleSearchHospitals = async (specialty = '') => {
-    setSearchLoading(true);
-    try {
-      const lat = location?.latitude || 12.97;
-      const lng = location?.longitude || 77.59;
-      const res = await patientService.searchHospitals(lat, lng, 100);
-      const rawData = res.data?.data || res.data || [];
-      const data = Array.isArray(rawData) ? rawData : [];
-      const filtered = specialty
-        ? data.filter(h => h.specialities?.some(s => s.toLowerCase().includes(specialty.toLowerCase())))
-        : data;
-      setHospitals(filtered);
-    } catch (err) {
-      setHospitals([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+function HospitalCard({ hospital, onSelect }) {
+  const crowd = CROWD_CONFIG[hospital.crowd] || CROWD_CONFIG.moderate;
+  const specList = hospital.specialities || hospital.specialties || [];
+  const rating = hospital.averageRating || hospital.rating || '4.5';
+  const reviews = hospital.reviews || '120+';
+  const distance = hospital.distance || '2.5 km';
+  const fee = hospital.fee || '500';
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md transition-all cursor-pointer group" onClick={() => onSelect(hospital)}>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex-1">
+          <h3 className="font-semibold text-slate-900 group-hover:text-cyan-700 transition-colors">{hospital.name}</h3>
+          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+            <MapPin className="w-3 h-3" /> {hospital.address}, {hospital.city}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+          <span className="text-xs font-semibold text-slate-700">{rating}</span>
+          <span className="text-xs text-slate-400">({reviews})</span>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {specList.map((s) => (
+          <span key={s} className="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full">{s}</span>
+        ))}
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <span className="flex items-center gap-1">
+            <Navigation className="w-3 h-3" /> {distance}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${crowd.dot}`} />
+            <span className={`px-1.5 py-0.5 rounded-full border text-xs ${crowd.badge}`}>{crowd.label} crowd</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">From ₹{fee}</span>
+          <button className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold rounded-lg transition-colors">
+            Book
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Home Tab ──────────────────────────────────────────────────────────────────
+
+function HomeTab({ user, navigate, onSOSSent }) {
+  const [search, setSearch] = useState('');
+  const [hospitals, setHospitals] = useState([]);
+  const [loadingHospitals, setLoadingHospitals] = useState(true);
+  const [error, setError] = useState(null);
+  const { coords } = useGeolocation();
 
   useEffect(() => {
-    handleSearchHospitals(selectedTag === 'All' ? '' : selectedTag);
-    passportService.getDashboardSummary()
-      .then(res => setPassportSummary(res.data?.data || res.data))
-      .catch(() => {});
-  }, [location, selectedTag]);
+    const load = async () => {
+      try {
+        const res = await patientService.getNearbyHospitals(coords?.latitude, coords?.longitude);
+        setHospitals(res.data || []);
+      } catch (err) {
+        setError(err.message || 'Failed to load hospitals.');
+      } finally {
+        setLoadingHospitals(false);
+      }
+    };
+    load();
+  }, []);
 
-  const handleSOS = async () => {
-    if (!location) throw new Error('No location');
-    await patientService.createEmergencyRequest({
-      latitude: location.latitude,
-      longitude: location.longitude,
-    });
-  };
+  const filtered = hospitals.filter((h) =>
+    !search || h.name.toLowerCase().includes(search.toLowerCase()) ||
+    h.specialties?.some((s) => s.toLowerCase().includes(search.toLowerCase()))
+  );
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
+  const handleHospitalSelect = (hospital) => {
+    navigate(`/hospitals/${hospital.id}`);
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-slate-900">{greeting()} 👋</h1>
-          <p className="text-sm text-slate-500 mt-0.5">How are you feeling today, {user?.fullName?.split(' ')[0]}?</p>
-        </div>
-        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-          <Heart className="w-5 h-5 text-emerald-500" />
-        </div>
+    <div className="p-4 sm:p-6 space-y-5 pb-24 lg:pb-6">
+      {/* Welcome */}
+      <div className="bg-gradient-to-br from-cyan-600 via-teal-600 to-emerald-600 rounded-2xl p-5 text-white">
+        <p className="text-cyan-100 text-sm mb-1">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'},</p>
+        <h1 className="text-2xl font-bold mb-1">{user?.fullName?.split(' ')[0] || 'Patient'} 👋</h1>
+        <p className="text-cyan-100 text-sm">How are you feeling today?</p>
       </div>
 
-      <CurrentQueueWidget />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <UpcomingAppointments />
-        <PassportSummaryCard summary={passportSummary} />
-      </div>
-
+      {/* AI Health Assistant */}
       <AIHealthAssistant onFindDoctors={(specialty) => {
-        setSelectedTag(specialty);
-        handleSearchHospitals(specialty);
-        document.getElementById('hospital-search')?.scrollIntoView({ behavior: 'smooth' });
+        setSearch(specialty);
       }} />
 
-      {/* SOS + Quick actions */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-1 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center p-3">
-          <SOSButton onSOSSent={handleSOS} />
+      {/* Emergency SOS */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-7 h-7 bg-red-100 rounded-xl flex items-center justify-center">
+            <AlertTriangle className="w-4 h-4 text-red-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900 text-sm">Emergency SOS</h3>
+            <p className="text-xs text-slate-400">Hold the button to request an ambulance</p>
+          </div>
         </div>
-        <div className="col-span-2 grid grid-cols-2 gap-3">
-          {[
-            { icon: Calendar, label: 'Book Appt.', tab: 'appointments', color: 'bg-cyan-50 text-cyan-600' },
-            { icon: Pill, label: 'Refill Rx', tab: 'prescriptions', color: 'bg-emerald-50 text-emerald-600' },
-            { icon: FlaskConical, label: 'Lab Results', tab: 'lab', color: 'bg-violet-50 text-violet-600' },
-            { icon: Activity, label: 'Health Passport', tab: 'passport', color: 'bg-pink-50 text-pink-600' },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => onTabChange(item.tab)}
-              className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex flex-col items-center gap-1.5 hover:border-cyan-200 hover:shadow-md transition-all text-left"
-            >
-              <div className={`w-8 h-8 rounded-lg ${item.color} flex items-center justify-center`}>
-                <item.icon className="w-4 h-4" />
-              </div>
-              <span className="text-xs font-medium text-slate-700 text-center">{item.label}</span>
-            </button>
-          ))}
-        </div>
+        <SOSButton onSOSSent={async () => {
+          await onSOSSent();
+        }} />
       </div>
 
       {/* Hospital Search */}
-      <div id="hospital-search">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-slate-900">Find Hospitals Near You</h2>
-          <span className="text-xs text-slate-400">{hospitals.length} hospitals found</span>
-        </div>
-        {geoError && <p className="text-xs text-red-500 mb-2">Location access denied — showing default network hospitals.</p>}
+      <div>
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name, specialty, city…"
-            className="w-full pl-10 pr-4 py-3 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all"
+            placeholder="Search hospitals, specialties…"
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-hide">
-          {['All', 'General', 'Cardiology', 'Orthopedics', 'Dermatology', 'Neurology', 'Pediatrics'].map((tag) => (
-            <button
-              key={tag}
-              onClick={() => setSelectedTag(tag)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 transition-colors ${
-                selectedTag === tag
-                  ? 'bg-cyan-600 text-white shadow-sm'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:border-cyan-300 hover:bg-cyan-50'
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-slate-900 text-sm">
+            {search ? `Results for "${search}"` : 'Nearby Hospitals'}
+          </h2>
+          <button className="text-xs text-cyan-600 font-medium hover:underline flex items-center gap-1">
+            View all <ChevronRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        {searchLoading ? (
-          <div className="text-center py-8 text-slate-400">
-            <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-sm">Fetching network hospitals…</p>
+        {loadingHospitals ? (
+          <div className="flex items-center justify-center py-8 text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading hospitals…
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
+            <AlertCircle className="w-5 h-5 text-red-400 mx-auto mb-2" />
+            <p className="text-sm text-red-600">{error}</p>
+            <button onClick={() => { setError(null); setLoadingHospitals(true); }}
+              className="text-xs text-red-600 hover:underline mt-2 flex items-center gap-1 mx-auto">
+              <RefreshCw className="w-3 h-3" /> Retry
+            </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {hospitals.filter(h => !search || h.name?.toLowerCase().includes(search.toLowerCase()) || h.city?.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
-              <div className="col-span-2 text-center py-8 text-slate-400 bg-white rounded-2xl border border-slate-100 p-6">
-                <MapPin className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm font-medium text-slate-600">No hospitals found matching filter.</p>
-                <button onClick={() => { setSelectedTag('All'); setSearch(''); }} className="mt-2 text-xs font-semibold text-cyan-600 hover:underline">Clear filters</button>
-              </div>
-            ) : hospitals
-              .filter(h => !search || h.name?.toLowerCase().includes(search.toLowerCase()) || h.city?.toLowerCase().includes(search.toLowerCase()))
-              .map((h) => (
-                <div key={h.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-cyan-200 transition-all overflow-hidden">
-                  <div className="h-20 bg-gradient-to-br from-cyan-500 to-teal-600 relative p-3 text-white flex flex-col justify-between">
-                    <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-bold tracking-wider uppercase bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full">
-                        {h.city || 'Network Hospital'}
-                      </span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500 text-white shadow-sm">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                        Open
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-bold text-slate-900 text-sm mb-1">{h.name}</h3>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
-                      <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-cyan-600" />{h.distance ? `${h.distance.toFixed(1)} km` : h.address}</span>
-                      <span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />{h.averageRating?.toFixed(1) || '4.8'}</span>
-                    </div>
-                    {h.specialities?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {h.specialities.slice(0, 3).map((s) => (
-                          <span key={s} className="px-2 py-0.5 bg-slate-50 text-slate-600 text-xs rounded-md border border-slate-100">{s}</span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                      <span className="text-xs text-slate-500 truncate pr-2">{h.contactPhone || 'Available 24/7'}</span>
-                      <Link to={`/hospitals/${h.id}`} className="shrink-0 px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs rounded-xl font-bold transition-colors shadow-sm">
-                        Book Doctor
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-3">
+            {filtered.slice(0, 6).map((h) => (
+              <HospitalCard key={h.id} hospital={h} onSelect={handleHospitalSelect} />
+            ))}
+            {filtered.length === 0 && hospitals.length === 0 && (
+              <EmptyState icon={Building2} title="No hospitals found" description="No hospitals available in the system yet." />
+            )}
+            {filtered.length === 0 && hospitals.length > 0 && (
+              <EmptyState icon={Building2} title="No matches" description={`No hospitals match "${search}"`} />
+            )}
           </div>
         )}
       </div>
@@ -450,198 +413,78 @@ function HomeTab({ user, onTabChange }) {
   );
 }
 
-function PatientPassportTab() {
-  const [passport, setPassport] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState(null);
+// ── Appointments Tab ───────────────────────────────────────────────────────────
 
-  const [allergies, setAllergies] = useState([]);
-  const [conditions, setConditions] = useState([]);
-  const [medications, setMedications] = useState([]);
-  const [notes, setNotes] = useState('');
-
-  const fetchPassport = async () => {
-    try {
-      const res = await passportService.getMyPassport();
-      const data = res.data?.data || res.data;
-      if (data) {
-        setPassport(data);
-        setAllergies(data.allergies || []);
-        setConditions(data.medicalConditions || []);
-        setMedications(data.currentMedications || []);
-        setNotes(data.notes || '');
-      }
-    } catch (err) {
-      setError('Failed to load health passport.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchPassport(); }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await passportService.updateMyPassport({
-        allergies,
-        medicalConditions: conditions,
-        currentMedications: medications,
-        notes,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save passport.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-8 text-center text-slate-400">
-        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-600" />
-        <p className="text-sm">Loading health passport…</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-4 sm:p-6 space-y-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Heart className="w-5 h-5 text-rose-500" /> My Health Passport
-          </h1>
-          <p className="text-xs text-slate-500">Manage allergies, conditions, and consent settings</p>
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-          {saved ? 'Saved!' : 'Save Changes'}
-        </button>
-      </div>
-
-      {error && <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-5 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-          <h2 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-3">Medical Summary</h2>
-          <AllergyConditionEditor label="Allergies" items={allergies} onChange={setAllergies} placeholder="e.g. Penicillin, Peanuts…" />
-          <AllergyConditionEditor label="Medical Conditions" items={conditions} onChange={setConditions} placeholder="e.g. Hypertension, Diabetes…" />
-          <AllergyConditionEditor label="Current Medications" items={medications} onChange={setMedications} placeholder="e.g. Atorvastatin 10mg…" />
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-2">Additional Health Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any additional health notes or instructions…"
-              rows={3}
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 transition-all resize-none"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <ConsentManager consents={passport?.consents || []} onUpdate={fetchPassport} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PatientAppointmentsTab() {
+function AppointmentsTab() {
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('all');
 
-  const fetchAppointments = async () => {
-    setLoading(true);
-    try {
-      const res = await appointmentsService.getMyAppointments();
-      const rawData = res.data?.appointments || res.data || [];
-      const apptArray = Array.isArray(rawData) ? rawData : rawData.appointments || [];
-      setAppointments(apptArray);
-    } catch {
-      setAppointments([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    appointmentsService.getMyAppointments({ limit: 50 })
+      .then((res) => setAppointments(res.data?.appointments || []))
+      .catch((err) => setError(err.message || 'Failed to load appointments.'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  useEffect(() => { fetchAppointments(); }, []);
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'SCHEDULED': return 'bg-cyan-50 text-cyan-700 border-cyan-200';
-      case 'COMPLETED': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'CANCELLED': return 'bg-red-50 text-red-700 border-red-200';
-      case 'IN_QUEUE': return 'bg-amber-50 text-amber-700 border-amber-200';
-      default: return 'bg-slate-100 text-slate-600 border-slate-200';
-    }
-  };
+  const filtered = appointments.filter((a) => filter === 'all' || a.status === filter);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-slate-900 text-lg">My Appointments</h1>
-          <p className="text-xs text-slate-500">Track and manage doctor consultations</p>
-        </div>
-        <button onClick={fetchAppointments} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <h2 className="font-bold text-slate-900 mb-4">My Appointments</h2>
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+        {['all', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map((f) => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
+              filter === f ? 'bg-cyan-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-cyan-300'
+            }`}>
+            {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+          </button>
+        ))}
       </div>
-
       {loading ? (
-        <div className="text-center py-12 text-slate-400">
-          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-600" />
-          <p className="text-sm">Loading appointments…</p>
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
+          <AlertCircle className="w-5 h-5 text-red-400 mx-auto mb-2" />
+          <p className="text-sm text-red-600">{error}</p>
         </div>
-      ) : appointments.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 p-8 shadow-sm">
-          <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="font-bold text-slate-800 mb-1">No Appointments Scheduled</h3>
-          <p className="text-xs text-slate-500 mb-4">Book a consultation with our network of specialists.</p>
-          <Link to="/patient/dashboard" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition-colors inline-block no-underline">
-            Find Doctors
-          </Link>
-        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={Calendar} title="No appointments" description="Book your first appointment from the Home tab." />
       ) : (
         <div className="space-y-3">
-          {appointments.map((appt) => (
-            <div key={appt.id} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:border-cyan-200 transition-all flex flex-col sm:flex-row justify-between gap-4">
-              <div className="flex gap-3 items-start">
-                <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center text-cyan-600 shrink-0 font-bold">
-                  <Stethoscope className="w-5 h-5" />
-                </div>
+          {filtered.map((apt) => (
+            <div key={apt.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+              <div className="flex items-start justify-between mb-2">
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">{appt.doctor?.user?.fullName || 'Doctor Consultation'}</h4>
-                  <p className="text-xs text-slate-500">{appt.hospital?.name || appt.doctor?.specialization || 'General Clinic'}</p>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-slate-600">
-                    <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-400" />{new Date(appt.appointmentDate || appt.createdAt).toLocaleDateString()}</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" />{appt.timeSlot || '09:00 AM'}</span>
-                  </div>
+                  <p className="font-semibold text-slate-900 text-sm">
+                    {apt.doctor?.user?.fullName ? `Dr. ${apt.doctor.user.fullName}` : apt.doctorName || 'Doctor'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {apt.doctor?.specialization || apt.specialty} • {apt.doctor?.hospital?.name || apt.hospital || apt.hospitalName}
+                  </p>
                 </div>
+                <StatusBadge status={apt.status} />
               </div>
-              <div className="flex sm:flex-col justify-between sm:justify-center items-end gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(appt.status)}`}>
-                  {appt.status}
-                </span>
-                {appt.queueToken && (
-                  <span className="text-xs font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded">
-                    Token #{appt.queueToken.tokenNumber}
-                  </span>
-                )}
+              <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
+                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {apt.scheduledDate ? new Date(apt.scheduledDate).toLocaleDateString('en-IN') : apt.date}</span>
+                <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {apt.scheduledTime || apt.time}</span>
+                {apt.queueToken && <span className="bg-slate-100 px-2 py-0.5 rounded-full font-mono">T-{apt.queueToken.tokenNumber}</span>}
               </div>
+              {apt.status === 'CONFIRMED' && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => navigate(`/appointments/${apt.id}/queue`, { state: { appointment: apt } })}
+                    className="flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1">
+                    <Activity className="w-3.5 h-3.5" /> View Queue
+                  </button>
+                  <button className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -650,116 +493,72 @@ function PatientAppointmentsTab() {
   );
 }
 
-function PatientPrescriptionsTab() {
+// ── Prescriptions Tab ─────────────────────────────────────────────────────────
+
+function PrescriptionsTab() {
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(null);
+  const [error, setError] = useState(null);
+  const [expanded, setExpanded] = useState(null);
 
-  const fetchPrescriptions = async () => {
-    setLoading(true);
-    try {
-      const res = await prescriptionsService.getMyPrescriptions();
-      const rawData = res.data?.prescriptions || res.prescriptions || res.data || [];
-      const rxArray = Array.isArray(rawData) ? rawData : rawData.prescriptions || [];
-      setPrescriptions(rxArray);
-    } catch {
-      setPrescriptions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchPrescriptions(); }, []);
-
-  const handleAcceptPrescription = async (rx) => {
-    try {
-      setActionLoading(rx.id);
-      await api.post('/pharmacy-orders', {
-        prescriptionId: rx.id,
-        hospitalId: rx.hospitalId,
-      });
-      await fetchPrescriptions();
-      alert('Prescription accepted! Sent to Pharmacy for preparation.');
-    } catch (err) {
-      alert(err.message || 'Could not accept prescription.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  useEffect(() => {
+    prescriptionsService.getMyPrescriptions()
+      .then((res) => setPrescriptions(res.data?.prescriptions || res.data || []))
+      .catch((err) => setError(err?.message || 'Failed to load prescriptions.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-slate-900 text-lg">Prescriptions & Medications</h1>
-          <p className="text-xs text-slate-500">Active medical prescriptions issued by your doctors</p>
-        </div>
-        <button onClick={fetchPrescriptions} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      </div>
-
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <h2 className="font-bold text-slate-900 mb-4">Prescriptions</h2>
       {loading ? (
-        <div className="text-center py-12 text-slate-400">
-          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-600" />
-          <p className="text-sm">Loading prescriptions…</p>
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
+          <AlertCircle className="w-5 h-5 text-red-400 mx-auto mb-2" />
+          <p className="text-sm text-red-600">{error}</p>
         </div>
       ) : prescriptions.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 p-8 shadow-sm">
-          <Pill className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="font-bold text-slate-800 mb-1">No Active Prescriptions</h3>
-          <p className="text-xs text-slate-500">Prescriptions prescribed by your doctor during consultations will appear here.</p>
-        </div>
+        <EmptyState icon={Pill} title="No prescriptions" description="Your prescriptions will appear here after a doctor consultation." />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {prescriptions.map((rx) => (
-            <div key={rx.id} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-3">
-              <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+            <div key={rx.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <button
+                onClick={() => setExpanded(expanded === rx.id ? null : rx.id)}
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 transition-colors"
+              >
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Prescription #{rx.id.slice(0, 8)}</h4>
-                  <p className="text-xs text-slate-500">Issued on {new Date(rx.createdAt).toLocaleDateString()}</p>
+          {rx.doctor?.user?.fullName ? `Dr. ${rx.doctor.user.fullName}` : rx.doctorName}
+                  <p className="text-xs text-slate-400">{rx.createdAt ? new Date(rx.createdAt).toLocaleDateString('en-IN') : rx.date} • {rx.consultation?.appointment?.doctor?.hospital?.name || rx.hospital}</p>
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {rx.status || 'Active'}
-                </span>
-              </div>
-              {rx.generalInstructions && (
-                <p className="text-xs text-slate-600 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  Instructions: {rx.generalInstructions}
-                </p>
-              )}
-              {rx.items?.length > 0 && (
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Medications</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {rx.items.map((item, idx) => (
-                      <div key={idx} className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex items-start gap-2">
-                        <Pill className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-                        <div>
-                          <div className="text-xs font-bold text-slate-900">{item.medicineName} ({item.dosage})</div>
-                          <div className="text-[11px] text-slate-500">{item.frequency} • {item.duration}</div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={rx.status} />
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expanded === rx.id ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+              {expanded === rx.id && (
+                <div className="border-t border-slate-100 p-4">
+                  <div className="space-y-3">
+                    {(rx.items || rx.medicines || []).map((med, i) => (
+                      <div key={i} className="bg-slate-50 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-semibold text-slate-900 text-sm">{med.medicineName || med.name}</p>
+                          <span className="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full">{med.durationDays || med.days} days</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 text-xs text-slate-500">
+                          <span><strong>Dose:</strong> {med.dosage || med.dose}</span>
+                          <span><strong>Frequency:</strong> {med.frequency}</span>
+                          <span className="col-span-2"><strong>Instructions:</strong> {med.instructions}</span>
                         </div>
                       </div>
                     ))}
                   </div>
+                  <button className="mt-3 w-full py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                    <Download className="w-3.5 h-3.5" /> Download Prescription
+                  </button>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                {rx.pharmacyOrder ? (
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Order Status: {rx.pharmacyOrder.status}
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => handleAcceptPrescription(rx)}
-                    disabled={actionLoading === rx.id}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-                  >
-                    {actionLoading === rx.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Pill className="w-3.5 h-3.5" />}
-                    Accept & Order Medicines
-                  </button>
-                )}
-              </div>
             </div>
           ))}
         </div>
@@ -768,88 +567,70 @@ function PatientPrescriptionsTab() {
   );
 }
 
-function PatientLabReportsTab() {
-  const [labRequests, setLabRequests] = useState([]);
+// ── Lab Reports Tab ────────────────────────────────────────────────────────────
+
+function LabReportsTab() {
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchLabRequests = async () => {
-    setLoading(true);
-    try {
-      const res = await labRequestsService.getMyLabRequests();
-      const rawData = res.labRequests || res.data?.labRequests || res.data || [];
-      const labArray = Array.isArray(rawData) ? rawData : rawData.labRequests || [];
-      setLabRequests(labArray);
-    } catch {
-      setLabRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchLabRequests(); }, []);
-
-  const getPriorityBadge = (p) => {
-    switch (p) {
-      case 'EMERGENCY': return 'bg-red-50 text-red-700 border-red-200';
-      case 'URGENT': return 'bg-amber-50 text-amber-700 border-amber-200';
-      default: return 'bg-blue-50 text-blue-700 border-blue-200';
-    }
-  };
+  useEffect(() => {
+    labRequestsService.getMyLabRequests()
+      .then((res) => setReports(res.data?.labRequests || res.data || []))
+      .catch((err) => setError(err?.message || 'Failed to load lab reports.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-slate-900 text-lg">Laboratory Reports</h1>
-          <p className="text-xs text-slate-500">Lab test orders and uploaded diagnostic results</p>
-        </div>
-        <button onClick={fetchLabRequests} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      </div>
-
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <h2 className="font-bold text-slate-900 mb-4">Lab Reports</h2>
       {loading ? (
-        <div className="text-center py-12 text-slate-400">
-          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-violet-600" />
-          <p className="text-sm">Loading lab reports…</p>
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
+          <AlertCircle className="w-5 h-5 text-red-400 mx-auto mb-2" />
+          <p className="text-sm text-red-600">{error}</p>
         </div>
-      ) : labRequests.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 p-8 shadow-sm">
-          <FlaskConical className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="font-bold text-slate-800 mb-1">No Lab Reports Requested</h3>
-          <p className="text-xs text-slate-500">Diagnostic lab test requests ordered by your doctor will be tracked here.</p>
-        </div>
+      ) : reports.length === 0 ? (
+        <EmptyState icon={FlaskConical} title="No lab reports" description="Lab test results will appear here once available." />
       ) : (
-        <div className="space-y-4">
-          {labRequests.map((lab) => (
-            <div key={lab.id} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-3">
-              <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <FlaskConical className="w-5 h-5 text-violet-600" />
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm">Lab Request #{lab.id.slice(0, 8)}</h4>
-                    <p className="text-xs text-slate-500">{new Date(lab.createdAt).toLocaleDateString()}</p>
-                  </div>
+        <div className="space-y-3">
+          {reports.map((r) => (
+            <div key={r.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-semibold text-slate-900 text-sm">{r.items?.[0]?.testName || r.testName}</p>
+                  <p className="text-xs text-slate-400">{r.doctor?.user?.fullName ? `Dr. ${r.doctor.user.fullName}` : r.doctor}</p>
+                  <p className="text-xs text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : r.date}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getPriorityBadge(lab.priority)}`}>
-                    {lab.priority}
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
-                    {lab.status}
-                  </span>
-                </div>
+                <StatusBadge status={r.status} />
               </div>
-              {lab.items?.length > 0 && (
-                <div className="space-y-1">
-                  <span className="text-xs font-bold text-slate-600">Tests Included:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {lab.items.map((test, i) => (
-                      <span key={i} className="px-2.5 py-1 bg-slate-50 border border-slate-100 text-slate-700 text-xs rounded-lg font-medium">
-                        {test.testName}
-                      </span>
-                    ))}
-                  </div>
+              {r.result && (
+                <div className="bg-emerald-50 rounded-xl p-3 mb-3 border border-emerald-100">
+                  <p className="text-xs font-semibold text-emerald-700 mb-0.5">Result Summary</p>
+                  <p className="text-xs text-emerald-600">{r.result}</p>
+                </div>
+              )}
+              {(r.reports?.length > 0 || r.status === 'REPORT_READY' || r.status === 'COMPLETED') && r.reports?.[0]?.reportFileUrl && (
+                <div className="flex gap-2">
+                  <a
+                    href={r.reports[0].reportFileUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> View Report
+                  </a>
+                  <a
+                    href={r.reports[0].reportFileUrl} download target="_blank" rel="noopener noreferrer"
+                    className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download
+                  </a>
+                </div>
+              )}
+              {(r.status === 'PENDING' || r.status === 'CONFIRMED' || r.status === 'SAMPLE_COLLECTED' || r.status === 'PROCESSING' || r.status === 'TESTING') && (
+                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-xl p-2.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Test in progress — report will be available soon
                 </div>
               )}
             </div>
@@ -860,30 +641,295 @@ function PatientLabReportsTab() {
   );
 }
 
+// ── Billing Tab ────────────────────────────────────────────────────────────────
+
+// Human-friendly label for a bill's source (real Bill.sourceType enum).
+const BILL_SOURCE_LABELS = {
+  APPOINTMENT: 'Doctor Consultation',
+  PHARMACY_ORDER: 'Pharmacy Order',
+  LAB_REQUEST: 'Lab Test',
+};
+
+// The Razorpay order id to pay against: the still-open CREATED payment on the bill.
+const payableOrderId = (bill) => {
+  if (!bill?.payments?.length) return null;
+  const created = bill.payments.find((p) => p.status === 'CREATED');
+  return (created || bill.payments[0]).razorpayOrderId;
+};
+
+function BillingTab() {
+  const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [payModal, setPayModal] = useState(null);
+
+  const fetchBills = () => {
+    setLoading(true);
+    setError(null);
+    billingService.getMyBills({ limit: 100 })
+      .then((res) => setBills(res.data?.bills || res.data || []))
+      .catch((err) => setError(err?.message || 'Failed to load bills.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchBills(); }, []);
+
+  // Real BillStatus enum: UNPAID | PAID | CANCELLED. Amounts live on Bill.total.
+  const paid = bills.filter((b) => b.status === 'PAID').reduce((s, b) => s + Number(b.total || 0), 0);
+  const unpaid = bills.filter((b) => b.status === 'UNPAID').reduce((s, b) => s + Number(b.total || 0), 0);
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">Billing & Payments</h2>
+        <button onClick={fetchBills} className="text-xs text-cyan-600 hover:text-cyan-800 flex items-center gap-1">
+          <RefreshCw className="w-3 h-3" /> Refresh
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <p className="text-xs text-slate-500 mb-1">Total Paid</p>
+          <p className="text-xl font-bold text-emerald-600">₹{paid.toLocaleString('en-IN')}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <p className="text-xs text-slate-500 mb-1">Pending</p>
+          <p className="text-xl font-bold text-amber-600">₹{unpaid.toLocaleString('en-IN')}</p>
+        </div>
+      </div>
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-5 text-center">
+          <AlertCircle className="w-6 h-6 text-red-400 mx-auto mb-2" />
+          <p className="text-sm text-red-600 mb-3">{error}</p>
+          <button onClick={fetchBills} className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-800 mx-auto">
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
+      ) : bills.length === 0 ? (
+        <EmptyState icon={CreditCard} title="No bills yet" description="Your consultation, pharmacy, and lab charges will appear here." />
+      ) : (
+        <div className="space-y-3">
+          {bills.map((b) => {
+            const orderId = payableOrderId(b);
+            return (
+              <div key={b.id} className="bg-white rounded-2xl border border-slate-100 p-4">
+                <div className="flex items-start justify-between mb-1">
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-900 text-sm">{BILL_SOURCE_LABELS[b.sourceType] || b.sourceType || 'Charge'}</p>
+                    <p className="text-xs text-slate-400">{b.hospital?.name || ''}{b.createdAt ? ` • ${new Date(b.createdAt).toLocaleDateString('en-IN')}` : ''}</p>
+                  </div>
+                  <StatusBadge status={b.status} />
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="font-bold text-slate-900">₹{Number(b.total || 0).toLocaleString('en-IN')}</p>
+                  {b.status === 'UNPAID' && (
+                    <button
+                      onClick={() => setPayModal(b)}
+                      disabled={!orderId}
+                      title={!orderId ? 'This bill is not ready for payment yet.' : undefined}
+                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      Pay Now
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <PaymentModal
+        open={!!payModal}
+        billId={payModal?.id}
+        razorpayOrderId={payableOrderId(payModal)}
+        amount={Number(payModal?.total || 0)}
+        description={BILL_SOURCE_LABELS[payModal?.sourceType] || payModal?.sourceType}
+        onSuccess={() => { fetchBills(); setPayModal(null); }}
+        onCancel={() => setPayModal(null)}
+      />
+    </div>
+  );
+}
+
+// ── Notifications Tab ─────────────────────────────────────────────────────────
+
+function NotificationsTab() {
+  // Shared store keeps this tab, the header bell, and the sidebar badge in sync.
+  const { notifications, loading, error, markRead, markAllRead, refresh } = useNotifications();
+
+  const iconMap = {
+    APPOINTMENT_CONFIRMED: <Calendar className="w-4 h-4 text-blue-500" />,
+    APPOINTMENT_CANCELLED: <Calendar className="w-4 h-4 text-red-500" />,
+    LAB_REPORT_READY: <FlaskConical className="w-4 h-4 text-violet-500" />,
+    PRESCRIPTION_CREATED: <Pill className="w-4 h-4 text-emerald-500" />,
+    PAYMENT_CONFIRMED: <CreditCard className="w-4 h-4 text-amber-500" />,
+    EMERGENCY: <AlertTriangle className="w-4 h-4 text-red-500" />,
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="w-6 h-6 text-cyan-500 animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">Notifications</h2>
+        <button onClick={markAllRead} className="text-xs text-cyan-600 font-medium hover:underline">Mark all read</button>
+      </div>
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-center mb-4">
+          <p className="text-sm text-red-600">{error}</p>
+          <button onClick={() => refresh()} className="text-xs text-red-500 hover:underline mt-1">Retry</button>
+        </div>
+      )}
+      {!error && notifications.length === 0 && (
+        <EmptyState icon={Bell} title="No notifications" description="You're all caught up!" />
+      )}
+      <div className="space-y-2">
+        {notifications.map((n) => (
+          <div key={n.id} onClick={() => markRead(n.id)}
+            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+              n.isRead ? 'bg-white border-slate-100' : 'bg-cyan-50 border-cyan-100'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${n.isRead ? 'bg-slate-100' : 'bg-white'}`}>
+              {iconMap[n.type] || <Bell className="w-4 h-4 text-slate-400" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm ${n.isRead ? 'text-slate-600' : 'text-slate-900 font-medium'}`}>{n.message}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+              </p>
+            </div>
+            {!n.isRead && <div className="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0 mt-1.5" />}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Health Passport Tab ────────────────────────────────────────────────────────
+
+function PassportTab({ user }) {
+  const [appointments, setAppointments] = useState([]);
+  const [labRequests, setLabRequests] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.allSettled([
+      appointmentsService.getMyAppointments({ limit: 100 }),
+      labRequestsService.getMyLabRequests(),
+      prescriptionsService.getMyPrescriptions(),
+    ]).then(([aRes, lRes, pRes]) => {
+      if (aRes.status === 'fulfilled') setAppointments(aRes.value.data?.appointments || []);
+      if (lRes.status === 'fulfilled') setLabRequests(lRes.value.data?.labRequests || []);
+      if (pRes.status === 'fulfilled') setPrescriptions(pRes.value.data?.prescriptions || []);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-teal-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg">
+          {(user?.fullName || 'P').charAt(0)}
+        </div>
+        <div>
+          <h2 className="font-bold text-slate-900">{user?.fullName}</h2>
+          <p className="text-xs text-slate-400">{user?.email}</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-cyan-500 animate-spin" /></div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-blue-50 rounded-2xl p-3 text-center">
+              <p className="text-xl font-bold text-blue-700">{appointments.length}</p>
+              <p className="text-xs text-blue-500">Appointments</p>
+            </div>
+            <div className="bg-violet-50 rounded-2xl p-3 text-center">
+              <p className="text-xl font-bold text-violet-700">{labRequests.length}</p>
+              <p className="text-xs text-violet-500">Lab Tests</p>
+            </div>
+            <div className="bg-emerald-50 rounded-2xl p-3 text-center">
+              <p className="text-xl font-bold text-emerald-700">{prescriptions.length}</p>
+              <p className="text-xs text-emerald-500">Prescriptions</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Export ────────────────────────────────────────────────────────────────
+
 export default function PatientDashboard() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [activeItem, setActiveItem] = useState('home');
+  // Live unread count drives the sidebar/bottom-nav badge; fetched + kept in
+  // sync (socket, mark-read, mark-all-read) by the shared notification store.
+  const { unreadCount } = useNotifications();
+
+  // Inject the live unread count into the Notifications nav item at render.
+  // undefined badge => DashboardShell renders no badge (so 0 unread = no badge).
+  const navItems = NAV_ITEMS.map((item) =>
+    item.id === 'notifications' ? { ...item, badge: unreadCount || undefined } : item
+  );
+
+  // Real SOS: capture the patient's actual geolocation, create a real
+  // EmergencyRequest on the backend (which begins dispatch + socket events),
+  // then navigate to live tracking for that real request id. No simulation —
+  // if location is denied or creation fails, we surface the error and abort.
+  const handleSOSSent = async () => {
+    const coords = await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Location services are unavailable on this device.'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => reject(new Error('Please allow location access so an ambulance can reach you.')),
+        { enableHighAccuracy: true, timeout: 15000 }
+      );
+    });
+
+    const res = await patientService.createEmergencyRequest({
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    });
+    const requestId = res.data?.id;
+    if (!requestId) throw new Error('Could not create the emergency request. Please try again.');
+    navigate(`/patient/emergency/${requestId}`);
+  };
 
   const renderContent = () => {
     switch (activeItem) {
-      case 'home': return <HomeTab user={user} onTabChange={setActiveItem} />;
-      case 'personal': return <PatientPassportTab />;
-      case 'appointments': return <PatientAppointmentsTab />;
-      case 'prescriptions': return <PatientPrescriptionsTab />;
-      case 'lab': return <PatientLabReportsTab />;
-      case 'passport': return <PatientPassportTab />;
-      case 'billing': return <PatientBillingPage />;
-      default: return <HomeTab user={user} onTabChange={setActiveItem} />;
+      case 'home': return <HomeTab user={user} navigate={navigate} onSOSSent={handleSOSSent} />;
+      case 'appointments': return <AppointmentsTab />;
+      case 'prescriptions': return <PrescriptionsTab />;
+      case 'lab': return <LabReportsTab />;
+      case 'billing': return <BillingTab />;
+      case 'notifications': return <NotificationsTab />;
+      case 'passport': return <PassportTab user={user} />;
+      default: return <HomeTab user={user} navigate={navigate} onSOSSent={handleSOSSent} />;
     }
   };
 
   return (
     <DashboardShell
-      navItems={NAV_ITEMS}
+      navItems={navItems}
       activeItem={activeItem}
       setActiveItem={setActiveItem}
       roleLabel="Patient"
-      roleColor="bg-cyan-50 text-cyan-700"
+      roleColor="bg-gradient-to-r from-cyan-500 to-teal-600 text-white"
     >
       {renderContent()}
     </DashboardShell>

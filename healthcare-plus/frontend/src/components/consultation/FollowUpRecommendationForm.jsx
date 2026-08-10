@@ -24,7 +24,7 @@ export default function FollowUpRecommendationForm({ consultationId, onSuccess, 
       await followUpService.recommendFollowUp(consultationId, { recommendedDate, reason });
       onSuccess();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save follow-up recommendation.');
+      alert(err.message || 'Failed to save follow-up recommendation.');
     } finally {
       setLoading(false);
     }

@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 
-const isMockMode = !env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET;
+export const isMockMode = !env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET;
 
 if (isMockMode) {
   console.warn('[Razorpay] Running in MOCK MODE. Set RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET in .env for live payments.');

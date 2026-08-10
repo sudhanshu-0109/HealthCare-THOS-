@@ -2,26 +2,25 @@
  * pages/public/Login.jsx — New AuthPage UI design + full backend auth logic (Phase 0-2 preserved)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Heart, Users, Activity, Building2, FlaskConical, Pill, Truck, Shield,
-  Eye, EyeOff, ArrowLeft, CheckCircle2, Lock, Mail, ChevronRight
+  Eye, EyeOff, ArrowLeft, CheckCircle2, Lock, Mail, ChevronRight, ChevronDown
 } from 'lucide-react';
 import * as authService from '../../services/auth.service';
 import useAuthStore from '../../store/authStore';
 import { ROLE_HOME_ROUTE } from '../../utils/roleRedirect';
-import OtpInput from '../../components/auth/OtpInput';
 import GoogleLoginButton from '../../components/auth/GoogleLoginButton';
 
 const ROLES = [
-  { id: 'PATIENT', icon: Users, label: 'Patient', desc: 'Book appointments, track health', color: 'border-cyan-200 bg-cyan-50 text-cyan-700', activeColor: 'border-cyan-600 bg-cyan-600 text-white' },
-  { id: 'DOCTOR', icon: Activity, label: 'Doctor', desc: 'Manage patients & consultations', color: 'border-emerald-200 bg-emerald-50 text-emerald-700', activeColor: 'border-emerald-600 bg-emerald-600 text-white' },
-  { id: 'HOSPITAL_ADMIN', icon: Building2, label: 'Hospital Admin', desc: 'Oversee hospital operations', color: 'border-blue-200 bg-blue-50 text-blue-700', activeColor: 'border-blue-600 bg-blue-600 text-white' },
-  { id: 'LAB_STAFF', icon: FlaskConical, label: 'Lab Technician', desc: 'Process tests & upload reports', color: 'border-violet-200 bg-violet-50 text-violet-700', activeColor: 'border-violet-600 bg-violet-600 text-white' },
-  { id: 'PHARMACIST', icon: Pill, label: 'Pharmacist', desc: 'Manage prescriptions & orders', color: 'border-orange-200 bg-orange-50 text-orange-700', activeColor: 'border-orange-500 bg-orange-500 text-white' },
-  { id: 'AMBULANCE_DRIVER', icon: Truck, label: 'Ambulance Driver', desc: 'Handle emergency dispatch', color: 'border-red-200 bg-red-50 text-red-700', activeColor: 'border-red-600 bg-red-600 text-white' },
-  { id: 'SUPER_ADMIN', icon: Shield, label: 'Super Admin', desc: 'Platform-wide control', color: 'border-slate-200 bg-slate-50 text-slate-700', activeColor: 'border-slate-700 bg-slate-700 text-white' },
+  { id: 'PATIENT', icon: Users, label: 'Patient', desc: 'Book appointments, track health' },
+  { id: 'DOCTOR', icon: Activity, label: 'Doctor', desc: 'Manage patients & consultations' },
+  { id: 'HOSPITAL_ADMIN', icon: Building2, label: 'Hospital Admin', desc: 'Oversee hospital operations' },
+  { id: 'LAB_STAFF', icon: FlaskConical, label: 'Lab Technician', desc: 'Process tests & upload reports' },
+  { id: 'PHARMACIST', icon: Pill, label: 'Pharmacist', desc: 'Manage prescriptions & orders' },
+  { id: 'AMBULANCE_DRIVER', icon: Truck, label: 'Ambulance Driver', desc: 'Handle emergency dispatch' },
+  { id: 'SUPER_ADMIN', icon: Shield, label: 'Super Admin', desc: 'Platform-wide control' },
 ];
 
 export default function Login() {
@@ -39,26 +38,40 @@ export default function Login() {
   }, [token, user, navigate, searchParams]);
 
   const [selectedRole, setSelectedRole] = useState('PATIENT');
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const roleMenuRef = useRef(null);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [accountNotFound, setAccountNotFound] = useState(false);
+
+  // Close the role dropdown when clicking outside it.
+  // Declared AFTER the state/ref above so roleMenuOpen is initialized before the
+  // dependency array is evaluated during render (avoids a TDZ ReferenceError).
+  useEffect(() => {
+    if (!roleMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (roleMenuRef.current && !roleMenuRef.current.contains(e.target)) {
+        setRoleMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [roleMenuOpen]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccessMessage(null);
     if (!email || !password) { setError('Please enter your email and password.'); return; }
     setLoading(true);
     try {
       const response = await authService.login({ email, password });
-      const { user: loggedInUser, accessToken } = response.data;
-      setAuth({ user: loggedInUser, accessToken });
+      const { user: verifiedUser, accessToken } = response.data;
+      setAuth({ user: verifiedUser, accessToken });
       const redirectUrl = searchParams.get('redirect');
-      const targetRoute = redirectUrl || ROLE_HOME_ROUTE[loggedInUser.role] || '/dashboard';
+      const targetRoute = redirectUrl || ROLE_HOME_ROUTE[verifiedUser.role] || '/dashboard';
       navigate(targetRoute, { replace: true });
     } catch (err) {
       setAccountNotFound(false);
@@ -114,26 +127,59 @@ export default function Login() {
               <p className="text-sm text-slate-500">Select your role and sign in to your dashboard</p>
             </div>
 
-            {/* Role selection */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-              {ROLES.map((r) => (
+            {/* Role selection — dropdown (R21). Purely a UI affordance: the selected
+                role is never sent to the backend; the server derives role from the
+                account. It only labels the submit button and gates the Patient-only
+                Google button. */}
+            <div className="mb-6">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">I am a</label>
+              <div className="relative" ref={roleMenuRef}>
                 <button
-                  key={r.id}
-                  onClick={() => setSelectedRole(r.id)}
-                  className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left ${
-                    selectedRole === r.id ? r.activeColor : r.color + ' hover:border-opacity-60'
-                  }`}
+                  type="button"
+                  onClick={() => setRoleMenuOpen((o) => !o)}
+                  aria-haspopup="listbox"
+                  aria-expanded={roleMenuOpen}
+                  className="w-full flex items-center gap-3 p-3.5 rounded-xl border-2 border-slate-200 bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 transition-all text-left"
                 >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedRole === r.id ? 'bg-white/20' : 'bg-white'}`}>
-                    <r.icon className={`w-4 h-4 ${selectedRole === r.id ? 'text-white' : ''}`} />
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white border border-slate-100">
+                    <selectedRoleObj.icon className="w-4 h-4 text-slate-600" />
                   </div>
-                  <div>
-                    <div className="text-xs font-semibold">{r.label}</div>
-                    <div className={`text-xs leading-tight mt-0.5 ${selectedRole === r.id ? 'text-white/80' : 'text-slate-400'}`}>{r.desc}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-800">{selectedRoleObj.label}</div>
+                    <div className="text-xs text-slate-400 leading-tight mt-0.5 truncate">{selectedRoleObj.desc}</div>
                   </div>
-                  {selectedRole === r.id && <CheckCircle2 className="w-4 h-4 text-white ml-auto flex-shrink-0" />}
+                  <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${roleMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
-              ))}
+
+                {roleMenuOpen && (
+                  <div
+                    role="listbox"
+                    className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-72 overflow-y-auto"
+                  >
+                    {ROLES.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selectedRole === r.id}
+                        onClick={() => { setSelectedRole(r.id); setRoleMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
+                          selectedRole === r.id ? 'bg-cyan-50' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-slate-50 border border-slate-100">
+                          <r.icon className="w-4 h-4 text-slate-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-slate-800">{r.label}</div>
+                          <div className="text-xs text-slate-400 leading-tight mt-0.5 truncate">{r.desc}</div>
+                        </div>
+                        {selectedRole === r.id && <CheckCircle2 className="w-4 h-4 text-cyan-600 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {error && (

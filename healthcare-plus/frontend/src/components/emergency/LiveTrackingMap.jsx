@@ -1,99 +1,211 @@
-import React from 'react';
-import { Navigation, MapPin, Ambulance, Phone } from 'lucide-react';
+/**
+ * components/emergency/LiveTrackingMap.jsx — REAL ambulance tracker (MapLibre + OpenFreeMap).
+ *
+ * Renders an actual map with live patient + ambulance markers and a link line between
+ * them, driven entirely by real coordinates supplied via props (the ambulance position
+ * arrives over Socket.IO from the driver's device). There is NO simulated movement,
+ * radar graphic, or fabricated position.
+ *
+ * Tiles come from OpenFreeMap (https://openfreemap.org) — a free, keyless vector-tile
+ * host — rendered with MapLibre GL. No API key or billing account is required. The
+ * style URL may be overridden with VITE_MAP_STYLE_URL. If the tiles fail to load
+ * (e.g. offline), it degrades honestly to a coordinate + distance readout.
+ *
+ * Props: patientLat, patientLng, driverLat, driverLng, status, driverName,
+ *        vehicleNumber, distanceKm, etaMin
+ */
+
+import { useEffect, useRef, useState } from 'react';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { MapPin, Ambulance, Navigation, AlertTriangle } from 'lucide-react';
+
+// Keyless OpenFreeMap vector style; overridable for self-hosted tiles.
+const MAP_STYLE = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty';
+
+// Build the cyan "ambulance" marker element (solid dot, white ring).
+const makeDriverEl = () => {
+  const el = document.createElement('div');
+  el.style.cssText =
+    'width:18px;height:18px;border-radius:9999px;background:#06b6d4;' +
+    'border:3px solid #ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
+  return el;
+};
 
 export default function LiveTrackingMap({
-  driverLat,
-  driverLng,
-  patientLat,
-  patientLng,
-  status = 'EN_ROUTE',
+  patientLat, patientLng,
+  driverLat, driverLng,
+  status = 'SEARCHING',
   driverName,
   vehicleNumber,
+  distanceKm,
+  etaMin,
 }) {
+  const mapEl = useRef(null);
+  const mapRef = useRef(null);
+  const patientMarker = useRef(null);
+  const driverMarker = useRef(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState(false);
+
+  const hasPatient = patientLat != null && patientLng != null;
+  const hasDriver = driverLat != null && driverLng != null;
+
+  // Create the map once.
+  useEffect(() => {
+    if (!mapEl.current || mapRef.current) return undefined;
+    let cancelled = false;
+    try {
+      const map = new maplibregl.Map({
+        container: mapEl.current,
+        style: MAP_STYLE,
+        center: hasPatient ? [patientLng, patientLat] : [73.1812, 22.3072], // Vadodara
+        zoom: 13,
+      });
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      map.on('load', () => {
+        if (cancelled) return;
+        map.addSource('route', {
+          type: 'geojson',
+          data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } },
+        });
+        map.addLayer({
+          id: 'route',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#0891b2', 'line-width': 3, 'line-opacity': 0.7 },
+        });
+        setMapReady(true);
+      });
+      map.on('error', () => { if (!cancelled) setMapError(true); });
+      mapRef.current = map;
+    } catch {
+      setMapError(true);
+    }
+    return () => {
+      cancelled = true;
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync markers + link line + viewport whenever coordinates change.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+
+    if (hasPatient) {
+      const pos = [patientLng, patientLat];
+      if (!patientMarker.current) {
+        patientMarker.current = new maplibregl.Marker({ color: '#ef4444' }).setLngLat(pos).addTo(map);
+      } else {
+        patientMarker.current.setLngLat(pos);
+      }
+    }
+
+    if (hasDriver) {
+      const pos = [driverLng, driverLat];
+      if (!driverMarker.current) {
+        driverMarker.current = new maplibregl.Marker({ element: makeDriverEl() }).setLngLat(pos).addTo(map);
+      } else {
+        driverMarker.current.setLngLat(pos);
+      }
+    }
+
+    const routeSrc = map.getSource('route');
+    if (hasPatient && hasDriver) {
+      const coordinates = [[driverLng, driverLat], [patientLng, patientLat]];
+      if (routeSrc) routeSrc.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates } });
+      const bounds = new maplibregl.LngLatBounds();
+      coordinates.forEach((c) => bounds.extend(c));
+      map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 500 });
+    } else {
+      if (routeSrc) routeSrc.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+      if (hasPatient) map.easeTo({ center: [patientLng, patientLat], duration: 500 });
+    }
+  }, [mapReady, patientLat, patientLng, driverLat, driverLng, hasPatient, hasDriver]);
+
+  const statusLabel = String(status).replace(/_/g, ' ');
+
   return (
-    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-white space-y-6 relative overflow-hidden shadow-xl">
-      
-      {/* Background Animated Radar Grid Visual */}
-      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
+    <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm">
+      {/* Live map (or honest fallback) */}
+      <div className="relative h-64 w-full bg-slate-100">
+        {!mapError && <div ref={mapEl} className="absolute inset-0 h-full w-full" />}
 
-      {/* Status Header */}
-      <div className="flex items-center justify-between relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="p-3 bg-red-500/20 text-red-400 rounded-xl border border-red-500/30">
-              <Ambulance className="w-6 h-6 animate-pulse" />
+        {mapError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center">
+              <MapPin className="w-7 h-7 text-slate-500" />
             </div>
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900" />
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Live GPS Radar</div>
-            <div className="text-lg font-bold text-slate-100">{status.replace('_', ' ')}</div>
-          </div>
-        </div>
-
-        {vehicleNumber && (
-          <div className="text-right">
-            <span className="text-xs text-slate-400 block font-mono">Vehicle No.</span>
-            <span className="text-sm font-bold font-mono px-2.5 py-1 bg-slate-800 rounded-lg border border-slate-700 text-cyan-400">
-              {vehicleNumber}
-            </span>
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Live map unavailable</p>
+              <p className="text-xs text-slate-400 mt-0.5">Map tiles could not be loaded. Check your connection.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full max-w-xs text-left mt-1">
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                <span className="block text-[10px] uppercase text-slate-400">You</span>
+                <span className="text-xs font-mono text-slate-700">
+                  {hasPatient ? `${patientLat.toFixed(4)}, ${patientLng.toFixed(4)}` : '—'}
+                </span>
+              </div>
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                <span className="block text-[10px] uppercase text-slate-400">Ambulance</span>
+                <span className="text-xs font-mono text-cyan-700">
+                  {hasDriver ? `${driverLat.toFixed(4)}, ${driverLng.toFixed(4)}` : 'Awaiting…'}
+                </span>
+              </div>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Map Radar Graphic Component */}
-      <div className="relative h-64 w-full bg-slate-950/80 rounded-xl border border-slate-800 flex items-center justify-center overflow-hidden">
-        
-        {/* Radar concentric circles */}
-        <div className="absolute w-48 h-48 border border-slate-800/60 rounded-full animate-ping opacity-20" />
-        <div className="absolute w-32 h-32 border border-cyan-500/20 rounded-full" />
-        <div className="absolute w-16 h-16 border border-cyan-500/30 rounded-full" />
-
-        {/* Center Grid axis lines */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-full h-px bg-slate-800/40" />
-          <div className="h-full w-px bg-slate-800/40" />
-        </div>
-
-        {/* Patient Location Marker (Static Center) */}
-        <div className="absolute flex flex-col items-center gap-1">
-          <div className="p-2 bg-red-500 text-white rounded-full shadow-lg shadow-red-500/50 animate-bounce">
-            <MapPin className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] font-bold bg-slate-900/90 text-red-400 px-2 py-0.5 rounded-full border border-red-500/30 backdrop-blur-xs">
-            PATIENT LOCATION
-          </span>
-        </div>
-
-        {/* Driver Marker (Positioned relatively or animated offset) */}
-        {driverLat != null && driverLng != null && (
-          <div className="absolute top-12 left-16 flex flex-col items-center gap-1 transition-all duration-1000">
-            <div className="p-2.5 bg-cyan-500 text-slate-950 rounded-full shadow-lg shadow-cyan-500/50 ring-4 ring-cyan-500/20">
-              <Navigation className="w-5 h-5 transform rotate-45" />
+        {!mapError && !mapReady && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex items-center gap-2 text-slate-400 text-sm">
+              <Navigation className="w-4 h-4 animate-pulse" /> Loading map…
             </div>
-            <span className="text-[10px] font-bold bg-slate-900/90 text-cyan-400 px-2 py-0.5 rounded-full border border-cyan-500/30 backdrop-blur-xs">
-              {driverName || 'AMBULANCE DRIVER'}
-            </span>
           </div>
         )}
-      </div>
 
-      {/* Coordinate Telemetry Grid */}
-      <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-        <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-          <span className="text-slate-500 block text-[10px] uppercase">Patient Coordinates</span>
-          <span className="text-slate-200 font-semibold">
-            {patientLat?.toFixed(4) ?? '0.0000'}, {patientLng?.toFixed(4) ?? '0.0000'}
-          </span>
-        </div>
-        <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-          <span className="text-slate-500 block text-[10px] uppercase">Ambulance Coordinates</span>
-          <span className="text-cyan-400 font-semibold">
-            {driverLat?.toFixed(4) ?? '0.0000'}, {driverLng?.toFixed(4) ?? '0.0000'}
-          </span>
+        {/* Live status pill */}
+        <div className="absolute top-3 left-3 z-[1] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 border border-slate-200 shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-xs font-semibold text-slate-700">{statusLabel}</span>
         </div>
       </div>
 
+      {/* Telemetry footer — real values only */}
+      <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
+        <div className="p-3 text-center">
+          <div className="flex items-center justify-center gap-1 text-[10px] uppercase text-slate-400 mb-0.5">
+            <Ambulance className="w-3 h-3" /> Vehicle
+          </div>
+          <p className="text-sm font-bold text-slate-800 font-mono truncate">{vehicleNumber || '—'}</p>
+        </div>
+        <div className="p-3 text-center">
+          <div className="text-[10px] uppercase text-slate-400 mb-0.5">Distance</div>
+          <p className="text-sm font-bold text-slate-800">
+            {distanceKm != null ? `${distanceKm.toFixed(1)} km` : '—'}
+          </p>
+        </div>
+        <div className="p-3 text-center">
+          <div className="text-[10px] uppercase text-slate-400 mb-0.5">ETA</div>
+          <p className="text-sm font-bold text-cyan-700">
+            {etaMin != null ? `${etaMin} min` : '—'}
+          </p>
+        </div>
+      </div>
+
+      {(driverName || vehicleNumber) && !mapError && (
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-100 bg-slate-50">
+          <AlertTriangle className="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" />
+          <span className="text-xs text-slate-500">
+            Ambulance position updates live as the driver moves.
+          </span>
+        </div>
+      )}
     </div>
   );
 }
+

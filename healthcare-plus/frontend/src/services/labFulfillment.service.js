@@ -9,6 +9,9 @@ export const getHospitalLabRequests = (params) =>
 export const confirmLabRequest = (id, finalItems) =>
   api.post(`/lab-fulfillment/${id}/confirm`, { finalItems });
 
+export const advanceLabStatus = (id, status) =>
+  api.patch(`/lab-fulfillment/${id}/status`, { status });
+
 export const uploadLabReport = (id, data) =>
   api.post(`/lab-fulfillment/${id}/upload-report`, data);
 

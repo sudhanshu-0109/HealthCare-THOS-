@@ -16,7 +16,7 @@ export default function PatientProfileView() {
         setData(res.data);
       })
       .catch(err => {
-        setError(err.response?.data?.message || 'Failed to load passport');
+        setError(err.message || 'Failed to load passport');
       })
       .finally(() => setLoading(false));
   }, [patientId]);

@@ -6,10 +6,12 @@ export const inviteStaffSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(1),
   role: z.enum(['RECEPTIONIST', 'PHARMACIST', 'LAB_STAFF', 'AMBULANCE_DRIVER']),
+  // Only used when role is AMBULANCE_DRIVER — registers the driver's ambulance.
+  vehicleNumber: z.string().min(1).optional(),
 });
 
 export const getStaff = asyncHandler(async (req, res) => {
-  const staff = await staffService.getStaff(req.hospitalId);
+  const staff = await staffService.getStaff(req.hospitalId, req.query.role);
   res.status(200).json({ success: true, data: staff });
 });
 

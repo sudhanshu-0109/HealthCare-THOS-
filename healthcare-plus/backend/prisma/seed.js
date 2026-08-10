@@ -26,6 +26,16 @@ async function main() {
 
   // 1. CLEAR EXISTING DATA (safely, obeying foreign keys)
   console.log('Clearing existing data...');
+  // Leaf/child tables that FK into User/Hospital/Bill/MedicineReminder without
+  // cascade — must be cleared FIRST so the parent deletes below don't fail on
+  // re-seed (a silent failure here caused unique-email collisions on re-run).
+  await prisma.auditLog.deleteMany().catch(() => {});
+  await prisma.notification.deleteMany().catch(() => {});
+  await prisma.medicineReminderLog.deleteMany().catch(() => {});
+  await prisma.labTestCatalog.deleteMany().catch(() => {});
+  await prisma.billItem.deleteMany().catch(() => {});
+  await prisma.payment.deleteMany().catch(() => {});
+  await prisma.bill.deleteMany().catch(() => {});
   await prisma.pharmacyOrderItem.deleteMany().catch(() => {});
   await prisma.pharmacyOrder.deleteMany().catch(() => {});
   await prisma.medicine.deleteMany().catch(() => {});
@@ -41,11 +51,11 @@ async function main() {
   await prisma.passportConsent.deleteMany().catch(() => {});
   await prisma.healthcarePassport.deleteMany().catch(() => {});
   await prisma.queueToken.deleteMany().catch(() => {});
-  await prisma.payment.deleteMany().catch(() => {});
   await prisma.appointment.deleteMany().catch(() => {});
   await prisma.doctorAvailability.deleteMany().catch(() => {});
   await prisma.doctor.deleteMany().catch(() => {});
   await prisma.emergencyRequest.deleteMany().catch(() => {});
+  await prisma.ambulance.deleteMany().catch(() => {});
   await prisma.ambulanceDriver.deleteMany().catch(() => {});
   await prisma.labStaff.deleteMany().catch(() => {});
   await prisma.pharmacist.deleteMany().catch(() => {});
@@ -276,8 +286,13 @@ async function main() {
       authProvider: 'LOCAL',
     },
   });
-  await prisma.ambulanceDriver.create({
+  const driver = await prisma.ambulanceDriver.create({
     data: { userId: driverUser.id, hospitalId: 'hosp-sterling' },
+  });
+  // Register the driver's ambulance so they can go online and be dispatched.
+  // Ambulance.driverId references AmbulanceDriver.id (not the User id).
+  await prisma.ambulance.create({
+    data: { hospitalId: 'hosp-sterling', driverId: driver.id, vehicleNumber: 'GJ-01-AB-1234' },
   });
 
   console.log(`✅ Created Staff Accounts (Admin, Receptionist, Pharmacist, Lab, Driver)`);
@@ -397,7 +412,7 @@ async function main() {
 
   // Dummy Patients for queueing
   const dummyPatients = [];
-  for (let i = 1; i <= 20; i++) {
+  for (let i = 1; i <= 40; i++) {
     const du = await prisma.user.create({
       data: {
         email: `dummy${i}@healthcareplus.dev`,
@@ -410,7 +425,7 @@ async function main() {
     });
     dummyPatients.push(du.id);
   }
-  console.log(`✅ Created Primary Patient (Rahul) & 20 Dummy Patients`);
+  console.log(`✅ Created Primary Patient (Rahul) & 40 Dummy Patients`);
 
   // ── HEALTHCARE PASSPORT (Demo Patient) ──────────────────────────────────────
   const passport = await prisma.healthcarePassport.create({
@@ -501,11 +516,13 @@ async function main() {
   const busyHospitalId = 'hosp-bhailal';
   const busyDeptId = hospitalDepts[busyHospitalId]['Gastroenterology'];
 
-  // Create 15 dummy appointments BEFORE demo patient
+  // Create 20 dummy appointments BEFORE demo patient.
+  // Layout keeps the queue visibly busy without exceeding the doctor's slot grid
+  // (09:00–17:00 @ 15min = 32 slots/day). 27 tokens total end at 15:30.
   let currentTokenTime = new Date(todayObj);
   currentTokenTime.setUTCHours(9, 0, 0, 0);
 
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 20; i++) {
     const timeStr = `${String(currentTokenTime.getUTCHours()).padStart(2, '0')}:${String(currentTokenTime.getUTCMinutes()).padStart(2, '0')}`;
     const a = await prisma.appointment.create({
       data: {
@@ -519,12 +536,11 @@ async function main() {
         status: 'CONFIRMED',
       }
     });
-    // First 12 are COMPLETED
-    // 13th is IN_PROGRESS
-    // 14th, 15th are WAITING
+    // First 10 are COMPLETED, 11th (i===10) is IN_PROGRESS (now serving),
+    // the remaining 9 are WAITING — so the demo patient sees a real queue ahead.
     let qStatus = 'COMPLETED';
-    if (i === 12) qStatus = 'IN_PROGRESS';
-    if (i > 12) qStatus = 'WAITING';
+    if (i === 10) qStatus = 'IN_PROGRESS';
+    if (i > 10) qStatus = 'WAITING';
 
     await prisma.queueToken.create({
       data: {
@@ -539,7 +555,7 @@ async function main() {
     currentTokenTime.setUTCMinutes(currentTokenTime.getUTCMinutes() + 15);
   }
 
-  // Create DEMO PATIENT Appointment (Token #16)
+  // Create DEMO PATIENT Appointment (Token #21)
   const myApptTimeStr = `${String(currentTokenTime.getUTCHours()).padStart(2, '0')}:${String(currentTokenTime.getUTCMinutes()).padStart(2, '0')}`;
   const myAppt = await prisma.appointment.create({
     data: {
@@ -585,13 +601,13 @@ async function main() {
       doctorId: busyDoctorId,
       hospitalId: busyHospitalId,
       queueDate: todayObj,
-      tokenNumber: 16,
+      tokenNumber: 21,
       status: 'WAITING',
     }
   });
 
-  // Create 4 more dummy appointments AFTER demo patient
-  for (let i = 16; i < 20; i++) {
+  // Create 6 more dummy appointments AFTER demo patient (Tokens #22–27)
+  for (let i = 20; i < 26; i++) {
     currentTokenTime.setUTCMinutes(currentTokenTime.getUTCMinutes() + 15);
     const timeStr = `${String(currentTokenTime.getUTCHours()).padStart(2, '0')}:${String(currentTokenTime.getUTCMinutes()).padStart(2, '0')}`;
     const a = await prisma.appointment.create({
@@ -612,7 +628,7 @@ async function main() {
         doctorId: busyDoctorId,
         hospitalId: busyHospitalId,
         queueDate: todayObj,
-        tokenNumber: i + 1,
+        tokenNumber: i + 2, // demo took token 21, so after-tokens start at 22
         status: 'WAITING',
       }
     });
@@ -669,7 +685,7 @@ async function main() {
     }
   });
 
-  console.log(`✅ Simulated live queue: Dr. Amit Trivedi is on Token 13, Rahul is Token 16.`);
+  console.log(`✅ Simulated live queue: Dr. Amit Trivedi is on Token 11, Rahul is Token 21 (27 tokens total).`);
   console.log(`✅ Seed complete! Log in with patient@healthcareplus.dev / Password123!`);
 }
 

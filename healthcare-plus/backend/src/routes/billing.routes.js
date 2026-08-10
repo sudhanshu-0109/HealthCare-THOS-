@@ -8,6 +8,9 @@ import * as ctrl from '../controllers/billing.controller.js';
 
 const router = Router();
 
+// Razorpay checkout config (publishable key id + mock flag). Any authenticated user.
+router.get('/config', authenticate, ctrl.getConfig);
+
 // Patient initiates a payment for any payable source (Appointment, PharmacyOrder, LabRequest)
 router.post('/pay', authenticate, checkRole('PATIENT'), ctrl.initiatePayment);
 

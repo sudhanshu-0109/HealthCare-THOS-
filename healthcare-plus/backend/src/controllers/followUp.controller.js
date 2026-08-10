@@ -18,7 +18,7 @@ export const recommendFollowUp = catchAsync(async (req, res) => {
     },
     doctorId
   );
-  res.status(201).json(recommendation);
+  res.status(201).json({ success: true, data: { followUp: recommendation } });
 });
 
 export const bookFollowUp = catchAsync(async (req, res) => {
@@ -27,7 +27,7 @@ export const bookFollowUp = catchAsync(async (req, res) => {
     { scheduledTime: req.body.scheduledTime },
     req.user.id // patientId
   );
-  res.json(booking);
+  res.json({ success: true, data: booking });
 });
 
 export const dismissFollowUp = catchAsync(async (req, res) => {
@@ -35,10 +35,10 @@ export const dismissFollowUp = catchAsync(async (req, res) => {
     req.params.id,
     req.user.id // patientId
   );
-  res.json({ followUp });
+  res.json({ success: true, data: { followUp } });
 });
 
 export const getMyFollowUps = catchAsync(async (req, res) => {
   const followUps = await followUpService.getMyFollowUps(req.user.id);
-  res.json({ followUps });
+  res.json({ success: true, data: { followUps } });
 });

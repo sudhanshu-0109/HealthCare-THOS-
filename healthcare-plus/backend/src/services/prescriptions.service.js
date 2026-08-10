@@ -85,23 +85,30 @@ export const createPrescription = async (consultationId, { generalInstructions, 
 };
 
 /**
- * Get a prescription by ID.
- * Patient: own prescriptions only.
- * Doctor: own prescriptions + (via consent) others.
+ * Get a prescription by ID with default-deny authorization.
+ * PATIENT: own only. DOCTOR: own only. PHARMACIST/HOSPITAL_ADMIN: same-hospital.
+ * SUPER_ADMIN: any. All other roles: denied.
  */
-export const getPrescription = async (prescriptionId, requesterId, requesterRole) => {
+export const getPrescription = async (prescriptionId, requesterId, requesterRole, requesterHospitalId) => {
   const prescription = await prisma.prescription.findUnique({
     where: { id: prescriptionId },
     select: PRESCRIPTION_SELECT,
   });
   if (!prescription) throw ApiError.notFound('Prescription not found.');
 
-  if (requesterRole === 'PATIENT' && prescription.patientId !== requesterId) {
-    throw ApiError.forbidden('Not your prescription.');
-  }
-  if (requesterRole === 'DOCTOR' && prescription.doctorId !== requesterId) {
-    // Could check consent here — for Phase 8 scope: own prescriptions only
-    throw ApiError.forbidden('Not your prescription.');
+  if (requesterRole === 'PATIENT') {
+    if (prescription.patientId !== requesterId) throw ApiError.forbidden('Not your prescription.');
+  } else if (requesterRole === 'SUPER_ADMIN') {
+    // Cross-hospital read allowed.
+  } else if (requesterRole === 'DOCTOR') {
+    const doctor = await prisma.doctor.findUnique({ where: { userId: requesterId }, select: { id: true } });
+    if (!doctor || prescription.doctorId !== doctor.id) throw ApiError.forbidden('Not your prescription.');
+  } else if (requesterRole === 'PHARMACIST' || requesterRole === 'HOSPITAL_ADMIN') {
+    if (!requesterHospitalId || prescription.hospitalId !== requesterHospitalId) {
+      throw ApiError.forbidden('Prescription does not belong to your hospital.');
+    }
+  } else {
+    throw ApiError.forbidden('You are not permitted to view this prescription.');
   }
 
   return prescription;

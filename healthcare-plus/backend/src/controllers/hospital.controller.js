@@ -41,6 +41,36 @@ export const getHospitalById = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: hospital });
 });
 
+// Whitelist of fields a hospital admin may edit on their own hospital.
+// Deliberately excludes isActive / averageRating / latitude / longitude, which
+// are not part of the settings form and should not be settable here.
+export const updateMyHospitalSchema = z.object({
+  name: z.string().min(1).optional(),
+  address: z.string().min(1).optional(),
+  city: z.string().min(1).optional(),
+  contactPhone: z.string().min(1).optional(),
+  contactEmail: z.string().email().optional(),
+  workingHoursOpen: z.string().optional(),
+  workingHoursClose: z.string().optional(),
+  specialities: z.array(z.string()).optional(),
+});
+
+export const getMyHospital = asyncHandler(async (req, res) => {
+  if (!req.user.hospitalId) {
+    return res.status(404).json({ success: false, message: 'No hospital is linked to your account.' });
+  }
+  const hospital = await hospitalService.getHospitalById(req.user.hospitalId);
+  res.status(200).json({ success: true, data: hospital });
+});
+
+export const updateMyHospital = asyncHandler(async (req, res) => {
+  if (!req.user.hospitalId) {
+    return res.status(404).json({ success: false, message: 'No hospital is linked to your account.' });
+  }
+  const hospital = await hospitalService.updateHospital(req.user.hospitalId, req.body, req.user.id);
+  res.status(200).json({ success: true, data: hospital });
+});
+
 export const createHospital = asyncHandler(async (req, res) => {
   const hospital = await hospitalService.createHospitalWithAdmin(req.body, req.user.id);
   res.status(201).json({ success: true, data: hospital });

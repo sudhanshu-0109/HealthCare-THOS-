@@ -45,12 +45,18 @@ const emitQueueUpdate = async (doctorId, queueDate) => {
   const dateStr = queueDate.toISOString().split('T')[0];
   const queue = await prisma.queueToken.findMany({
     where: { doctorId, queueDate },
-    select: QUEUE_TOKEN_SELECT,
+    select: { ...QUEUE_TOKEN_SELECT, hospitalId: true },
     orderBy: { tokenNumber: 'asc' },
   });
 
   // Notify the doctor's room
   io.to(`doctor:${doctorId}:${dateStr}`).emit('queue:updated', { doctorId, date: dateStr, queue });
+
+  // Notify the hospital-wide monitoring room (admin Queue Monitor).
+  const hospitalId = queue[0]?.hospitalId;
+  if (hospitalId) {
+    io.to(`hospital:${hospitalId}:queue`).emit('queue:updated', { doctorId, date: dateStr, hospitalId, queue });
+  }
 
   // Notify each patient individually
   for (const token of queue) {

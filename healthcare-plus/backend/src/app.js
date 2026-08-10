@@ -25,8 +25,10 @@ app.use(helmet());
 app.use(cors(corsConfig));
 
 // ── Body & Cookie parsing ──────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// The app has no file uploads — every payload is small JSON (form fields, URLs).
+// A 1mb cap is generous for that while limiting request-body DoS surface.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
 // ── HTTP request logging (development only) ───────────────────────────────

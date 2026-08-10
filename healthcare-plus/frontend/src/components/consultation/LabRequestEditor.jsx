@@ -31,7 +31,7 @@ export default function LabRequestEditor({ consultationId, onSuccess, isReadOnly
       await labRequestsService.createLabRequest(consultationId, { priority, notes, items });
       onSuccess();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save lab request.');
+      alert(err.message || 'Failed to save lab request.');
     } finally {
       setLoading(false);
     }

@@ -1,98 +1,63 @@
 /**
- * hooks/useNotifications.js — Notification state with Socket.IO integration (Phase 15).
+ * hooks/useNotifications.js — Thin hook over the shared notification store.
  *
- * Features:
- *   - Fetches initial notifications on mount
- *   - Listens for real-time notification:new events
- *   - Exposes markRead, markAllRead, refresh helpers
+ * Backed by store/notificationStore.js so every consumer (header bell, the
+ * Notifications tab, the sidebar badge) reads and mutates the SAME live state.
+ * This hook owns the one-time initial fetch and the `notification:new` socket
+ * subscription; the subscription is ref-counted so exactly one listener is
+ * attached regardless of how many components use the hook.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../services/notifications.service.js';
+import { useEffect } from 'react';
+import useNotificationStore from '../store/notificationStore.js';
 import { getSocket } from '../services/socket.js';
 import useAuthStore from '../store/authStore.js';
 
-export const useNotifications = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const listenerAttachedRef = useRef(false);
+// Module-level guards shared across every hook consumer.
+let subscriberCount = 0;
+let socketHandler = null;
 
+export const useNotifications = () => {
+  const store = useNotificationStore();
   const user = useAuthStore((s) => s.user);
 
-  const fetchNotifications = useCallback(async (page = 1, limit = 20) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getNotifications({ page, limit });
-      setNotifications(data.notifications || []);
-      setUnreadCount(data.unreadCount ?? 0);
-      setTotal(data.total ?? 0);
-    } catch (err) {
-      setError(err.message || 'Failed to load notifications');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!user?.id) {
+      useNotificationStore.getState().reset();
+      return undefined;
     }
-  }, []);
 
-  // Initial fetch
-  useEffect(() => {
-    if (user?.id) fetchNotifications();
-  }, [user?.id, fetchNotifications]);
+    // Fetch fresh data whenever a consumer mounts (idempotent GET).
+    useNotificationStore.getState().fetchNotifications();
 
-  // Real-time listener
-  useEffect(() => {
-    if (!user?.id || listenerAttachedRef.current) return;
-
-    const socket = getSocket();
-    if (!socket) return;
-
-    const handler = (newNotif) => {
-      setNotifications((prev) => [newNotif, ...prev]);
-      setUnreadCount((prev) => prev + 1);
-    };
-
-    socket.on('notification:new', handler);
-    listenerAttachedRef.current = true;
+    // Attach the real-time listener once, on the first active consumer.
+    subscriberCount += 1;
+    if (subscriberCount === 1) {
+      const socket = getSocket();
+      if (socket) {
+        socketHandler = (notif) => useNotificationStore.getState().pushNotification(notif);
+        socket.on('notification:new', socketHandler);
+      }
+    }
 
     return () => {
-      socket.off('notification:new', handler);
-      listenerAttachedRef.current = false;
+      subscriberCount = Math.max(0, subscriberCount - 1);
+      if (subscriberCount === 0 && socketHandler) {
+        const socket = getSocket();
+        if (socket) socket.off('notification:new', socketHandler);
+        socketHandler = null;
+      }
     };
   }, [user?.id]);
 
-  const markRead = useCallback(async (id) => {
-    try {
-      await markNotificationRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch (err) {
-      console.warn('[useNotifications] Failed to mark read:', err.message);
-    }
-  }, []);
-
-  const markAllRead = useCallback(async () => {
-    try {
-      await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-    } catch (err) {
-      console.warn('[useNotifications] Failed to mark all read:', err.message);
-    }
-  }, []);
-
   return {
-    notifications,
-    unreadCount,
-    total,
-    loading,
-    error,
-    markRead,
-    markAllRead,
-    refresh: fetchNotifications,
+    notifications: store.notifications,
+    unreadCount: store.unreadCount,
+    total: store.total,
+    loading: store.loading,
+    error: store.error,
+    markRead: store.markRead,
+    markAllRead: store.markAllRead,
+    refresh: store.fetchNotifications,
   };
 };

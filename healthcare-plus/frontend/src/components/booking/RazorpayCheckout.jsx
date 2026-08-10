@@ -70,7 +70,7 @@ export default function RazorpayCheckout({
       });
       onSuccess(res.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Payment verification failed. Please try again.');
+      setError(err.message || 'Payment verification failed. Please try again.');
       setPaying(false);
     }
   };

@@ -15,3 +15,8 @@ export const getAppointmentById = (id) =>
 
 export const cancelAppointment = (id, reason) =>
   api.patch(`/appointments/${id}/cancel`, { reason });
+
+// HOSPITAL_ADMIN — list all appointments in their hospital
+export const getHospitalAppointments = (params) =>
+  api.get('/appointments', { params });
+

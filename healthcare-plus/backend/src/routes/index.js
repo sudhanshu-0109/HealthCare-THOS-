@@ -42,6 +42,8 @@ import auditLogRouter from './auditLog.routes.js';
 import adminQueueRouter from './adminQueue.routes.js';
 // Phase 15
 import notificationsRouter from './notifications.routes.js';
+import labTestsRouter from './labTests.routes.js';
+import medicinesRouter from './medicines.routes.js';
 
 const router = Router();
 
@@ -83,5 +85,7 @@ router.use('/audit-log', auditLogRouter);
 router.use('/admin/queue', adminQueueRouter);
 // Phase 15
 router.use('/notifications', notificationsRouter);
+router.use('/lab-tests', labTestsRouter);
+router.use('/medicines', medicinesRouter);
 
 export default router;

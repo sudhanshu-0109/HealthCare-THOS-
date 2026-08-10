@@ -53,14 +53,16 @@ export const createOrderFromPrescription = async (prescriptionId, hospitalId, pa
  * @param {string} orderId
  * @param {string} pharmacistUserId
  * @param {Array<{ prescriptionItemId, medicineId, quantity, unitPrice }>} items
+ * @param {string} hospitalId — pharmacist's hospital, for cross-hospital isolation
  */
-export const pharmacistMatchAndConfirm = async (orderId, pharmacistUserId, items) => {
+export const pharmacistMatchAndConfirm = async (orderId, pharmacistUserId, items, hospitalId) => {
   const order = await prisma.pharmacyOrder.findUnique({
     where: { id: orderId },
     include: { items: true },
   });
 
   if (!order) throw ApiError.notFound('Pharmacy order not found.');
+  if (order.hospitalId !== hospitalId) throw ApiError.forbidden('Order does not belong to your hospital.');
   if (order.status !== 'PENDING') {
     throw ApiError.badRequest(`Cannot confirm order in status: ${order.status}`);
   }

@@ -15,6 +15,19 @@ const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http:/
 
 let socket = null;
 
+// Track room-join intents so they can be re-emitted after a reconnect. Socket.IO
+// rooms live only for the duration of a connection; when the socket drops and
+// reconnects it lands in a fresh server-side session with no rooms, so without
+// this the client silently stops receiving room events. (R17)
+const joinIntents = new Map(); // key -> { event, payload }
+
+const rejoinAll = () => {
+  if (!socket) return;
+  for (const { event, payload } of joinIntents.values()) {
+    socket.emit(event, payload);
+  }
+};
+
 /**
  * Get or create the singleton socket connection.
  * Uses the current JWT access token from authStore.
@@ -22,7 +35,13 @@ let socket = null;
 export const getSocket = () => {
   const token = useAuthStore.getState().token;
 
-  if (socket && socket.connected) return socket;
+  // Reuse a live OR actively-reconnecting socket. Tearing down a socket that is
+  // mid-reconnect would drop all registered listeners; instead refresh its auth
+  // token so subsequent reconnect attempts use the latest access token.
+  if (socket && (socket.connected || socket.active)) {
+    if (token) socket.auth = { token };
+    return socket;
+  }
 
   if (socket) {
     socket.disconnect();
@@ -42,8 +61,11 @@ export const getSocket = () => {
     reconnectionDelay: 2000,
   });
 
+  // Fires on the initial connection AND on every successful reconnection —
+  // re-emit tracked room joins so the client resumes receiving room events.
   socket.on('connect', () => {
     console.log('[Socket] Connected:', socket.id);
+    rejoinAll();
   });
 
   socket.on('connect_error', (err) => {
@@ -58,9 +80,10 @@ export const getSocket = () => {
 };
 
 /**
- * Disconnect and cleanup the socket.
+ * Disconnect and cleanup the socket. Clears room-join intents (full logout).
  */
 export const disconnectSocket = () => {
+  joinIntents.clear();
   if (socket) {
     socket.disconnect();
     socket = null;
@@ -72,6 +95,7 @@ export const disconnectSocket = () => {
  */
 export const joinDoctorQueue = (doctorId, date) => {
   const s = getSocket();
+  joinIntents.set(`doctor:${doctorId}:${date}`, { event: 'join-doctor-queue', payload: { doctorId, date } });
   if (s) s.emit('join-doctor-queue', { doctorId, date });
 };
 
@@ -79,7 +103,26 @@ export const joinDoctorQueue = (doctorId, date) => {
  * Leave a doctor's queue room.
  */
 export const leaveDoctorQueue = (doctorId, date) => {
+  joinIntents.delete(`doctor:${doctorId}:${date}`);
   if (socket) socket.emit('leave-doctor-queue', { doctorId, date });
+};
+
+/**
+ * Join the hospital-wide queue monitoring room (admin Queue Monitor).
+ */
+export const joinHospitalQueue = (hospitalId) => {
+  const s = getSocket();
+  if (!hospitalId) return;
+  joinIntents.set(`hospital:${hospitalId}:queue`, { event: 'join-hospital-queue', payload: { hospitalId } });
+  if (s) s.emit('join-hospital-queue', { hospitalId });
+};
+
+/**
+ * Stop tracking the hospital queue room (server auto-cleans rooms on disconnect;
+ * there is no explicit leave handler for this room).
+ */
+export const leaveHospitalQueue = (hospitalId) => {
+  joinIntents.delete(`hospital:${hospitalId}:queue`);
 };
 
 /**
@@ -88,6 +131,26 @@ export const leaveDoctorQueue = (doctorId, date) => {
  */
 export const joinPatientRoom = () => {
   getSocket();
+};
+
+/**
+ * Join an emergency tracking room. The server emits emergency:accepted /
+ * emergency:location-update / emergency:status-update into `emergency:{requestId}`.
+ * The join is tracked and re-emitted automatically on reconnect.
+ */
+export const joinEmergencyRoom = (requestId) => {
+  const s = getSocket();
+  if (!requestId) return;
+  joinIntents.set(`emergency:${requestId}`, { event: 'join-emergency-room', payload: { requestId } });
+  if (s) s.emit('join-emergency-room', { requestId });
+};
+
+/**
+ * Leave an emergency tracking room.
+ */
+export const leaveEmergencyRoom = (requestId) => {
+  joinIntents.delete(`emergency:${requestId}`);
+  if (socket && requestId) socket.emit('leave-emergency-room', { requestId });
 };
 
 /**

@@ -3,6 +3,24 @@
  */
 
 import * as billingService from '../services/billing.service.js';
+import { isMockMode } from '../services/razorpay.service.js';
+import { env } from '../config/env.js';
+
+/**
+ * GET /api/billing/config
+ * Public (authenticated) Razorpay checkout config. Only the *publishable* key id
+ * is exposed — never the secret. `isMock` lets the client skip the real gateway
+ * when no credentials are configured.
+ */
+export const getConfig = async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      keyId: env.RAZORPAY_KEY_ID || null,
+      isMock: isMockMode,
+    },
+  });
+};
 
 /**
  * POST /api/billing/pay

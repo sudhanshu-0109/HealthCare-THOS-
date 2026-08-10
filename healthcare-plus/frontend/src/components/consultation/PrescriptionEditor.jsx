@@ -41,7 +41,7 @@ export default function PrescriptionEditor({ consultationId, onSuccess, isReadOn
       await prescriptionsService.createPrescription(consultationId, { generalInstructions, items });
       onSuccess();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save prescription.');
+      alert(err.message || 'Failed to save prescription.');
     } finally {
       setLoading(false);
     }

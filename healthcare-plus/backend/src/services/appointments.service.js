@@ -294,9 +294,11 @@ export const getMyAppointments = async (patientId, { status, page = 1, limit = 1
 };
 
 /**
- * Get a single appointment by ID (owner check).
+ * Get a single appointment by ID with default-deny authorization.
+ * PATIENT: own only. DOCTOR: own only. HOSPITAL_ADMIN/RECEPTIONIST: same-hospital.
+ * SUPER_ADMIN: any. All other roles: denied.
  */
-export const getAppointmentById = async (appointmentId, userId, role) => {
+export const getAppointmentById = async (appointmentId, userId, role, requesterHospitalId) => {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
     select: APPOINTMENT_SELECT,
@@ -304,8 +306,23 @@ export const getAppointmentById = async (appointmentId, userId, role) => {
 
   if (!appointment) throw ApiError.notFound('Appointment not found.');
 
-  if (role === 'PATIENT' && appointment.patientId !== userId) {
-    throw ApiError.forbidden('You can only view your own appointments.');
+  if (role === 'PATIENT') {
+    if (appointment.patientId !== userId) {
+      throw ApiError.forbidden('You can only view your own appointments.');
+    }
+  } else if (role === 'SUPER_ADMIN') {
+    // Cross-hospital read allowed.
+  } else if (role === 'DOCTOR') {
+    const doctor = await prisma.doctor.findUnique({ where: { userId }, select: { id: true } });
+    if (!doctor || appointment.doctorId !== doctor.id) {
+      throw ApiError.forbidden('You can only view your own appointments.');
+    }
+  } else if (role === 'HOSPITAL_ADMIN' || role === 'RECEPTIONIST') {
+    if (!requesterHospitalId || appointment.hospitalId !== requesterHospitalId) {
+      throw ApiError.forbidden('Appointment does not belong to your hospital.');
+    }
+  } else {
+    throw ApiError.forbidden('You are not permitted to view this appointment.');
   }
 
   return appointment;

@@ -5,13 +5,16 @@
 
 import { BrowserRouter } from 'react-router-dom';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import AuthBootstrap from './components/auth/AuthBootstrap';
 import AppRouter from './router/AppRouter';
 
 function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
-        <AppRouter />
+        <AuthBootstrap>
+          <AppRouter />
+        </AuthBootstrap>
       </ErrorBoundary>
     </BrowserRouter>
   );

@@ -53,7 +53,7 @@ export default function Passport() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save passport.');
+      setError(err.message || 'Failed to save passport.');
     } finally {
       setSaving(false);
     }

@@ -24,6 +24,14 @@ const MAX_AMBULANCES_TO_NOTIFY = 5;   // Notify nearest N drivers
 const FALLBACK_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
 
 /**
+ * Resolve a driver's ambulance from their USER id.
+ * Ambulance.driverId references AmbulanceDriver.id (NOT the User id), so a driver's
+ * ambulance is always resolved through the driver relation off the authenticated user.
+ */
+const findAmbulanceByUserId = (userId, include) =>
+  prisma.ambulance.findFirst({ where: { driver: { userId } }, include });
+
+/**
  * dispatchRequest — transitions EmergencyRequest to SEARCHING and notifies nearby drivers.
  * This is the ONLY place that searches ALL online ambulances regardless of hospital.
  */
@@ -91,11 +99,11 @@ export const dispatchRequest = async (emergencyRequestId) => {
 /**
  * acceptRequest — driver atomically claims the emergency request.
  * Returns false (not 500) if already claimed by another driver.
+ * @param {string} userId — the authenticated driver's User id.
  */
-export const acceptRequest = async (emergencyRequestId, driverId) => {
-  const ambulance = await prisma.ambulance.findUnique({
-    where: { driverId },
-    include: { driver: { include: { user: { select: { fullName: true } } } } },
+export const acceptRequest = async (emergencyRequestId, userId) => {
+  const ambulance = await findAmbulanceByUserId(userId, {
+    driver: { include: { user: { select: { fullName: true } } } },
   });
   if (!ambulance) throw ApiError.notFound('No ambulance assigned to this driver.');
 
@@ -137,10 +145,14 @@ export const rejectRequest = async (emergencyRequestId, driverId) => {
 
 /**
  * updateDriverLocation — updates ambulance coordinates and emits to patient's room if assigned.
+ * @param {string} userId — the authenticated driver's User id.
  */
-export const updateDriverLocation = async (driverId, { latitude, longitude }) => {
+export const updateDriverLocation = async (userId, { latitude, longitude }) => {
+  const existing = await findAmbulanceByUserId(userId);
+  if (!existing) throw ApiError.notFound('No ambulance assigned to this driver.');
+
   const ambulance = await prisma.ambulance.update({
-    where: { driverId },
+    where: { id: existing.id },
     data: { currentLatitude: latitude, currentLongitude: longitude, locationUpdatedAt: new Date() },
   });
 
@@ -210,10 +222,78 @@ export const markPickedUp = async (emergencyRequestId, driverId, { destinationHo
  * markArrived — ambulance has arrived at the hospital.
  */
 export const markArrived = async (emergencyRequestId, driverId) => {
-  return _advanceRequestStatus(emergencyRequestId, driverId, 'PICKED_UP', 'ARRIVED', {
+  const result = await _advanceRequestStatus(emergencyRequestId, driverId, 'PICKED_UP', 'ARRIVED', {
     event: 'emergency:status-update',
     payload: { status: 'ARRIVED' },
   });
+
+  // Stamp completion time so dispatch history has an accurate finished-at.
+  await prisma.emergencyRequest.update({
+    where: { id: emergencyRequestId },
+    data: { arrivedAt: new Date() },
+  });
+
+  return result;
+};
+
+/**
+ * getDriverState — rehydrates a driver's dashboard after a page reload: their
+ * ambulance's online status, any in-flight assignment, and past dispatches.
+ * Without this, a refresh mid-trip would silently drop the active emergency from
+ * the UI even though the backend still holds it. (R15)
+ * @param {string} userId — the authenticated driver's User id.
+ */
+export const getDriverState = async (userId) => {
+  const ambulance = await findAmbulanceByUserId(userId);
+  if (!ambulance) {
+    return { isOnline: false, ambulance: null, activeRequest: null, history: [] };
+  }
+
+  const ACTIVE = ['DRIVER_ASSIGNED', 'EN_ROUTE', 'PICKED_UP'];
+  const [activeRequest, history] = await Promise.all([
+    prisma.emergencyRequest.findFirst({
+      where: { ambulanceId: ambulance.id, status: { in: ACTIVE } },
+      include: { patient: { select: { fullName: true } } },
+      orderBy: { acceptedAt: 'desc' },
+    }),
+    prisma.emergencyRequest.findMany({
+      where: { ambulanceId: ambulance.id, status: { in: ['ARRIVED', 'CANCELLED'] } },
+      include: { patient: { select: { fullName: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    }),
+  ]);
+
+  return {
+    isOnline: Boolean(ambulance.isOnline),
+    ambulance: {
+      id: ambulance.id,
+      vehicleNumber: ambulance.vehicleNumber,
+      currentLatitude: ambulance.currentLatitude,
+      currentLongitude: ambulance.currentLongitude,
+    },
+    activeRequest: activeRequest
+      ? {
+          id: activeRequest.id,
+          status: activeRequest.status,
+          patientLat: activeRequest.latitude,
+          patientLng: activeRequest.longitude,
+          patientName: activeRequest.patient?.fullName || null,
+          acceptedAt: activeRequest.acceptedAt,
+        }
+      : null,
+    history: history.map((r) => ({
+      id: r.id,
+      status: r.status,
+      patientName: r.patient?.fullName || null,
+      patientLat: r.latitude,
+      patientLng: r.longitude,
+      createdAt: r.createdAt,
+      acceptedAt: r.acceptedAt,
+      pickedUpAt: r.pickedUpAt,
+      arrivedAt: r.arrivedAt,
+    })),
+  };
 };
 
 /**
@@ -244,8 +324,8 @@ async function _applyFallback(emergencyRequestId) {
   });
 }
 
-async function _advanceRequestStatus(requestId, driverId, expectedCurrentStatus, nextStatus, socketPayload) {
-  const ambulance = await prisma.ambulance.findUnique({ where: { driverId } });
+async function _advanceRequestStatus(requestId, userId, expectedCurrentStatus, nextStatus, socketPayload) {
+  const ambulance = await findAmbulanceByUserId(userId);
   if (!ambulance) throw ApiError.notFound('No ambulance assigned to this driver.');
 
   const updated = await prisma.emergencyRequest.updateMany({

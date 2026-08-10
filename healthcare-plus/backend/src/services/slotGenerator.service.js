@@ -51,26 +51,26 @@ const expireStaleHolds = async (doctorId, scheduledDate) => {
 };
 
 /**
- * Get available slots for a doctor on a given date.
+ * Get every slot for a doctor on a given date, each flagged booked/available.
+ * Unlike getAvailableSlots (which omits taken slots), this returns the full grid
+ * so the UI can render booked slots struck-through/disabled.
  * @param {string} doctorId
  * @param {string} dateStr — "YYYY-MM-DD"
- * @returns {string[]} — array of "HH:MM" slot strings that are still available
+ * @returns {{ time: string, booked: boolean }[]} — sorted by time
  */
-export const getAvailableSlots = async (doctorId, dateStr) => {
+export const getSlotsWithStatus = async (doctorId, dateStr) => {
   const date = toMidnightUTC(dateStr);
   const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
 
   // Expire stale holds first (lazy expiry)
   await expireStaleHolds(doctorId, date);
 
-  // Fetch doctor availability for this day
   const availabilities = await prisma.doctorAvailability.findMany({
     where: { doctorId, dayOfWeek, isActive: true },
   });
 
   if (availabilities.length === 0) return [];
 
-  // Collect all booked/held slots for this doctor/date
   const bookedAppointments = await prisma.appointment.findMany({
     where: {
       doctorId,
@@ -81,8 +81,8 @@ export const getAvailableSlots = async (doctorId, dateStr) => {
   });
   const bookedTimes = new Set(bookedAppointments.map((a) => a.scheduledTime));
 
-  // Generate candidate slots from all availability windows
-  const slots = [];
+  // De-dupe times across overlapping availability windows.
+  const seen = new Map(); // time -> booked
   for (const avail of availabilities) {
     const start = timeToMinutes(avail.startTime);
     const end = timeToMinutes(avail.endTime);
@@ -90,11 +90,22 @@ export const getAvailableSlots = async (doctorId, dateStr) => {
 
     for (let t = start; t + interval <= end; t += interval) {
       const slotTime = minutesToTime(t);
-      if (!bookedTimes.has(slotTime)) {
-        slots.push(slotTime);
-      }
+      if (!seen.has(slotTime)) seen.set(slotTime, bookedTimes.has(slotTime));
     }
   }
 
-  return slots.sort();
+  return [...seen.entries()]
+    .map(([time, booked]) => ({ time, booked }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+};
+
+/**
+ * Get available slots for a doctor on a given date.
+ * @param {string} doctorId
+ * @param {string} dateStr — "YYYY-MM-DD"
+ * @returns {string[]} — array of "HH:MM" slot strings that are still available
+ */
+export const getAvailableSlots = async (doctorId, dateStr) => {
+  const slots = await getSlotsWithStatus(doctorId, dateStr);
+  return slots.filter((s) => !s.booked).map((s) => s.time);
 };

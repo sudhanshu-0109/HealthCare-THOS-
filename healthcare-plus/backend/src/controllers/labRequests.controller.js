@@ -19,19 +19,26 @@ export const createLabRequest = catchAsync(async (req, res) => {
     },
     doctorId
   );
-  res.status(201).json(labRequest);
+  res.status(201).json({ success: true, data: labRequest });
 });
 
 export const getLabRequest = catchAsync(async (req, res) => {
   const labRequest = await labRequestsService.getLabRequest(
     req.params.id,
     req.user.id,
-    req.user.role
+    req.user.role,
+    req.user.hospitalId
   );
-  res.json(labRequest);
+  res.json({ success: true, data: labRequest });
 });
 
 export const getMyLabRequests = catchAsync(async (req, res) => {
   const labRequests = await labRequestsService.getMyLabRequests(req.user.id);
-  res.json({ labRequests });
+  res.json({ success: true, data: { labRequests } });
 });
+
+export const acceptLabRequest = catchAsync(async (req, res) => {
+  const result = await labRequestsService.acceptLabRequestByPatient(req.params.id, req.user.id);
+  res.status(200).json({ success: true, data: result });
+});
+

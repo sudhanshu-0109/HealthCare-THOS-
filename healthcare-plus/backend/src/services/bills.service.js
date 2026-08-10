@@ -5,8 +5,12 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 
+// Hospital-scoped staff roles permitted to read a bill within their own hospital.
+const BILL_STAFF_ROLES = ['HOSPITAL_ADMIN', 'RECEPTIONIST', 'PHARMACIST', 'LAB_STAFF'];
+
 const BILL_SELECT = {
   id: true,
+  patientId: true,
   sourceType: true,
   sourceId: true,
   subtotal: true,
@@ -64,7 +68,9 @@ export const getMyBills = async (patientId, { status, sourceType, page = 1, limi
 
 /**
  * Get a single bill by ID.
- * Patients can only see their own; hospital admins can see any bill in their hospital.
+ * Default-deny: a PATIENT may read only their own bill; hospital-scoped staff
+ * (admin / receptionist / pharmacist / lab) may read only bills within their own
+ * hospital; SUPER_ADMIN may read any; every other role is denied.
  */
 export const getBillById = async (billId, requesterId, requesterRole, requesterHospitalId) => {
   const bill = await prisma.bill.findUnique({
@@ -74,11 +80,19 @@ export const getBillById = async (billId, requesterId, requesterRole, requesterH
 
   if (!bill) throw ApiError.notFound('Bill not found.');
 
-  if (requesterRole === 'PATIENT' && bill.patientId !== requesterId) {
-    throw ApiError.forbidden('You can only view your own bills.');
-  }
-  if (requesterRole === 'HOSPITAL_ADMIN' && bill.hospitalId !== requesterHospitalId) {
-    throw ApiError.forbidden('Bill does not belong to your hospital.');
+  if (requesterRole === 'PATIENT') {
+    if (bill.patientId !== requesterId) {
+      throw ApiError.forbidden('You can only view your own bills.');
+    }
+  } else if (requesterRole === 'SUPER_ADMIN') {
+    // Cross-hospital read allowed.
+  } else if (BILL_STAFF_ROLES.includes(requesterRole)) {
+    if (!requesterHospitalId || bill.hospitalId !== requesterHospitalId) {
+      throw ApiError.forbidden('Bill does not belong to your hospital.');
+    }
+  } else {
+    // Default-deny: any role not explicitly permitted above.
+    throw ApiError.forbidden('You are not permitted to view this bill.');
   }
 
   return bill;

@@ -20,6 +20,7 @@ import ResetPassword from '../pages/public/ResetPassword';
 import AcceptInvite from '../pages/public/AcceptInvite';
 import NotFound from '../pages/NotFound';
 import Unauthorized from '../pages/Unauthorized';
+import DevMapCheck from '../pages/__DevMapCheck'; // TEMP: remove after map verification
 
 // Auth Guard Component
 import ProtectedRoute from '../components/auth/ProtectedRoute';
@@ -70,6 +71,7 @@ const AppRouter = () => {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/accept-invite/:token" element={<AcceptInvite />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="/__devmap" element={<DevMapCheck />} />{/* TEMP: remove after map verification */}
       </Route>
 
       {/* ── Patient routes (protected, role=PATIENT) ──────────────────── */}
@@ -105,16 +107,13 @@ const AppRouter = () => {
       </Route>
 
       {/* ── Hospital Admin routes (protected, role=HOSPITAL_ADMIN) ─────── */}
-      {/*   HospitalAdminDashboard is self-contained with DashboardShell     */}
+      {/*   HospitalAdminDashboard is a self-contained tab SPA (DashboardShell */}
+      {/*   drives tabs via local state, not the URL), so a single route is    */}
+      {/*   the canonical entry. The former /admin/{departments,staff,...}     */}
+      {/*   sub-routes were reachable only from dead code and always rendered  */}
+      {/*   Overview regardless of the path — removed to keep URLs honest.     */}
       <Route element={<ProtectedRoute allowedRoles={['HOSPITAL_ADMIN']} />}>
         <Route path="/admin/dashboard" element={<HospitalAdminDashboard />} />
-        <Route path="/admin/departments" element={<HospitalAdminDashboard />} />
-        <Route path="/admin/doctors" element={<HospitalAdminDashboard />} />
-        <Route path="/admin/staff" element={<HospitalAdminDashboard />} />
-        <Route path="/admin/analytics" element={<HospitalAdminDashboard />} />
-        <Route path="/admin/queue-monitor" element={<HospitalAdminDashboard />} />
-        <Route path="/admin/audit-log" element={<HospitalAdminDashboard />} />
-        <Route path="/admin/revenue" element={<HospitalAdminDashboard />} />
       </Route>
 
       {/* ── Lab Staff routes (protected, role=LAB_STAFF) ────────────────── */}
@@ -139,13 +138,11 @@ const AppRouter = () => {
       </Route>
 
       {/* ── Super Admin routes (protected, role=SUPER_ADMIN) ─────────────── */}
-      {/*   SuperAdminDashboard is self-contained with DashboardShell         */}
+      {/*   SuperAdminDashboard is a self-contained tab SPA — single canonical */}
+      {/*   route (former /superadmin/{hospitals,users,...} sub-routes were    */}
+      {/*   dead-code-only and always rendered Overview; removed).             */}
       <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
         <Route path="/superadmin/dashboard" element={<SuperAdminDashboard />} />
-        <Route path="/superadmin/hospitals" element={<SuperAdminDashboard />} />
-        <Route path="/superadmin/users" element={<SuperAdminDashboard />} />
-        <Route path="/superadmin/analytics" element={<SuperAdminDashboard />} />
-        <Route path="/superadmin/audit-logs" element={<SuperAdminDashboard />} />
       </Route>
 
       {/* ── 404 fallback ──────────────────────────────────────────────── */}
