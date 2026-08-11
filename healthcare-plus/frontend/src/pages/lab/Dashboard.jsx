@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import * as labFulfillmentService from '../../services/labFulfillment.service';
+import * as uploadService from '../../services/upload.service';
 import StatusBadge from '../../components/common/StatusBadge';
 import EmptyState from '../../components/common/EmptyState';
 
@@ -66,33 +67,22 @@ function ErrorCard({ message, onRetry }) {
 // and a bill is raised. Prices prefill from the doctor's estimate when available.
 
 function ConfirmPriceModal({ req, onClose, onSuccess }) {
-  const [prices, setPrices] = useState(() =>
-    (req.items || []).map((it) => (it.estimatedPrice != null ? String(it.estimatedPrice) : ''))
-  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const setPrice = (i, val) => setPrices((prev) => prev.map((p, idx) => (idx === i ? val : p)));
-
-  const total = prices.reduce((sum, p) => sum + (Number(p) || 0), 0);
+  const total = (req.items || []).reduce((sum, it) => sum + (Number(it.estimatedPrice) || 0), 0);
 
   const handleSubmit = async () => {
     const items = req.items || [];
-    if (items.length === 0) { setError('This request has no test items to price.'); return; }
-    for (let i = 0; i < items.length; i++) {
-      const n = Number(prices[i]);
-      if (!prices[i] || Number.isNaN(n) || n <= 0) {
-        setError(`Enter a valid price for "${items[i].testName}".`);
-        return;
-      }
-    }
+    if (items.length === 0) { setError('This request has no test items to confirm.'); return; }
+    
     setLoading(true);
     setError(null);
     try {
-      const finalItems = items.map((it, i) => ({
+      const finalItems = items.map((it) => ({
         labRequestItemId: it.id,
         description: it.testName,
-        unitPrice: Number(prices[i]),
+        unitPrice: Number(it.estimatedPrice) || 0,
       }));
       await labFulfillmentService.confirmLabRequest(req.id, finalItems);
       onSuccess?.();
@@ -109,26 +99,18 @@ function ConfirmPriceModal({ req, onClose, onSuccess }) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-bold text-slate-900">Confirm & Set Pricing</h3>
+          <h3 className="font-bold text-slate-900">Confirm Lab Request</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
         </div>
         <p className="text-xs text-slate-500 mb-4">
-          A bill will be raised for the patient. They must pay before the sample is processed.
+          A bill will be raised for the patient based on standard test prices. They must pay before the sample is processed.
         </p>
         {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
         <div className="space-y-2.5 mb-4">
           {(req.items || []).map((it, i) => (
-            <div key={it.id || i} className="flex items-center gap-3">
-              <span className="flex-1 text-sm text-slate-700">{it.testName}</span>
-              <div className="flex items-center gap-1">
-                <span className="text-slate-400 text-sm">₹</span>
-                <input
-                  type="number" min="0" step="1" inputMode="decimal"
-                  value={prices[i]} onChange={(e) => setPrice(i, e.target.value)}
-                  placeholder="0"
-                  className="w-24 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-300"
-                />
-              </div>
+            <div key={it.id || i} className="flex items-center justify-between">
+              <span className="text-sm text-slate-700">{it.testName}</span>
+              <span className="text-sm font-semibold text-slate-900">₹{Number(it.estimatedPrice || 0).toLocaleString('en-IN')}</span>
             </div>
           ))}
         </div>
@@ -153,17 +135,31 @@ function ConfirmPriceModal({ req, onClose, onSuccess }) {
 
 function UploadReportModal({ requestId, onClose, onSuccess }) {
   const [reportUrl, setReportUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const [summary, setSummary] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleSubmit = async () => {
-    if (!reportUrl.trim()) { setError('Report URL/link is required.'); return; }
+    if (!reportUrl.trim() && !selectedFile) { setError('Report URL or File is required.'); return; }
     setLoading(true);
     setError(null);
     try {
+      let finalUrl = reportUrl.trim();
+      
+      // If a local file was selected, upload it first
+      if (selectedFile) {
+        const uploadRes = await uploadService.uploadFile(selectedFile);
+        
+        // Since we are running the frontend on a different port than backend locally, 
+        // we prepend the backend base URL. In production, this might just be relative.
+        // Assuming backend runs on the default port from env or window location.
+        // The API returns { data: { url: '/uploads/filename.ext' } }
+        finalUrl = `http://localhost:5000${uploadRes.url}`;
+      }
+
       await labFulfillmentService.uploadLabReport(requestId, {
-        reportFileUrl: reportUrl.trim(),
+        reportFileUrl: finalUrl,
         resultSummary: summary.trim() || undefined,
       });
       onSuccess?.();
@@ -186,14 +182,32 @@ function UploadReportModal({ requestId, onClose, onSuccess }) {
         <p className="text-xs text-slate-500 mb-4">Uploading a report marks this request <strong>Completed</strong> and notifies the patient.</p>
         {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
         <div className="space-y-3 mb-5">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Report URL / File Link *</label>
-            <input value={reportUrl} onChange={(e) => setReportUrl(e.target.value)}
-              placeholder="https://drive.google.com/..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+          
+          <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50">
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Upload Local File</label>
+            <input 
+              type="file" 
+              onChange={(e) => setSelectedFile(e.target.files[0])}
+              className="w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100"
+            />
           </div>
+
+          <div className="relative flex items-center py-2">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-3 text-xs text-slate-400 font-medium uppercase">Or</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Result Summary</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">External Report Link</label>
+            <input value={reportUrl} onChange={(e) => setReportUrl(e.target.value)}
+              disabled={!!selectedFile}
+              placeholder="https://drive.google.com/..."
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:opacity-50" />
+          </div>
+          
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Result Summary (Optional)</label>
             <textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)}
               placeholder="Key findings, normal/abnormal values…"
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300 resize-none" />
@@ -222,7 +236,7 @@ function RequestCard({ req, activeTab, onAction, actionLoading, onConfirm, onUpl
   // Per-tab call-to-action. `awaiting` and `completed` have no staff action.
   const getAction = () => {
     switch (activeTab) {
-      case 'pending': return { label: 'Confirm & Set Price', style: 'bg-cyan-600 hover:bg-cyan-700 text-white', kind: 'confirm' };
+      case 'pending': return { label: 'Confirm Lab Request', style: 'bg-cyan-600 hover:bg-cyan-700 text-white', kind: 'confirm' };
       case 'collected': return { label: 'Mark Processing', style: 'bg-violet-600 hover:bg-violet-700 text-white', kind: 'advance' };
       case 'processing': return { label: 'Upload Report', style: 'bg-emerald-600 hover:bg-emerald-700 text-white', kind: 'upload' };
       default: return null;

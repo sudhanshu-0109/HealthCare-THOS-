@@ -11,6 +11,7 @@ import { getAvailableSlots, toMidnightUTC } from './slotGenerator.service.js';
 import { addTimelineEvent } from './passport.service.js';
 import { createBillAndInitiatePayment } from './billing.service.js';
 import { notifyAppointmentConfirmed, notifyAppointmentCancelled } from './notifications.service.js';
+import { recalculateQueueTokens, emitQueueUpdateById } from './queue.service.js';
 
 const APPOINTMENT_SELECT = {
   id: true,
@@ -132,11 +133,6 @@ export const onBillPaid = async (appointmentId) => {
   }
 
   const queueDate = appointment.scheduledDate;
-  const lastToken = await prisma.queueToken.findFirst({
-    where: { doctorId: appointment.doctorId, queueDate },
-    orderBy: { tokenNumber: 'desc' },
-  });
-  const nextTokenNumber = lastToken ? Math.floor(lastToken.tokenNumber) + 1 : 1;
 
   await prisma.$transaction(async (tx) => {
     await tx.appointment.update({
@@ -150,11 +146,20 @@ export const onBillPaid = async (appointmentId) => {
         doctorId: appointment.doctorId,
         hospitalId: appointment.hospitalId,
         queueDate,
-        tokenNumber: nextTokenNumber,
+        tokenNumber: 999, // Will be immediately recalculated
         status: 'WAITING',
       },
     });
+
+    await recalculateQueueTokens(appointment.doctorId, queueDate, tx);
   });
+  
+  // Real-time update for doctor and queue monitor
+  try {
+    await emitQueueUpdateById(appointment.doctorId, queueDate);
+  } catch (err) {
+    console.warn('[Appointments] Failed to emit queue update:', err.message);
+  }
 
   // Write APPOINTMENT timeline event (Phase 7 retrofit)
   try {
@@ -213,10 +218,19 @@ export const cancelAppointment = async ({ appointmentId, patientId, reason }) =>
         where: { id: appointment.queueToken.id },
         data: { status: 'CANCELLED' },
       });
+      await recalculateQueueTokens(appointment.doctorId, appointment.scheduledDate, tx);
     }
 
     return { message: 'Appointment cancelled successfully.', appointment: cancelled };
   });
+
+  if (appointment.queueToken && ['WAITING', 'CALLED'].includes(appointment.queueToken.status)) {
+    try {
+      await emitQueueUpdateById(appointment.doctorId, appointment.scheduledDate);
+    } catch (err) {
+      console.warn('[Appointments] Failed to emit queue update:', err.message);
+    }
+  }
 
   // Phase 15: Notify patient of cancellation
   try {
@@ -256,8 +270,17 @@ export const adminCancelAppointment = async ({ appointmentId, adminUserId, hospi
         where: { id: appointment.queueToken.id },
         data: { status: 'CANCELLED' },
       });
+      await recalculateQueueTokens(appointment.doctorId, appointment.scheduledDate, tx);
     }
   });
+
+  if (appointment.queueToken && ['WAITING', 'CALLED'].includes(appointment.queueToken.status)) {
+    try {
+      await emitQueueUpdateById(appointment.doctorId, appointment.scheduledDate);
+    } catch (err) {
+      console.warn('[Appointments] Failed to emit queue update:', err.message);
+    }
+  }
 
   // Phase 14: Audit log (fire-and-forget, not in tx)
   try {

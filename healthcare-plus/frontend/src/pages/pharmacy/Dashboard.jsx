@@ -13,7 +13,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import EmptyState from '../../components/common/EmptyState';
 
 const NAV_ITEMS = [
-  { id: 'NEW', icon: Clock, label: 'New Orders', shortLabel: 'New' },
+  { id: 'PENDING', icon: Clock, label: 'New Orders', shortLabel: 'New' },
   { id: 'PREPARING', icon: Package, label: 'Preparing', shortLabel: 'Preparing' },
   { id: 'READY', icon: CheckCircle2, label: 'Ready', shortLabel: 'Ready' },
   { id: 'COMPLETED', icon: CreditCard, label: 'Completed', shortLabel: 'Done' },
@@ -42,16 +42,98 @@ function ErrorCard({ message, onRetry }) {
 }
 
 const NEXT_STATUS = {
-  NEW: 'PREPARING',
+  PENDING: 'PREPARING',
   PREPARING: 'READY',
   READY: 'COMPLETED',
 };
 
 const ACTION_LABEL = {
-  NEW: 'Start Preparing',
+  PENDING: 'Start Preparing',
   PREPARING: 'Mark as Ready',
   READY: 'Mark Completed',
 };
+
+// ── Generate Bill Modal ────────────────────────────────────────────────────────
+function GenerateBillModal({ order, onClose, onSuccess }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [prices, setPrices] = useState({});
+
+  const handlePriceChange = (itemId, val) => {
+    setPrices(prev => ({ ...prev, [itemId]: val }));
+  };
+
+  const total = (order.items || []).reduce((sum, it) => sum + (Number(prices[it.prescriptionItemId]) || 0) * (it.quantity || 1), 0);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const finalItems = (order.items || []).map((it) => ({
+        prescriptionItemId: it.prescriptionItemId,
+        medicineId: null, // Basic implementation
+        quantity: it.quantity,
+        unitPrice: Number(prices[it.prescriptionItemId]) || 0,
+      }));
+      await pharmacyOrdersService.confirmPharmacyOrder(order.id, finalItems);
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Billing failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-900">Generate Bill</h3>
+          <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">Enter the unit price for each medicine. The patient will pay this bill from their dashboard.</p>
+        {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+        
+        <div className="space-y-3 mb-5 max-h-60 overflow-y-auto pr-2">
+          {(order.items || []).map((it, i) => (
+            <div key={it.id || i} className="flex flex-col gap-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-700">{it.medicineName || it.medicine?.name || `Item ${i+1}`}</span>
+                <span className="text-slate-500 text-xs">Qty: {it.quantity}</span>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Unit Price"
+                  className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-300"
+                  value={prices[it.prescriptionItemId] || ''}
+                  onChange={(e) => handlePriceChange(it.prescriptionItemId, e.target.value)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-between items-center bg-slate-50 rounded-xl px-3 py-2.5 mb-5">
+          <span className="text-sm font-semibold text-slate-600">Total Bill</span>
+          <span className="text-lg font-bold text-slate-900">₹{total.toLocaleString('en-IN')}</span>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold">Cancel</button>
+          <button onClick={handleSubmit} disabled={loading}
+            className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {loading ? 'Generating…' : 'Generate & Send Bill'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function OrderCard({ order, onAdvance, loading }) {
   const patientName = order.patient?.fullName || 'Patient';
@@ -97,6 +179,22 @@ function OrderCard({ order, onAdvance, loading }) {
           {ACTION_LABEL[order.status]}
         </button>
       )}
+      {!nextStatus && order.status === 'COMPLETED' && !order.totalAmount && (
+        <button
+          onClick={() => onAdvance(order.id, 'BILL')}
+          disabled={loading === order.id}
+          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+        >
+          <CreditCard className="w-3 h-3" />
+          Generate Bill
+        </button>
+      )}
+      {order.status === 'COMPLETED' && order.totalAmount > 0 && (
+        <div className="w-full py-2 bg-slate-50 text-slate-500 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-100">
+          <CheckCircle2 className="w-3 h-3" />
+          Bill Generated
+        </div>
+      )}
     </div>
   );
 }
@@ -107,6 +205,7 @@ function OrdersTab({ status }) {
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+  const [billingOrder, setBillingOrder] = useState(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -126,6 +225,10 @@ function OrdersTab({ status }) {
   const showSuccess = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(null), 3000); };
 
   const handleAdvance = async (orderId, newStatus) => {
+    if (newStatus === 'BILL') {
+      setBillingOrder(orders.find(o => o.id === orderId));
+      return;
+    }
     setActionLoading(orderId);
     try {
       await pharmacyOrdersService.advancePharmacyOrderStatus(orderId, newStatus);
@@ -159,12 +262,19 @@ function OrdersTab({ status }) {
       {!loading && !error && orders.map((order) => (
         <OrderCard key={order.id} order={order} onAdvance={handleAdvance} loading={actionLoading} />
       ))}
+      {billingOrder && (
+        <GenerateBillModal
+          order={billingOrder}
+          onClose={() => setBillingOrder(null)}
+          onSuccess={() => { showSuccess('Bill generated successfully!'); fetchOrders(); }}
+        />
+      )}
     </div>
   );
 }
 
 export default function PharmacyDashboard() {
-  const [activeItem, setActiveItem] = useState('NEW');
+  const [activeItem, setActiveItem] = useState('PENDING');
 
   return (
     <DashboardShell

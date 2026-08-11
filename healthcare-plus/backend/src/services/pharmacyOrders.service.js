@@ -49,13 +49,13 @@ export const createOrderFromPrescription = async (prescriptionId, hospitalId, pa
 };
 
 /**
- * Pharmacist matches prescription items to medicines, computes total, initiates billing.
+ * Pharmacist generates the bill for a completed order.
  * @param {string} orderId
  * @param {string} pharmacistUserId
  * @param {Array<{ prescriptionItemId, medicineId, quantity, unitPrice }>} items
  * @param {string} hospitalId — pharmacist's hospital, for cross-hospital isolation
  */
-export const pharmacistMatchAndConfirm = async (orderId, pharmacistUserId, items, hospitalId) => {
+export const generatePharmacyBill = async (orderId, pharmacistUserId, items, hospitalId) => {
   const order = await prisma.pharmacyOrder.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -63,8 +63,8 @@ export const pharmacistMatchAndConfirm = async (orderId, pharmacistUserId, items
 
   if (!order) throw ApiError.notFound('Pharmacy order not found.');
   if (order.hospitalId !== hospitalId) throw ApiError.forbidden('Order does not belong to your hospital.');
-  if (order.status !== 'PENDING') {
-    throw ApiError.badRequest(`Cannot confirm order in status: ${order.status}`);
+  if (order.status !== 'COMPLETED') {
+    throw ApiError.badRequest(`Cannot generate bill for order in status: ${order.status}. Must be COMPLETED.`);
   }
 
   // Compute total
@@ -86,7 +86,7 @@ export const pharmacistMatchAndConfirm = async (orderId, pharmacistUserId, items
 
     await tx.pharmacyOrder.update({
       where: { id: orderId },
-      data: { status: 'CONFIRMED', totalAmount },
+      data: { totalAmount },
     });
   });
 
@@ -116,12 +116,11 @@ export const onBillPaid = async (orderId) => {
     console.warn(`[PharmacyOrders] onBillPaid: order ${orderId} not found`);
     return;
   }
-  if (order.status !== 'CONFIRMED') return; // idempotent
-
-  const updated = await prisma.pharmacyOrder.update({
-    where: { id: orderId },
-    data: { status: 'PREPARING' },
-  });
+  // With the new flow, the order might already be COMPLETED when the bill is paid.
+  // So we don't necessarily need to change the status, or we could change it to a generic PAID if we had one.
+  // For now, let's just leave it as is or do nothing, since it's already COMPLETED.
+  // We can just send a notification.
+  const updated = order;
 
   // Phase 15: Notify patient their order is being prepared
   try {
@@ -136,8 +135,8 @@ export const onBillPaid = async (orderId) => {
  */
 export const advanceStatus = async (orderId, status, pharmacistUserId, hospitalId) => {
   const validTransitions = {
-    PREPARING: 'PACKED',
-    PACKED: 'READY',
+    PENDING: 'PREPARING',
+    PREPARING: 'READY',
     READY: 'COMPLETED',
   };
 

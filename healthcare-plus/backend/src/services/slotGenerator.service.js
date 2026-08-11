@@ -89,6 +89,10 @@ export const getSlotsWithStatus = async (doctorId, dateStr) => {
     const interval = avail.slotMinutes;
 
     for (let t = start; t + interval <= end; t += interval) {
+      // Lunch break restriction (12:00 PM to 01:30 PM)
+      // 12:00 = 720 minutes, 13:29 = 809 minutes
+      if (t >= 720 && t < 810) continue;
+
       const slotTime = minutesToTime(t);
       if (!seen.has(slotTime)) seen.set(slotTime, bookedTimes.has(slotTime));
     }

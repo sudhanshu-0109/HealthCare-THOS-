@@ -12,6 +12,7 @@ import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { createBillAndInitiatePayment } from './billing.service.js';
 import { notify } from './notifications.service.js';
+import { emitQueueUpdateById } from './queue.service.js';
 
 /**
  * Lab staff confirms the test panel and pricing.
@@ -121,7 +122,14 @@ export const advanceLabStatus = async (labRequestId, status, staffUserId, hospit
  * @param {string} hospitalId — lab staff's hospital, for cross-hospital isolation
  */
 export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary, labRequestItemId }, staffUserId, hospitalId) => {
-  const labRequest = await prisma.labRequest.findUnique({ where: { id: labRequestId } });
+  const labRequest = await prisma.labRequest.findUnique({
+    where: { id: labRequestId },
+    include: {
+      consultation: {
+        include: { queueToken: true, appointment: true },
+      },
+    },
+  });
   if (!labRequest) throw ApiError.notFound('Lab request not found.');
   if (labRequest.hospitalId !== hospitalId) throw ApiError.forbidden('Lab request does not belong to your hospital.');
 
@@ -130,7 +138,7 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
     throw ApiError.badRequest(`Cannot upload report for a lab request in status: ${labRequest.status}`);
   }
 
-  const report = await prisma.$transaction(async (tx) => {
+  const { report, newQueueToken } = await prisma.$transaction(async (tx) => {
     const r = await tx.labReport.create({
       data: {
         labRequestId,
@@ -147,16 +155,71 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
       data: { status: 'COMPLETED' },
     });
 
-    return r;
+    let newQueueToken = null;
+
+    // Automated Lab Report Follow-up Token Flow (e.g. 10.5)
+    if (labRequest.consultation?.queueToken && labRequest.consultation?.appointment) {
+      const originalToken = labRequest.consultation.queueToken;
+      const originalAppt = labRequest.consultation.appointment;
+      const followUpTokenNumber = Math.floor(originalToken.tokenNumber) + 0.5;
+
+      // Check if this sub-token already exists for today to avoid duplicates
+      const existingToken = await tx.queueToken.findFirst({
+        where: {
+          doctorId: originalToken.doctorId,
+          queueDate: originalToken.queueDate,
+          tokenNumber: followUpTokenNumber,
+        },
+      });
+
+      if (!existingToken) {
+        // Create a LITE appointment (free, no strict scheduling constraints)
+        const liteAppt = await tx.appointment.create({
+          data: {
+            patientId: originalAppt.patientId,
+            doctorId: originalAppt.doctorId,
+            hospitalId: originalAppt.hospitalId,
+            departmentId: originalAppt.departmentId,
+            scheduledDate: originalAppt.scheduledDate,
+            scheduledTime: originalAppt.scheduledTime, // Group it near original time
+            fee: 0,
+            status: 'CONFIRMED',
+            appointmentType: 'LITE',
+          },
+        });
+
+        // Create the fractional queue token
+        newQueueToken = await tx.queueToken.create({
+          data: {
+            appointmentId: liteAppt.id,
+            doctorId: originalToken.doctorId,
+            hospitalId: originalToken.hospitalId,
+            queueDate: originalToken.queueDate,
+            tokenNumber: followUpTokenNumber,
+            status: 'WAITING',
+          },
+        });
+      }
+    }
+
+    return { report: r, newQueueToken };
   });
 
   // Notify patient
   await notify(labRequest.patientId, {
     type: 'LAB_REPORT_READY',
     title: 'Lab Report Ready',
-    message: 'Your lab test results are now available. Please check your Lab Reports section.',
+    message: 'Your lab test results are now available. You have been placed back in the queue to review them with your doctor.',
     relatedId: labRequestId,
   });
+
+  if (newQueueToken) {
+    try {
+      await emitQueueUpdateById(newQueueToken.doctorId, newQueueToken.queueDate);
+    } catch (err) {
+      console.warn('[LabFulfillment] Failed to emit queue update for follow-up token:', err.message);
+    }
+  }
 
   return report;
 };
@@ -165,26 +228,48 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
  * Get lab results for a patient, including reports.
  */
 export const getMyLabResults = async (patientId) => {
-  return prisma.labRequest.findMany({
+  const requests = await prisma.labRequest.findMany({
     where: { patientId },
     include: {
-      items: { include: { labTest: true } },
+      items: true,
       reports: true,
+      consultation: {
+        include: {
+          doctor: { include: { user: true } },
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  return requests.map((req) => ({
+    ...req,
+    doctor: req.consultation?.doctor,
+  }));
 };
 
 /**
  * Get hospital lab requests (lab staff view).
  */
 export const getHospitalLabRequests = async (hospitalId, { status } = {}) => {
-  return prisma.labRequest.findMany({
+  const requests = await prisma.labRequest.findMany({
     where: { hospitalId, ...(status && { status }) },
     include: {
-      items: { include: { labTest: true } },
+      items: true,
       reports: true,
+      consultation: {
+        include: {
+          patient: true,
+          doctor: { include: { user: true } },
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  return requests.map((req) => ({
+    ...req,
+    patient: req.consultation?.patient,
+    doctor: req.consultation?.doctor,
+  }));
 };

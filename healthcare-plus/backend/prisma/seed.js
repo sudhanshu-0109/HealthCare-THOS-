@@ -11,6 +11,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { seedLabCatalogue } from './seedLabTests.js';
 
 const prisma = new PrismaClient();
 
@@ -550,6 +551,13 @@ async function main() {
       }
 
       slotTime.setUTCMinutes(slotTime.getUTCMinutes() + 15);
+      
+      const currentH = slotTime.getUTCHours();
+      const currentM = slotTime.getUTCMinutes();
+      const totalMins = currentH * 60 + currentM;
+      if (totalMins >= 720 && totalMins < 810) {
+        slotTime.setUTCHours(13, 30, 0, 0); // Jump to 01:30 PM
+      }
     }
   }
   console.log(`âœ… Created today-queue for all ${doctorQueueConfigs.length} doctors`);
@@ -774,13 +782,18 @@ async function main() {
     },
   });
 
-  console.log('âœ… Seed complete!');
+  console.log('✅ Default Doctor profiles fully configured.');
+
+  // ── SEED MASTER LAB CATALOGUE ────────────────────────────────────────────────────────
+  await seedLabCatalogue();
+
+  console.log('🌱 Seed completed successfully.');
   console.log('');
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• ');
   console.log('  DEMO LOGIN CREDENTIALS (all passwords: Password123!)');
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• ');
   console.log('  ðŸ‘¤ Patient:            patient@healthcareplus.dev');
-  console.log('  ðŸ¥ Admin (Sterling):   admin@sterling.dev');
+  console.log('  ðŸ ¥ Admin (Sterling):   admin@sterling.dev');
   console.log('  ðŸ©º Dr. (Sterling):     dr.anil.shah@sterling.dev');
   console.log('  ðŸ©º Dr. (Sunshine):     dr.neha.joshi@sunshine.dev');
   console.log('  ðŸ©º Dr. (Bhailal):      dr.amit.trivedi@bhailal.dev');

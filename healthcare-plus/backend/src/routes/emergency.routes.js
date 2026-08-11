@@ -18,6 +18,13 @@ router.post(
   emergencyController.createEmergencyRequest
 );
 
+// Patient gets their active emergency
+router.get(
+  '/active',
+  checkRole('PATIENT'),
+  emergencyController.getActiveEmergency
+);
+
 // Phase 13: Patient polls status (also triggers lazy fallback check)
 router.get(
   '/:id/status',

@@ -45,9 +45,20 @@ const STAGES = [
 
 const POLL_MS = 20000; // Safety-net re-sync; live updates arrive via socket.
 
-export default function EmergencyTracking() {
-  const { requestId } = useParams();
+export default function EmergencyTracking({ requestId: propRequestId, onClose }) {
+  const params = useParams();
+  const requestId = propRequestId || params.requestId;
   const navigate = useNavigate();
+  
+  const handleClose = () => {
+    const terminal = ['ARRIVED', 'CANCELLED', 'NO_DRIVER_FALLBACK'];
+    const isTerminal = terminal.includes(status);
+    if (onClose) {
+      onClose(isTerminal);
+    } else {
+      navigate('/patient/dashboard');
+    }
+  };
 
   const [status, setStatus] = useState('SEARCHING');
   const [patientLoc, setPatientLoc] = useState(null); // { lat, lng }
@@ -89,7 +100,12 @@ export default function EmergencyTracking() {
     let cancelled = false;
     setLoading(true);
     dispatchService.getEmergencyStatus(requestId)
-      .then((res) => { if (!cancelled) applyRequest(res.data); })
+      .then((res) => {
+        if (cancelled) return;
+        const reqData = (res && res.data && res.data.id) ? res.data : (res && res.id) ? res : (res && res.data && res.data.data) ? res.data.data : res.data;
+        applyRequest(reqData);
+        setError(null);
+      })
       .catch((err) => { if (!cancelled) setError(err.message || 'Could not load your emergency request.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -174,10 +190,7 @@ export default function EmergencyTracking() {
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between p-4">
-        <button
-          onClick={() => navigate('/patient/dashboard')}
-          className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-        >
+        <button onClick={handleClose} className="p-2 text-red-200 hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
@@ -285,7 +298,7 @@ export default function EmergencyTracking() {
                 <p className="font-bold text-emerald-600 text-lg">You've Arrived</p>
                 <p className="text-sm text-slate-500 mb-4">The ambulance has reached the hospital.</p>
                 <button
-                  onClick={() => navigate('/patient/dashboard')}
+                  onClick={handleClose}
                   className="px-6 py-2.5 bg-cyan-600 text-white rounded-xl font-semibold text-sm hover:bg-cyan-700 transition-colors"
                 >
                   Back to Dashboard

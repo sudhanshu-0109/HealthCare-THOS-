@@ -3,6 +3,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
+import { haversineKm } from '../../utils/distance';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Home, User, Calendar, Pill, FlaskConical, CreditCard,
@@ -25,6 +26,7 @@ import AllergyConditionEditor from '../../components/passport/AllergyConditionEd
 import StatusBadge from '../../components/common/StatusBadge';
 import PaymentModal from '../../components/common/PaymentModal';
 import EmptyState from '../../components/common/EmptyState';
+import EmergencyTracking from './EmergencyTracking';
 
 // Mock data removed — all data now comes from the real backend API.
 
@@ -42,6 +44,7 @@ const NAV_ITEMS = [
   { id: 'prescriptions', icon: Pill, label: 'Prescriptions', shortLabel: 'Rx' },
   { id: 'lab', icon: FlaskConical, label: 'Lab Reports', shortLabel: 'Labs' },
   { id: 'billing', icon: CreditCard, label: 'Billing', shortLabel: 'Bills' },
+  { id: 'emergency', icon: AlertTriangle, label: 'Emergency', shortLabel: 'SOS' },
   { id: 'notifications', icon: Bell, label: 'Notifications', shortLabel: 'Alerts' },
   { id: 'passport', icon: Shield, label: 'Health Passport', shortLabel: 'Passport' },
 ];
@@ -315,12 +318,35 @@ function HomeTab({ user, navigate, onSOSSent }) {
   const [error, setError] = useState(null);
   const { coords } = useGeolocation();
 
+  // Vadodara city centre — used as fallback when GPS is unavailable
+  const VADODARA_LAT = 22.3072;
+  const VADODARA_LNG = 73.1812;
+
   const load = async () => {
     setLoadingHospitals(true);
     setError(null);
     try {
       const res = await patientService.getNearbyHospitals(coords?.latitude, coords?.longitude);
-      setHospitals(res.data || []);
+      const raw = res.data || [];
+
+      // Use real GPS if available, otherwise fall back to Vadodara centre
+      const userLat = coords?.latitude ?? VADODARA_LAT;
+      const userLng = coords?.longitude ?? VADODARA_LNG;
+
+      // Compute real haversine distance for each hospital and sort nearest → farthest
+      const withDistance = raw
+        .map((h) => {
+          const km = haversineKm(userLat, userLng, h.latitude, h.longitude);
+          const distanceLabel = km == null
+            ? null
+            : km < 1
+              ? `${Math.round(km * 1000)} m away`
+              : `${km.toFixed(1)} km away`;
+          return { ...h, _distanceKm: km ?? 9999, distance: distanceLabel };
+        })
+        .sort((a, b) => a._distanceKm - b._distanceKm);
+
+      setHospitals(withDistance);
     } catch (err) {
       setError(err.message || 'Failed to load hospitals.');
     } finally {
@@ -932,12 +958,61 @@ function PassportTab({ user }) {
   );
 }
 
+// ── Emergency Dispatch Tab ────────────────────────────────────────────────────────
+
+function EmergencyDispatchTab({ onSOSSent }) {
+  return (
+    <div className="p-4 sm:p-6 space-y-5 pb-24 lg:pb-6">
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex-1">
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">Emergency Dispatch</h2>
+          <div className="bg-slate-900 rounded-3xl p-8 relative overflow-hidden flex flex-col items-center justify-center min-h-[400px]">
+            {/* The pulsing rings */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-[300px] h-[300px] border border-red-900/30 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+              <div className="absolute w-[400px] h-[400px] border border-red-900/20 rounded-full animate-ping" style={{ animationDuration: '3s', animationDelay: '1s' }} />
+              <div className="absolute w-[500px] h-[500px] border border-red-900/10 rounded-full animate-ping" style={{ animationDuration: '3s', animationDelay: '2s' }} />
+            </div>
+            
+            <div className="relative z-10 w-full max-w-sm">
+              <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl p-3 mb-12 border border-slate-700 text-center text-white">
+                <p className="text-sm text-slate-300 mb-1">Your Location (auto-detected)</p>
+                <div className="bg-slate-900 rounded-lg py-2 px-3 text-slate-400 text-sm flex items-center justify-between">
+                  Detecting location...
+                  <MapPin className="w-4 h-4 text-cyan-500" />
+                </div>
+              </div>
+              
+              <div className="flex justify-center mb-12">
+                <SOSButton onSOSSent={onSOSSent} />
+              </div>
+              
+              <p className="text-center text-slate-400 text-sm">
+                Broadcasts to all nearby hospitals. FCFS dispatch.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="w-full lg:w-80 space-y-4">
+          <h3 className="text-sm font-semibold text-slate-400 tracking-wider uppercase mb-2">My Emergency History</h3>
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 text-center">
+            <p className="text-slate-500 text-sm">No past emergencies.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Export ────────────────────────────────────────────────────────────────
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [activeItem, setActiveItem] = useState('home');
+  const [activeEmergencyId, setActiveEmergencyId] = useState(null);
+  const [isCheckingEmergency, setIsCheckingEmergency] = useState(true);
   // Live unread count drives the sidebar/bottom-nav badge; fetched + kept in
   // sync (socket, mark-read, mark-all-read) by the shared notification store.
   const { unreadCount } = useNotifications();
@@ -947,6 +1022,36 @@ export default function PatientDashboard() {
   const navItems = NAV_ITEMS.map((item) =>
     item.id === 'notifications' ? { ...item, badge: unreadCount || undefined } : item
   );
+
+  // Check for active emergency on mount
+  useEffect(() => {
+    let mounted = true;
+    patientService.getActiveEmergency()
+      .then(res => {
+        if (!mounted) return;
+        
+        // Robust extraction depending on if the axios interceptor or backend shape changed
+        let activeReq = null;
+        if (res && res.data && typeof res.data === 'object' && res.data.id) {
+            activeReq = res.data; // res is { success: true, data: { id: ... } }
+        } else if (res && res.id) {
+            activeReq = res; // res is { id: ... }
+        } else if (res && res.data && res.data.data && res.data.data.id) {
+            activeReq = res.data.data;
+        }
+
+        if (activeReq && activeReq.id) {
+          setActiveEmergencyId(activeReq.id);
+          setActiveItem('emergency');
+        }
+        setIsCheckingEmergency(false);
+      })
+      .catch(err => {
+        console.error('Failed to check active emergency:', err);
+        if (mounted) setIsCheckingEmergency(false);
+      });
+    return () => { mounted = false; };
+  }, [navigate]);
 
   // Real SOS: capture the patient's actual geolocation, create a real
   // EmergencyRequest on the backend (which begins dispatch + socket events),
@@ -969,9 +1074,10 @@ export default function PatientDashboard() {
       latitude: coords.latitude,
       longitude: coords.longitude,
     });
-    const requestId = res.data?.id;
+    const requestId = (res && res.data && res.data.id) ? res.data.id : (res && res.id) ? res.id : (res && res.data && res.data.data && res.data.data.id) ? res.data.data.id : null;
     if (!requestId) throw new Error('Could not create the emergency request. Please try again.');
-    navigate(`/patient/emergency/${requestId}`);
+    setActiveEmergencyId(requestId);
+    setActiveItem('emergency');
   };
 
   const renderContent = () => {
@@ -983,9 +1089,30 @@ export default function PatientDashboard() {
       case 'billing': return <BillingTab />;
       case 'notifications': return <NotificationsTab />;
       case 'passport': return <PassportTab user={user} />;
+      case 'emergency': 
+        return activeEmergencyId ? (
+          <EmergencyTracking 
+            requestId={activeEmergencyId} 
+            onClose={(isTerminal) => { 
+              if (isTerminal) setActiveEmergencyId(null);
+              setActiveItem('home'); 
+            }} 
+          />
+        ) : (
+          <EmergencyDispatchTab onSOSSent={handleSOSSent} />
+        );
       default: return <HomeTab user={user} navigate={navigate} onSOSSent={handleSOSSent} />;
     }
   };
+
+  if (isCheckingEmergency) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <Loader2 className="w-8 h-8 text-cyan-600 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Checking active status...</p>
+      </div>
+    );
+  }
 
   return (
     <DashboardShell

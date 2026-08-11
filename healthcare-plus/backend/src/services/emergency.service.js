@@ -49,6 +49,16 @@ export const getEmergencyRequests = async (hospitalId) => {
   });
 };
 
+export const getActiveEmergency = async (patientId) => {
+  return prisma.emergencyRequest.findFirst({
+    where: { 
+      patientId,
+      status: { in: ['REQUESTED', 'PENDING', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'PICKED_UP'] }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+};
+
 export const updateEmergencyStatus = async (id, status) => {
   return prisma.emergencyRequest.update({
     where: { id },

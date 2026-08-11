@@ -138,6 +138,16 @@ export default function LiveTrackingMap({
         ro.observe(mapEl.current);
         map._roCleanup = () => ro.disconnect();
       }
+
+      // Fallback timeout in case the tile server is down or unreachable
+      const timeoutId = setTimeout(() => {
+        if (!mapReadyRef.current && !cancelled) {
+          setMapError(true);
+        }
+      }, 5000);
+
+      map._timeoutCleanup = () => clearTimeout(timeoutId);
+
     } catch {
       if (!cancelled) setMapError(true);
     }
@@ -145,6 +155,7 @@ export default function LiveTrackingMap({
       cancelled = true;
       if (mapRef.current) {
         if (mapRef.current._roCleanup) mapRef.current._roCleanup();
+        if (mapRef.current._timeoutCleanup) mapRef.current._timeoutCleanup();
         mapRef.current.remove();
         mapRef.current = null;
       }

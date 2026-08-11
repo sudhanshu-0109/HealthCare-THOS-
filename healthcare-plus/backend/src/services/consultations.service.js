@@ -199,7 +199,7 @@ export const getConsultationHistory = async (patientId, { doctorId, hospitalId }
     select: {
       ...CONSULTATION_SELECT,
       prescription: { select: { id: true, createdAt: true } },
-      labRequests: { select: { id: true, status: true, createdAt: true } },
+      labRequests: { select: { id: true, status: true, createdAt: true, items: true, reports: true } },
     },
     orderBy: { startedAt: 'desc' },
     take: 50,

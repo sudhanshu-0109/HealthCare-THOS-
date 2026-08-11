@@ -28,7 +28,13 @@ router.get(
     const tests = await prisma.labTestCatalog.findMany({
       where,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, price: true, sampleType: true, hospitalId: true },
+      include: {
+        masterTest: {
+          include: {
+            category: true,
+          }
+        }
+      }
     });
     res.json({ success: true, data: tests });
   }
@@ -69,6 +75,36 @@ router.patch(
     const updated = await prisma.labTestCatalog.update({
       where: { id: req.params.id },
       data: { isActive: !test.isActive },
+      include: {
+        masterTest: {
+          include: { category: true }
+        }
+      }
+    });
+    res.json({ success: true, data: updated });
+  }
+);
+
+// PUT /lab-tests/:id/price — update price
+router.put(
+  '/:id/price',
+  checkRole('HOSPITAL_ADMIN'),
+  scopeToHospital,
+  async (req, res) => {
+    const { price } = req.body;
+    if (price === undefined) return res.status(400).json({ success: false, message: 'price is required' });
+    const test = await prisma.labTestCatalog.findFirst({
+      where: { id: req.params.id, hospitalId: req.hospitalId },
+    });
+    if (!test) return res.status(404).json({ success: false, message: 'Lab test not found' });
+    const updated = await prisma.labTestCatalog.update({
+      where: { id: req.params.id },
+      data: { price: parseFloat(price) },
+      include: {
+        masterTest: {
+          include: { category: true }
+        }
+      }
     });
     res.json({ success: true, data: updated });
   }

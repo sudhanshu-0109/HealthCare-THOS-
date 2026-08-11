@@ -422,8 +422,9 @@ function DepartmentsTab() {
 
 function LabTestsTab() {
   const [tests, setTests] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [expandedCats, setExpandedCats] = useState({});
+  const [editingPrice, setEditingPrice] = useState(null);
+  const [loadingId, setLoadingId] = useState(null);
 
   useEffect(() => {
     import('../../services/labTests.service').then((svc) =>
@@ -433,49 +434,114 @@ function LabTestsTab() {
     );
   }, []);
 
-  const handleAdd = async (form) => {
-    setLoading(true);
+  const handleToggle = async (id) => {
+    setLoadingId(id);
     try {
       const svc = await import('../../services/labTests.service');
-      const res = await svc.createLabTest(form);
-      setTests((prev) => [...prev, res.data || { id: Date.now().toString(), ...form, price: Number(form.price), isActive: true }]);
+      const res = await svc.toggleLabTest(id);
+      if(res.data) {
+        setTests(prev => prev.map(t => t.id === id ? { ...t, isActive: res.data.isActive } : t));
+      }
     } catch {}
-    setLoading(false);
-    setShowModal(false);
+    setLoadingId(null);
   };
+
+  const handleSavePrice = async (e, id) => {
+    e.preventDefault();
+    setLoadingId(id);
+    try {
+      const svc = await import('../../services/labTests.service');
+      const newPrice = Number(e.target.price.value);
+      const res = await svc.updateLabTestPrice(id, newPrice);
+      if(res.data) {
+        setTests(prev => prev.map(t => t.id === id ? { ...t, price: res.data.price } : t));
+      }
+      setEditingPrice(null);
+    } catch {}
+    setLoadingId(null);
+  };
+
+  const grouped = tests.reduce((acc, t) => {
+    const cat = t.masterTest?.category?.name || 'Uncategorized';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(t);
+    return acc;
+  }, {});
+
+  const toggleCat = (cat) => setExpandedCats(p => ({ ...p, [cat]: !p[cat] }));
 
   return (
     <div className="p-4 sm:p-6 pb-24 lg:pb-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-bold text-slate-900">Lab Tests</h2>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold hover:bg-cyan-700 transition-colors">
-          <Plus className="w-3.5 h-3.5" /> Add Test
-        </button>
+        <div>
+          <h2 className="font-bold text-slate-900">Lab Test Catalogue</h2>
+          <p className="text-xs text-slate-500 mt-1">Manage active tests and prices for your hospital.</p>
+        </div>
       </div>
-      <div className="space-y-3">
-        {tests.map((t) => (
-          <div key={t.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-slate-900 text-sm">{t.name}</p>
-              {t.description && <p className="text-xs text-slate-400">{t.description}</p>}
-              <p className="text-xs font-bold text-cyan-700 mt-0.5">₹{t.price}</p>
+      
+      {Object.keys(grouped).length === 0 ? (
+        <EmptyState icon={FlaskConical} message="No tests available in catalog." />
+      ) : (
+        <div className="space-y-4">
+          {Object.entries(grouped).map(([category, items]) => (
+            <div key={category} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <button 
+                onClick={() => toggleCat(category)}
+                className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600">
+                    <FlaskConical className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-bold text-slate-700 text-sm">{category} <span className="text-slate-400 font-normal ml-1">({items.length})</span></h3>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${expandedCats[category] ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {expandedCats[category] && (
+                <div className="divide-y divide-slate-100 p-2">
+                  {items.map(t => (
+                    <div key={t.id} className={`p-3 flex items-center gap-3 rounded-xl ${!t.isActive ? 'opacity-60 bg-slate-50' : 'hover:bg-slate-50'}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-900 text-sm">{t.name}</p>
+                        {t.masterTest?.code && <p className="text-[10px] font-mono text-slate-400 mt-0.5">{t.masterTest.code}</p>}
+                        
+                        {editingPrice === t.id ? (
+                          <form onSubmit={(e) => handleSavePrice(e, t.id)} className="mt-2 flex items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-600">₹</span>
+                            <input type="number" name="price" defaultValue={t.price} min="0" step="1" required className="w-20 px-2 py-1 text-sm border rounded-lg" autoFocus />
+                            <button type="submit" disabled={loadingId === t.id} className="text-xs bg-cyan-600 text-white px-3 py-1.5 rounded-lg hover:bg-cyan-700">Save</button>
+                            <button type="button" onClick={() => setEditingPrice(null)} className="text-xs bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-300">Cancel</button>
+                          </form>
+                        ) : (
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs font-bold text-cyan-700">₹{t.price}</p>
+                            <button onClick={() => setEditingPrice(t.id)} className="p-1 text-slate-400 hover:text-cyan-600 rounded-full hover:bg-cyan-50">
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-2">
+                        <StatusBadge status={t.isActive ? 'ACTIVE' : 'INACTIVE'} size="xs" />
+                        <button 
+                          onClick={() => handleToggle(t.id)}
+                          disabled={loadingId === t.id}
+                          className={`text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors ${t.isActive ? 'text-rose-600 bg-rose-50 hover:bg-rose-100' : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'}`}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          {t.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <StatusBadge status={t.isActive ? 'ACTIVE' : 'INACTIVE'} size="xs" />
-          </div>
-        ))}
-      </div>
-      <AddModal
-        title="Add Lab Test"
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        onSubmit={handleAdd}
-        loading={loading}
-        fields={[
-          { key: 'name', label: 'Test Name', required: true },
-          { key: 'description', label: 'Description' },
-          { key: 'price', label: 'Price (₹)', type: 'number', required: true },
-        ]}
-      />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -795,6 +861,7 @@ export default function HospitalAdminDashboard() {
       case 'doctors': return <DoctorsTab />;
       case 'labstaff': return (
         <GenericStaffTab
+          key="labstaff"
           title="Lab Staff"
           roleLabel="Lab Technician"
           fetchFn={adminService.getLabStaff}
@@ -807,6 +874,7 @@ export default function HospitalAdminDashboard() {
       );
       case 'pharmacy': return (
         <GenericStaffTab
+          key="pharmacy"
           title="Pharmacy Staff"
           roleLabel="Pharmacist"
           fetchFn={adminService.getPharmacyStaff}
@@ -819,6 +887,7 @@ export default function HospitalAdminDashboard() {
       );
       case 'ambulance': return (
         <GenericStaffTab
+          key="ambulance"
           title="Ambulance Drivers"
           roleLabel="Driver"
           fetchFn={adminService.getDrivers}

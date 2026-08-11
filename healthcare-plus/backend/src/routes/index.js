@@ -14,6 +14,7 @@ import staffRouter from './staff.routes.js';
 import userRouter from './user.routes.js';
 import emergencyRouter from './emergency.routes.js';
 import aiRouter from './ai.routes.js';
+import uploadRouter from './upload.routes.js';
 // Phase 5
 import availabilityRouter from './availability.routes.js';
 import appointmentsRouter from './appointments.routes.js';
@@ -57,6 +58,7 @@ router.use('/staff', staffRouter);
 router.use('/users', userRouter);
 router.use('/emergency', emergencyRouter);
 router.use('/ai', aiRouter);
+router.use('/upload', uploadRouter);
 // Phase 5
 router.use('/availability', availabilityRouter);
 router.use('/appointments', appointmentsRouter);

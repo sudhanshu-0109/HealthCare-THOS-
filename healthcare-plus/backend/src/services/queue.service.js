@@ -20,10 +20,14 @@ const QUEUE_TOKEN_SELECT = {
   appointment: {
     select: {
       id: true,
+      appointmentType: true,
       scheduledTime: true,
       patient: { select: { id: true, fullName: true, email: true } },
     },
   },
+  consultation: {
+    select: { id: true }
+  }
 };
 
 /**
@@ -76,6 +80,48 @@ const emitQueueUpdate = async (doctorId, queueDate) => {
  * which manages its own $transaction and then needs to trigger socket events.
  */
 export const emitQueueUpdateById = emitQueueUpdate;
+
+/**
+ * Recalculate queue tokens for a doctor on a specific date.
+ * Orders tokens by appointment scheduledTime and assigns sequential numbers (1, 2, 3...).
+ * Should be called whenever an appointment is confirmed, cancelled, or rescheduled.
+ */
+export const recalculateQueueTokens = async (doctorId, queueDate, tx = prisma) => {
+  const tokens = await tx.queueToken.findMany({
+    where: {
+      doctorId,
+      queueDate,
+      status: { not: 'CANCELLED' }, // Ensure we only sort active/completed ones
+    },
+    include: {
+      appointment: { select: { scheduledTime: true } }
+    }
+  });
+
+  // Sort strictly by scheduledTime
+  tokens.sort((a, b) => {
+    const timeA = a.appointment?.scheduledTime || '23:59';
+    const timeB = b.appointment?.scheduledTime || '23:59';
+    return timeA.localeCompare(timeB);
+  });
+
+  // Assign sequential tokens
+  let expectedTokenNumber = 1;
+  for (const t of tokens) {
+    // Phase 11 & 14: Fractional tokens (e.g. 10.5 for follow-ups) should NOT be reassigned
+    if (t.tokenNumber % 1 !== 0) {
+      continue; // keep it as is, skip expected sequence assignment
+    }
+
+    if (t.tokenNumber !== expectedTokenNumber) {
+      await tx.queueToken.update({
+        where: { id: t.id },
+        data: { tokenNumber: expectedTokenNumber }
+      });
+    }
+    expectedTokenNumber++;
+  }
+};
 
 /**
  * Get a doctor's full queue for a date.

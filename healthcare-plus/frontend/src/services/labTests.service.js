@@ -11,3 +11,6 @@ export const createLabTest = (data) =>
 
 export const toggleLabTest = (id) =>
   api.patch(`/lab-tests/${id}/toggle`);
+
+export const updateLabTestPrice = (id, price) =>
+  api.put(`/lab-tests/${id}/price`, { price });

@@ -3,8 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { createInvitedUser } from './auth.service.js';
 
 export const getHospitals = async () => {
-  return prisma.hospital.findMany({
-    where: { isActive: true },
+  const hospitals = await prisma.hospital.findMany({
     orderBy: { name: 'asc' },
     include: {
       departments: {
@@ -12,9 +11,24 @@ export const getHospitals = async () => {
         select: { id: true, name: true },
       },
       _count: {
-        select: { doctors: true },
+        select: { doctors: true, appointments: true },
       },
+      hospitalAdmins: {
+        include: { user: true },
+        take: 1,
+      }
     },
+  });
+  
+  return hospitals.map(h => {
+    const admin = h.hospitalAdmins[0]?.user;
+    return {
+      ...h,
+      status: h.isActive ? 'ACTIVE' : 'INACTIVE',
+      doctors: h._count.doctors,
+      patients: h._count.appointments,
+      admin: admin ? { name: admin.fullName, email: admin.email } : null
+    };
   });
 };
 

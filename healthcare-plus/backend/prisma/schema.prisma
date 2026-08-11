@@ -954,17 +954,43 @@ enum NotificationType {
   PASSPORT_ACCESS_CHANGED
 }
 
+model MasterLabCategory {
+  id    String @id @default(uuid())
+  name  String @unique
+  tests MasterLabTest[]
+
+  @@map("master_lab_categories")
+}
+
+model MasterLabTest {
+  id           String            @id @default(uuid())
+  code         String            @unique
+  categoryId   String
+  category     MasterLabCategory @relation(fields: [categoryId], references: [id])
+  name         String
+  basePrice    Decimal
+  sampleType   String?
+  isActive     Boolean           @default(true)
+
+  hospitalTests LabTestCatalog[]
+
+  @@map("master_lab_tests")
+}
+
 model LabTestCatalog {
-  id         String   @id @default(uuid())
-  hospitalId String
-  hospital   Hospital @relation(fields: [hospitalId], references: [id])
-  name       String
-  price      Decimal
-  sampleType String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id           String         @id @default(uuid())
+  hospitalId   String
+  hospital     Hospital       @relation(fields: [hospitalId], references: [id])
+  masterTestId String?
+  masterTest   MasterLabTest? @relation(fields: [masterTestId], references: [id])
+  name         String
+  price        Decimal
+  sampleType   String?
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
 
   @@index([hospitalId])
+  @@index([masterTestId])
   @@map("lab_test_catalog")
 }
 
