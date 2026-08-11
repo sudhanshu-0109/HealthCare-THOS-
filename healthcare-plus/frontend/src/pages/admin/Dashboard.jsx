@@ -242,12 +242,26 @@ function DoctorsTab() {
     !search || d.user?.fullName?.toLowerCase().includes(search.toLowerCase()) || d.specialization?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const fetchDoctors = async () => {
+    try {
+      const res = await adminService.getDoctors();
+      setDoctors(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAdd = async (form) => {
     setLoading(true);
-    try { await adminService.inviteDoctor(form); } catch {}
-    setLoading(false);
-    setShowModal(false);
-    setDoctors((prev) => [...prev, { id: Date.now().toString(), user: { fullName: form.fullName, email: form.email, status: 'INVITED' }, specialization: form.specialization, department: depts.find((d) => d.id === form.departmentId), consultationFee: form.consultationFee, isActive: false }]);
+    try {
+      await adminService.inviteDoctor(form);
+      setShowModal(false);
+      await fetchDoctors();
+    } catch (err) {
+      alert(err.message || 'Failed to add doctor');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -373,12 +387,26 @@ function DepartmentsTab() {
       .catch(() => {});
   }, []);
 
+  const fetchDepartments = async () => {
+    try {
+      const res = await adminService.getDepartments();
+      setDepts(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAdd = async (form) => {
     setLoading(true);
-    try { await adminService.createDepartment(form); } catch {}
-    setLoading(false);
-    setShowModal(false);
-    setDepts((prev) => [...prev, { id: Date.now().toString(), ...form, doctorCount: 0 }]);
+    try {
+      await adminService.createDepartment(form);
+      setShowModal(false);
+      await fetchDepartments();
+    } catch (err) {
+      alert(err.message || 'Failed to add department');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -561,15 +589,28 @@ function MedicinesTab() {
     );
   }, []);
 
+  const fetchMedicines = async () => {
+    try {
+      const svc = await import('../../services/medicines.service');
+      const res = await svc.getMedicines();
+      setMedicines(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAdd = async (form) => {
     setLoading(true);
     try {
       const svc = await import('../../services/medicines.service');
-      const res = await svc.createMedicine(form);
-      setMedicines((prev) => [...prev, res.data]);
-    } catch {}
-    setLoading(false);
-    setShowModal(false);
+      await svc.createMedicine(form);
+      setShowModal(false);
+      await fetchMedicines();
+    } catch (err) {
+      alert(err.message || 'Failed to add medicine');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

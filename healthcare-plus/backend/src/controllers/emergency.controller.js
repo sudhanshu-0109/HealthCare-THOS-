@@ -27,6 +27,11 @@ export const getActiveEmergency = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: request });
 });
 
+export const getMyEmergencies = asyncHandler(async (req, res) => {
+  const requests = await emergencyService.getMyEmergencies(req.user.id);
+  res.status(200).json({ success: true, data: requests });
+});
+
 export const updateEmergencyStatus = asyncHandler(async (req, res) => {
   const request = await emergencyService.updateEmergencyStatus(req.params.id, req.body.status);
   res.status(200).json({ success: true, data: request });

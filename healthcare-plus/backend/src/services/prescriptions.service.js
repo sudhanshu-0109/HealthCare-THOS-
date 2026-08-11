@@ -5,7 +5,6 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { addTimelineEvent } from './passport.service.js';
-import * as pharmacyOrdersService from './pharmacyOrders.service.js';
 
 const PRESCRIPTION_SELECT = {
   id: true,
@@ -80,17 +79,6 @@ export const createPrescription = async (consultationId, { generalInstructions, 
     });
   } catch (err) {
     console.warn('[PrescriptionsService] Failed to write PRESCRIPTION timeline event:', err.message);
-  }
-
-  // Automatically create a pharmacy order so it shows up in the pharmacist's PENDING tab immediately.
-  try {
-    await pharmacyOrdersService.createOrderFromPrescription(
-      prescription.id, 
-      consultation.hospitalId, 
-      consultation.patientId
-    );
-  } catch (err) {
-    console.warn('[PrescriptionsService] Failed to auto-create pharmacy order:', err.message);
   }
 
   return prescription;

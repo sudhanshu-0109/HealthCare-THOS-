@@ -54,7 +54,7 @@ export const createPharmacyOrder = asyncHandler(async (req, res) => {
 export const confirmPharmacyOrder = asyncHandler(async (req, res) => {
   const { items } = req.body;
   const service = await import('../services/pharmacyOrders.service.js');
-  const result = await service.generatePharmacyBill(req.params.id, req.user.id, items, req.hospitalId);
+  const result = await service.pharmacistMatchAndConfirm(req.params.id, req.user.id, items, req.hospitalId);
   res.json({ success: true, data: result });
 });
 

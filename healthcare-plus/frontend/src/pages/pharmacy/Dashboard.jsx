@@ -14,9 +14,8 @@ import EmptyState from '../../components/common/EmptyState';
 
 const NAV_ITEMS = [
   { id: 'PENDING', icon: Clock, label: 'New Orders', shortLabel: 'New' },
-  { id: 'PREPARING', icon: Package, label: 'Preparing', shortLabel: 'Preparing' },
-  { id: 'READY', icon: CheckCircle2, label: 'Ready', shortLabel: 'Ready' },
-  { id: 'COMPLETED', icon: CreditCard, label: 'Completed', shortLabel: 'Done' },
+  { id: 'PREPARING', icon: Package, label: 'Paid / Handover', shortLabel: 'Paid' },
+  { id: 'COMPLETED', icon: CheckCircle2, label: 'Completed', shortLabel: 'Done' },
 ];
 
 function LoadingCard() {
@@ -42,39 +41,72 @@ function ErrorCard({ message, onRetry }) {
 }
 
 const NEXT_STATUS = {
-  PENDING: 'PREPARING',
-  PREPARING: 'READY',
-  READY: 'COMPLETED',
+  PENDING: null,
+  PREPARING: 'COMPLETED',
 };
 
 const ACTION_LABEL = {
-  PENDING: 'Start Preparing',
-  PREPARING: 'Mark as Ready',
-  READY: 'Mark Completed',
+  PREPARING: 'Mark Handed Over',
 };
 
-// ── Generate Bill Modal ────────────────────────────────────────────────────────
-function GenerateBillModal({ order, onClose, onSuccess }) {
+function parseQuantity(frequency, durationDays) {
+  let f = 1;
+  const s = (frequency || '').toLowerCase();
+  if (s.includes('-')) {
+    f = s.split('-').reduce((sum, val) => sum + parseInt(val || 0), 0);
+  } else if (s.includes('/day') || s.includes(' a day')) {
+    f = parseInt(s) || 1;
+  } else if (s.includes('twice')) {
+    f = 2;
+  } else if (s.includes('thrice')) {
+    f = 3;
+  } else {
+    f = parseInt(s) || 1;
+  }
+  return f * (durationDays || 1);
+}
+
+// ── Calculate Bill Modal ────────────────────────────────────────────────────────
+function CalculateBillModal({ order, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [prices, setPrices] = useState({});
+  const [pricing, setPricing] = useState({});
 
-  const handlePriceChange = (itemId, val) => {
-    setPrices(prev => ({ ...prev, [itemId]: val }));
+  const handlePricingChange = (itemId, field, val) => {
+    setPricing(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], [field]: val }
+    }));
   };
 
-  const total = (order.items || []).reduce((sum, it) => sum + (Number(prices[it.prescriptionItemId]) || 0) * (it.quantity || 1), 0);
+  const calculateFinalPrice = (it) => {
+    const p = pricing[it.prescriptionItemId] || {};
+    const qty = parseQuantity(it.prescriptionItem?.frequency, it.prescriptionItem?.durationDays);
+    const mrp = Number(p.mrp) || 0;
+    const units = Number(p.units) || 1;
+    const unitPrice = mrp / units;
+    return unitPrice * qty;
+  };
+
+  const total = (order.items || []).reduce((sum, it) => sum + calculateFinalPrice(it), 0);
 
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
     try {
-      const finalItems = (order.items || []).map((it) => ({
-        prescriptionItemId: it.prescriptionItemId,
-        medicineId: null, // Basic implementation
-        quantity: it.quantity,
-        unitPrice: Number(prices[it.prescriptionItemId]) || 0,
-      }));
+      const finalItems = (order.items || []).map((it) => {
+        const p = pricing[it.prescriptionItemId] || {};
+        const qty = parseQuantity(it.prescriptionItem?.frequency, it.prescriptionItem?.durationDays);
+        const mrp = Number(p.mrp) || 0;
+        const units = Number(p.units) || 1;
+        return {
+          prescriptionItemId: it.prescriptionItemId,
+          medicineId: null,
+          medicineName: it.medicineName || it.prescriptionItem?.medicineName || `Medicine`,
+          quantity: qty,
+          unitPrice: mrp / units,
+        };
+      });
       await pharmacyOrdersService.confirmPharmacyOrder(order.id, finalItems);
       onSuccess?.();
       onClose();
@@ -88,46 +120,68 @@ function GenerateBillModal({ order, onClose, onSuccess }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-slate-900">Generate Bill</h3>
+          <h3 className="font-bold text-slate-900">Calculate & Send Bill</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
         </div>
-        <p className="text-xs text-slate-500 mb-4">Enter the unit price for each medicine. The patient will pay this bill from their dashboard.</p>
+        <p className="text-xs text-slate-500 mb-4">Calculate required quantity based on frequency and duration. Enter Pack MRP and Units to auto-calculate the final bill.</p>
         {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
         
-        <div className="space-y-3 mb-5 max-h-60 overflow-y-auto pr-2">
-          {(order.items || []).map((it, i) => (
-            <div key={it.id || i} className="flex flex-col gap-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold text-slate-700">{it.medicineName || it.medicine?.name || `Item ${i+1}`}</span>
-                <span className="text-slate-500 text-xs">Qty: {it.quantity}</span>
+        <div className="space-y-4 mb-5 max-h-96 overflow-y-auto pr-2">
+          {(order.items || []).map((it, i) => {
+            const qty = parseQuantity(it.prescriptionItem?.frequency, it.prescriptionItem?.durationDays);
+            const p = pricing[it.prescriptionItemId] || {};
+            const finalP = calculateFinalPrice(it);
+
+            return (
+              <div key={it.id || i} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-slate-700">{it.medicineName || it.prescriptionItem?.medicineName || `Item ${i+1}`}</span>
+                  <span className="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full">
+                    {it.prescriptionItem?.frequency} × {it.prescriptionItem?.durationDays} Days = {qty} Req.
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pack MRP (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-300"
+                      value={p.mrp || ''}
+                      onChange={(e) => handlePricingChange(it.prescriptionItemId, 'mrp', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Units per Pack</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-300"
+                      value={p.units || ''}
+                      onChange={(e) => handlePricingChange(it.prescriptionItemId, 'units', e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col justify-end">
+                    <span className="text-xs font-semibold text-slate-500 text-right">Final: ₹{finalP.toFixed(2)}</span>
+                  </div>
+                </div>
               </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">₹</span>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Unit Price"
-                  className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-300"
-                  value={prices[it.prescriptionItemId] || ''}
-                  onChange={(e) => handlePriceChange(it.prescriptionItemId, e.target.value)}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div className="flex justify-between items-center bg-slate-50 rounded-xl px-3 py-2.5 mb-5">
-          <span className="text-sm font-semibold text-slate-600">Total Bill</span>
-          <span className="text-lg font-bold text-slate-900">₹{total.toLocaleString('en-IN')}</span>
+        <div className="flex justify-between items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-5">
+          <span className="text-sm font-bold text-slate-600">Total Bill</span>
+          <span className="text-xl font-black text-slate-900">₹{total.toFixed(2)}</span>
         </div>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold">Cancel</button>
           <button onClick={handleSubmit} disabled={loading}
             className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {loading ? 'Generating…' : 'Generate & Send Bill'}
+            {loading ? 'Sending…' : 'Send Bill to Patient'}
           </button>
         </div>
       </div>
@@ -173,27 +227,21 @@ function OrderCard({ order, onAdvance, loading }) {
         <button
           onClick={() => onAdvance(order.id, nextStatus)}
           disabled={loading === order.id}
-          className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
         >
           {loading === order.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
           {ACTION_LABEL[order.status]}
         </button>
       )}
-      {!nextStatus && order.status === 'COMPLETED' && !order.totalAmount && (
+      {!nextStatus && order.status === 'PENDING' && (
         <button
           onClick={() => onAdvance(order.id, 'BILL')}
           disabled={loading === order.id}
-          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+          className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
         >
           <CreditCard className="w-3 h-3" />
-          Generate Bill
+          Calculate & Send Bill
         </button>
-      )}
-      {order.status === 'COMPLETED' && order.totalAmount > 0 && (
-        <div className="w-full py-2 bg-slate-50 text-slate-500 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-100">
-          <CheckCircle2 className="w-3 h-3" />
-          Bill Generated
-        </div>
       )}
     </div>
   );
@@ -263,10 +311,10 @@ function OrdersTab({ status }) {
         <OrderCard key={order.id} order={order} onAdvance={handleAdvance} loading={actionLoading} />
       ))}
       {billingOrder && (
-        <GenerateBillModal
+        <CalculateBillModal
           order={billingOrder}
           onClose={() => setBillingOrder(null)}
-          onSuccess={() => { showSuccess('Bill generated successfully!'); fetchOrders(); }}
+          onSuccess={() => { showSuccess('Bill sent to patient successfully!'); fetchOrders(); }}
         />
       )}
     </div>

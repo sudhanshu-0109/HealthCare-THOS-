@@ -133,41 +133,56 @@ function ConfirmPriceModal({ req, onClose, onSuccess }) {
 
 // ── Upload Report Modal ────────────────────────────────────────────────────────
 
-function UploadReportModal({ requestId, onClose, onSuccess }) {
-  const [reportUrl, setReportUrl] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [summary, setSummary] = useState('');
-  const [loading, setLoading] = useState(false);
+function UploadReportModal({ request, onClose, onSuccess }) {
+  const [testStates, setTestStates] = useState({});
+  const [loadingItemId, setLoadingItemId] = useState(null);
   const [error, setError] = useState(null);
+  const [selectedItemId, setSelectedItemId] = useState(request.items?.[0]?.id || null);
 
-  const handleSubmit = async () => {
-    if (!reportUrl.trim() && !selectedFile) { setError('Report URL or File is required.'); return; }
-    setLoading(true);
+  const getTestState = (id) => testStates[id] || { reportUrl: '', selectedFile: null, summary: '' };
+  
+  const updateTestState = (id, field, value) => {
+    setTestStates(prev => ({
+      ...prev,
+      [id]: { ...getTestState(id), [field]: value }
+    }));
+  };
+
+  const handleSubmit = async (itemId) => {
+    const state = getTestState(itemId);
+    if (!state.reportUrl.trim() && !state.selectedFile) { setError('Report URL or File is required.'); return; }
+    
+    setLoadingItemId(itemId);
     setError(null);
     try {
-      let finalUrl = reportUrl.trim();
+      let finalUrl = state.reportUrl.trim();
       
-      // If a local file was selected, upload it first
-      if (selectedFile) {
-        const uploadRes = await uploadService.uploadFile(selectedFile);
-        
-        // Since we are running the frontend on a different port than backend locally, 
-        // we prepend the backend base URL. In production, this might just be relative.
-        // Assuming backend runs on the default port from env or window location.
-        // The API returns { data: { url: '/uploads/filename.ext' } }
+      if (state.selectedFile) {
+        const uploadRes = await uploadService.uploadFile(state.selectedFile);
         finalUrl = `http://localhost:5000${uploadRes.url}`;
       }
 
-      await labFulfillmentService.uploadLabReport(requestId, {
+      await labFulfillmentService.uploadLabReport(request.id, {
         reportFileUrl: finalUrl,
-        resultSummary: summary.trim() || undefined,
+        resultSummary: state.summary.trim() || undefined,
+        labRequestItemId: itemId,
       });
-      onSuccess?.();
-      onClose();
+      
+      if (!request.reports) request.reports = [];
+      request.reports.push({ labRequestItemId: itemId, reportFileUrl: finalUrl });
+      
+      const coveredIds = new Set(request.reports.map(r => r.labRequestItemId).filter(Boolean));
+      const allDone = coveredIds.size >= (request.items?.length || 1);
+      
+      onSuccess?.(allDone);
+      
+      if (!allDone) {
+        setSelectedItemId(null);
+      }
     } catch (err) {
       setError(err.message || 'Upload failed.');
     } finally {
-      setLoading(false);
+      setLoadingItemId(null);
     }
   };
 
@@ -179,47 +194,82 @@ function UploadReportModal({ requestId, onClose, onSuccess }) {
           <h3 className="font-bold text-slate-900">Upload Lab Report</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
         </div>
-        <p className="text-xs text-slate-500 mb-4">Uploading a report marks this request <strong>Completed</strong> and notifies the patient.</p>
-        {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
-        <div className="space-y-3 mb-5">
-          
-          <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50">
-            <label className="block text-xs font-semibold text-slate-600 mb-2">Upload Local File</label>
-            <input 
-              type="file" 
-              onChange={(e) => setSelectedFile(e.target.files[0])}
-              className="w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100"
-            />
-          </div>
+        <p className="text-xs text-slate-500 mb-4">Select a specific test to upload its report. The request will automatically complete when all tests are uploaded.</p>
+        {error && !selectedItemId && <p className="text-xs text-red-500 mb-3">{error}</p>}
+        
+        <div className="space-y-3 mb-5 max-h-[65vh] overflow-y-auto pr-1">
+          {request.items?.map(it => {
+            const hasReport = request.reports?.some(r => r.labRequestItemId === it.id);
+            const isExpanded = selectedItemId === it.id;
+            return (
+              <div key={it.id} className={`border rounded-2xl overflow-hidden transition-all ${isExpanded ? 'border-cyan-300 ring-4 ring-cyan-50' : 'border-slate-200'}`}>
+                <button 
+                  onClick={() => {
+                    if (!hasReport) {
+                      setSelectedItemId(isExpanded ? null : it.id);
+                      setError(null);
+                    }
+                  }}
+                  disabled={hasReport}
+                  className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between transition-colors ${hasReport ? 'bg-slate-50 opacity-60' : isExpanded ? 'bg-cyan-50' : 'bg-white hover:bg-slate-50'}`}
+                >
+                  <span className="font-semibold text-slate-800">{it.testName}</span>
+                  {hasReport ? <span className="text-xs text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Uploaded</span> : <span className="text-xs text-slate-400 font-medium">Pending</span>}
+                </button>
+                
+                {isExpanded && !hasReport && (
+                  <div className="p-4 bg-white border-t border-slate-100">
+                    {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+                    <div className="space-y-4">
+                      <div className="p-4 border border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center justify-center text-center">
+                        <UploadCloud className="w-6 h-6 text-slate-400 mb-2" />
+                        <label className="block text-xs font-semibold text-slate-600 mb-2">Upload Local File</label>
+                        <input 
+                          type="file" 
+                          onChange={(e) => updateTestState(it.id, 'selectedFile', e.target.files[0])}
+                          className="w-full max-w-[250px] text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100"
+                        />
+                      </div>
 
-          <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink-0 mx-3 text-xs text-slate-400 font-medium uppercase">Or</span>
-            <div className="flex-grow border-t border-slate-200"></div>
-          </div>
+                      <div className="relative flex items-center py-1">
+                        <div className="flex-grow border-t border-slate-200"></div>
+                        <span className="flex-shrink-0 mx-3 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Or provide link</span>
+                        <div className="flex-grow border-t border-slate-200"></div>
+                      </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">External Report Link</label>
-            <input value={reportUrl} onChange={(e) => setReportUrl(e.target.value)}
-              disabled={!!selectedFile}
-              placeholder="https://drive.google.com/..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:opacity-50" />
-          </div>
-          
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Result Summary (Optional)</label>
-            <textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)}
-              placeholder="Key findings, normal/abnormal values…"
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300 resize-none" />
-          </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">External Report Link</label>
+                        <input value={getTestState(it.id).reportUrl} onChange={(e) => updateTestState(it.id, 'reportUrl', e.target.value)}
+                          disabled={!!getTestState(it.id).selectedFile}
+                          placeholder="https://drive.google.com/..."
+                          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:opacity-50" />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Result Summary (Optional)</label>
+                        <textarea rows={2} value={getTestState(it.id).summary} onChange={(e) => updateTestState(it.id, 'summary', e.target.value)}
+                          placeholder="Key findings..."
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300 resize-none" />
+                      </div>
+                      
+                      <div className="flex gap-2 pt-2">
+                        <button onClick={() => setSelectedItemId(null)} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors">Cancel</button>
+                        <button onClick={() => handleSubmit(it.id)} disabled={!!loadingItemId}
+                          className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
+                          {loadingItemId === it.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          {loadingItemId === it.id ? 'Uploading…' : 'Upload Report'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold">Cancel</button>
-          <button onClick={handleSubmit} disabled={loading}
-            className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {loading ? 'Uploading…' : 'Upload'}
-          </button>
+        
+        <div className="pt-2 border-t border-slate-100">
+          <button onClick={onClose} className="w-full py-2.5 text-slate-500 hover:bg-slate-50 rounded-xl text-sm font-semibold transition-colors">Close Modal</button>
         </div>
       </div>
     </div>
@@ -280,19 +330,26 @@ function RequestCard({ req, activeTab, onAction, actionLoading, onConfirm, onUpl
         </div>
       )}
 
-      {/* Completed: show the uploaded report link. */}
-      {activeTab === 'completed' && report?.reportFileUrl && (
-        <a href={report.reportFileUrl} target="_blank" rel="noopener noreferrer"
-          className="text-xs text-cyan-700 hover:text-cyan-900 bg-cyan-50 border border-cyan-100 rounded-xl px-3 py-2 flex items-center gap-1.5">
-          <ExternalLink className="w-3.5 h-3.5" /> View uploaded report
-        </a>
+      {/* Completed or partially completed: show the uploaded report links. */}
+      {req.reports?.length > 0 && (
+        <div className="space-y-2 mt-3">
+          {req.reports.map(r => {
+            const testName = req.items?.find(it => it.id === r.labRequestItemId)?.testName || req.items?.[0]?.testName || 'Report';
+            return (
+              <a key={r.id} href={r.reportFileUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-cyan-700 hover:text-cyan-900 bg-cyan-50 border border-cyan-100 rounded-xl px-3 py-2 flex items-center gap-1.5 w-full">
+                <ExternalLink className="w-3.5 h-3.5" /> View {testName} Report
+              </a>
+            );
+          })}
+        </div>
       )}
 
       {action && (
         <button
           onClick={() => {
             if (action.kind === 'confirm') onConfirm(req);
-            else if (action.kind === 'upload') onUpload(req.id);
+            else if (action.kind === 'upload') onUpload(req);
             else onAction(req.id, activeTab);
           }}
           disabled={actionLoading === req.id}
@@ -376,7 +433,7 @@ function LabTab({ activeTab }) {
           onAction={handleAction}
           actionLoading={actionLoading}
           onConfirm={(r) => setConfirmTarget(r)}
-          onUpload={(id) => setUploadTarget(id)}
+          onUpload={(reqObj) => setUploadTarget(reqObj)}
         />
       ))}
       {confirmTarget && (
@@ -388,9 +445,13 @@ function LabTab({ activeTab }) {
       )}
       {uploadTarget && (
         <UploadReportModal
-          requestId={uploadTarget}
+          request={uploadTarget}
           onClose={() => setUploadTarget(null)}
-          onSuccess={() => { showSuccess('Report uploaded!'); fetchRequests(); setUploadTarget(null); }}
+          onSuccess={(allDone = true) => { 
+            showSuccess('Report uploaded!'); 
+            fetchRequests(); 
+            if (allDone) setUploadTarget(null); 
+          }}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import prisma from '../prisma/client.js';
-import { createInvitedUser } from './auth.service.js';
+import { createStaffUser } from './auth.service.js';
 
 export const getDoctors = async (filters) => {
   return prisma.doctor.findMany({
@@ -13,8 +13,8 @@ export const getDoctors = async (filters) => {
 };
 
 export const inviteDoctor = async (hospitalId, data, invitedBy) => {
-  // First, create the invited user
-  const user = await createInvitedUser({
+  // First, create the active staff user
+  const user = await createStaffUser({
     email: data.email,
     fullName: data.fullName,
     role: 'DOCTOR',

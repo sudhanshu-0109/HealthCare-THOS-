@@ -49,13 +49,13 @@ export const createOrderFromPrescription = async (prescriptionId, hospitalId, pa
 };
 
 /**
- * Pharmacist generates the bill for a completed order.
+ * Pharmacist matches prescription items to medicines, computes total, initiates billing.
  * @param {string} orderId
  * @param {string} pharmacistUserId
  * @param {Array<{ prescriptionItemId, medicineId, quantity, unitPrice }>} items
  * @param {string} hospitalId — pharmacist's hospital, for cross-hospital isolation
  */
-export const generatePharmacyBill = async (orderId, pharmacistUserId, items, hospitalId) => {
+export const pharmacistMatchAndConfirm = async (orderId, pharmacistUserId, items, hospitalId) => {
   const order = await prisma.pharmacyOrder.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -63,8 +63,8 @@ export const generatePharmacyBill = async (orderId, pharmacistUserId, items, hos
 
   if (!order) throw ApiError.notFound('Pharmacy order not found.');
   if (order.hospitalId !== hospitalId) throw ApiError.forbidden('Order does not belong to your hospital.');
-  if (order.status !== 'COMPLETED') {
-    throw ApiError.badRequest(`Cannot generate bill for order in status: ${order.status}. Must be COMPLETED.`);
+  if (order.status !== 'PENDING') {
+    throw ApiError.badRequest(`Cannot confirm order in status: ${order.status}`);
   }
 
   // Compute total
@@ -86,7 +86,7 @@ export const generatePharmacyBill = async (orderId, pharmacistUserId, items, hos
 
     await tx.pharmacyOrder.update({
       where: { id: orderId },
-      data: { totalAmount },
+      data: { status: 'CONFIRMED', totalAmount },
     });
   });
 
@@ -97,7 +97,7 @@ export const generatePharmacyBill = async (orderId, pharmacistUserId, items, hos
     sourceType: 'PHARMACY_ORDER',
     sourceId: orderId,
     items: items.map((item) => ({
-      description: `Medicine (Qty: ${item.quantity || 1})`,
+      description: item.medicineName || `Medicine (Qty: ${item.quantity || 1})`,
       quantity: item.quantity || 1,
       unitPrice: Number(item.unitPrice),
     })),
@@ -116,11 +116,12 @@ export const onBillPaid = async (orderId) => {
     console.warn(`[PharmacyOrders] onBillPaid: order ${orderId} not found`);
     return;
   }
-  // With the new flow, the order might already be COMPLETED when the bill is paid.
-  // So we don't necessarily need to change the status, or we could change it to a generic PAID if we had one.
-  // For now, let's just leave it as is or do nothing, since it's already COMPLETED.
-  // We can just send a notification.
-  const updated = order;
+  if (order.status !== 'CONFIRMED') return; // idempotent
+
+  const updated = await prisma.pharmacyOrder.update({
+    where: { id: orderId },
+    data: { status: 'PREPARING' },
+  });
 
   // Phase 15: Notify patient their order is being prepared
   try {
@@ -135,9 +136,7 @@ export const onBillPaid = async (orderId) => {
  */
 export const advanceStatus = async (orderId, status, pharmacistUserId, hospitalId) => {
   const validTransitions = {
-    PENDING: 'PREPARING',
-    PREPARING: 'READY',
-    READY: 'COMPLETED',
+    PREPARING: 'COMPLETED',
   };
 
   const order = await prisma.pharmacyOrder.findUnique({ where: { id: orderId } });

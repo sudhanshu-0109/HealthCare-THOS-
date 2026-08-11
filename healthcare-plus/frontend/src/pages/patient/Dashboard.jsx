@@ -10,7 +10,7 @@ import {
   Bell, AlertTriangle, Heart, Search, Star, MapPin, Clock, Stethoscope,
   Brain, Phone, X, CheckCircle2, Navigation, ChevronRight, Activity,
   FileText, Loader2, Filter, RefreshCw, Building2, Users,
-  TrendingUp, Download, Eye, ChevronDown, Shield, Zap, AlertCircle
+  TrendingUp, Download, Eye, ChevronDown, Shield, Zap, AlertCircle, Package
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
@@ -590,6 +590,22 @@ function PrescriptionsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const handleOrderMedicines = async (rx) => {
+    setActionLoading(rx.id);
+    try {
+      await pharmacyOrdersService.createPharmacyOrder({
+        prescriptionId: rx.id,
+        hospitalId: rx.hospitalId || rx.consultation?.hospitalId
+      });
+      alert('Medicines ordered successfully! Pharmacy is processing your request.');
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to order medicines. They may already be ordered.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   useEffect(() => {
     prescriptionsService.getMyPrescriptions()
@@ -644,9 +660,19 @@ function PrescriptionsTab() {
                       </div>
                     ))}
                   </div>
-                  <button className="mt-3 w-full py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
-                    <Download className="w-3.5 h-3.5" /> Download Prescription
-                  </button>
+                  <div className="mt-4 flex gap-2">
+                    <button className="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                      <Download className="w-3.5 h-3.5" /> Download
+                    </button>
+                    <button
+                      onClick={() => handleOrderMedicines(rx)}
+                      disabled={actionLoading === rx.id}
+                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-2"
+                    >
+                      {actionLoading === rx.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Package className="w-3.5 h-3.5" />}
+                      Order Medicines
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -687,40 +713,56 @@ function LabReportsTab() {
         <div className="space-y-3">
           {reports.map((r) => (
             <div key={r.id} className="bg-white rounded-2xl border border-slate-100 p-4">
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="font-semibold text-slate-900 text-sm">{r.items?.[0]?.testName || r.testName}</p>
+                  <p className="font-semibold text-slate-900 text-sm">Lab Request</p>
                   <p className="text-xs text-slate-400">{r.doctor?.user?.fullName ? `Dr. ${r.doctor.user.fullName}` : r.doctor}</p>
                   <p className="text-xs text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : r.date}</p>
                 </div>
                 <StatusBadge status={r.status} />
               </div>
-              {r.result && (
-                <div className="bg-emerald-50 rounded-xl p-3 mb-3 border border-emerald-100">
-                  <p className="text-xs font-semibold text-emerald-700 mb-0.5">Result Summary</p>
-                  <p className="text-xs text-emerald-600">{r.result}</p>
-                </div>
-              )}
-              {(r.reports?.length > 0 || r.status === 'REPORT_READY' || r.status === 'COMPLETED') && r.reports?.[0]?.reportFileUrl && (
-                <div className="flex gap-2">
-                  <a
-                    href={r.reports[0].reportFileUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Eye className="w-3.5 h-3.5" /> View Report
-                  </a>
-                  <a
-                    href={r.reports[0].reportFileUrl} download target="_blank" rel="noopener noreferrer"
-                    className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Download
-                  </a>
-                </div>
-              )}
-              {(r.status === 'PENDING' || r.status === 'CONFIRMED' || r.status === 'SAMPLE_COLLECTED' || r.status === 'PROCESSING' || r.status === 'TESTING') && (
-                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-xl p-2.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Test in progress — report will be available soon
+
+              <div className="space-y-3 mt-4">
+                {r.items?.map((item) => {
+                  const report = r.reports?.find(rep => rep.labRequestItemId === item.id) 
+                              || (r.reports?.find(rep => !rep.labRequestItemId) && r.items[0].id === item.id ? r.reports.find(rep => !rep.labRequestItemId) : null);
+                  return (
+                    <div key={item.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-slate-800 text-sm">{item.testName}</p>
+                        {report ? (
+                          <span className="text-xs text-emerald-600 font-semibold bg-emerald-100 px-2 py-0.5 rounded-full">Report Ready</span>
+                        ) : (
+                          <span className="text-xs text-slate-500 font-medium bg-slate-200 px-2 py-0.5 rounded-full">Pending</span>
+                        )}
+                      </div>
+                      
+                      {report?.resultSummary && (
+                        <div className="bg-white rounded-lg p-2.5 mb-2 border border-emerald-100 shadow-sm">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 mb-1">Result Summary</p>
+                          <p className="text-xs text-slate-600">{report.resultSummary}</p>
+                        </div>
+                      )}
+
+                      {report?.reportFileUrl && (
+                        <div className="flex gap-2 mt-2">
+                          <a
+                            href={report.reportFileUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex-1 py-1.5 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <Eye className="w-3 h-3" /> View Report
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {(!r.reports || r.reports.length === 0) && r.status !== 'COMPLETED' && (
+                <div className="mt-4 flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-xl p-3">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Tests in progress — reports will appear here when ready
                 </div>
               )}
             </div>
@@ -752,6 +794,7 @@ function BillingTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [payModal, setPayModal] = useState(null);
+  const [expandedBillId, setExpandedBillId] = useState(null);
 
   const fetchBills = () => {
     setLoading(true);
@@ -803,10 +846,16 @@ function BillingTab() {
           {bills.map((b) => {
             const orderId = payableOrderId(b);
             return (
-              <div key={b.id} className="bg-white rounded-2xl border border-slate-100 p-4">
-                <div className="flex items-start justify-between mb-1">
+              <div key={b.id} className="bg-white rounded-2xl border border-slate-100 p-4 transition-all">
+                <div 
+                  className="flex items-start justify-between mb-1 cursor-pointer"
+                  onClick={() => setExpandedBillId(expandedBillId === b.id ? null : b.id)}
+                >
                   <div className="flex-1">
-                    <p className="font-semibold text-slate-900 text-sm">{BILL_SOURCE_LABELS[b.sourceType] || b.sourceType || 'Charge'}</p>
+                    <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                      {BILL_SOURCE_LABELS[b.sourceType] || b.sourceType || 'Charge'}
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expandedBillId === b.id ? 'rotate-180' : ''}`} />
+                    </p>
                     <p className="text-xs text-slate-400">{b.hospital?.name || ''}{b.createdAt ? ` • ${new Date(b.createdAt).toLocaleDateString('en-IN')}` : ''}</p>
                   </div>
                   <StatusBadge status={b.status} />
@@ -824,6 +873,42 @@ function BillingTab() {
                     </button>
                   )}
                 </div>
+
+                {/* Bill Breakdown */}
+                {expandedBillId === b.id && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Itemized Breakdown</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100">
+                            <th className="py-2 text-xs font-semibold text-slate-600">Item</th>
+                            <th className="py-2 text-xs font-semibold text-slate-600 text-right">Qty</th>
+                            <th className="py-2 text-xs font-semibold text-slate-600 text-right">Unit Price</th>
+                            <th className="py-2 text-xs font-semibold text-slate-600 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(b.items || []).map((item, idx) => (
+                            <tr key={item.id || idx} className="border-b border-slate-50 last:border-0">
+                              <td className="py-2.5 text-sm font-medium text-slate-800">{item.description}</td>
+                              <td className="py-2.5 text-sm text-slate-600 text-right">{item.quantity}</td>
+                              <td className="py-2.5 text-sm text-slate-600 text-right">₹{Number(item.unitPrice).toFixed(2)}</td>
+                              <td className="py-2.5 text-sm font-semibold text-slate-800 text-right">₹{Number(item.subtotal || (item.quantity * item.unitPrice)).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {b.payments && b.payments.length > 0 && b.status === 'PAID' && (
+                      <div className="mt-4 bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                        <p className="text-xs font-semibold text-emerald-800 mb-1">Payment Details</p>
+                        <p className="text-xs text-emerald-600">Transaction ID: {b.payments.find(p => p.status === 'SUCCESS')?.razorpayPaymentId || 'N/A'}</p>
+                        <p className="text-xs text-emerald-600">Paid On: {new Date(b.payments.find(p => p.status === 'SUCCESS')?.createdAt || b.createdAt).toLocaleString('en-IN')}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -961,6 +1046,16 @@ function PassportTab({ user }) {
 // ── Emergency Dispatch Tab ────────────────────────────────────────────────────────
 
 function EmergencyDispatchTab({ onSOSSent }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    patientService.getMyEmergencies()
+      .then(res => setHistory(res.data || []))
+      .catch(err => console.error('Failed to load emergency history:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="p-4 sm:p-6 space-y-5 pb-24 lg:pb-6">
       <div className="flex flex-col lg:flex-row gap-6">
@@ -996,9 +1091,34 @@ function EmergencyDispatchTab({ onSOSSent }) {
         
         <div className="w-full lg:w-80 space-y-4">
           <h3 className="text-sm font-semibold text-slate-400 tracking-wider uppercase mb-2">My Emergency History</h3>
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 text-center">
-            <p className="text-slate-500 text-sm">No past emergencies.</p>
-          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 text-cyan-500 animate-spin" /></div>
+          ) : history.length === 0 ? (
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 text-center">
+              <p className="text-slate-500 text-sm">No past emergencies.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {history.map(em => (
+                <div key={em.id} className="bg-white border border-slate-100 rounded-2xl p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="text-sm font-semibold text-slate-900">{new Date(em.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    <StatusBadge status={em.status} size="xs" />
+                  </div>
+                  {em.ambulance?.driver && (
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                      <User className="w-3.5 h-3.5" /> Driver: {em.ambulance.driver.user?.fullName}
+                    </p>
+                  )}
+                  {em.hospital && (
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5" /> {em.hospital.name}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

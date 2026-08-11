@@ -25,6 +25,7 @@ const LAB_REQUEST_SELECT = {
       estimatedPrice: true,
     },
   },
+  reports: true,
 };
 
 /**

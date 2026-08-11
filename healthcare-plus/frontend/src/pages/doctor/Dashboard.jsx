@@ -320,6 +320,7 @@ function ReportListModal({ reports, onClose }) {
               <div key={i} className="p-3 border border-slate-100 rounded-xl flex items-center justify-between">
                 <div className="truncate pr-2">
                   <p className="text-sm font-semibold truncate">{r.testName}</p>
+                  {r.date && <p className="text-xs text-slate-400 mt-0.5">{r.date}</p>}
                 </div>
                 <button onClick={() => window.open(r.url, '_blank')} className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-lg text-xs font-semibold hover:bg-cyan-100 whitespace-nowrap">
                   View
@@ -423,9 +424,12 @@ function QueueTab({ doctorProfile }) {
           for (const req of c.labRequests) {
             if (req.reports && req.reports.length > 0) {
               for (let i = 0; i < req.reports.length; i++) {
+                const rep = req.reports[i];
+                const item = req.items?.find(it => it.id === rep.labRequestItemId) || req.items?.[0];
                 allReports.push({ 
-                  url: req.reports[i].reportFileUrl, 
-                  testName: req.items?.map(it=>it.testName).join(', ') || `Lab Report ${i+1}` 
+                  url: rep.reportFileUrl, 
+                  testName: item?.testName || `Lab Report ${i+1}`,
+                  date: new Date(rep.reportDate || rep.createdAt).toLocaleDateString('en-IN')
                 });
               }
             }

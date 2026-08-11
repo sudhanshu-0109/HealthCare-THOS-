@@ -59,6 +59,16 @@ export const getActiveEmergency = async (patientId) => {
   });
 };
 
+export const getMyEmergencies = async (patientId) => {
+  return prisma.emergencyRequest.findMany({
+    where: { patientId },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      ambulance: { include: { driver: { include: { user: { select: { fullName: true } } } } } }
+    }
+  });
+};
+
 export const updateEmergencyStatus = async (id, status) => {
   return prisma.emergencyRequest.update({
     where: { id },

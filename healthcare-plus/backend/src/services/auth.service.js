@@ -69,9 +69,9 @@ export const register = async ({ email, password, fullName, role = 'PATIENT' }) 
 };
 
 /**
- * Create an invited user (staff roles)
+ * Create a staff user (Doctor, Lab Staff, etc) with a default password.
  */
-export const createInvitedUser = async ({ email, fullName, role, hospitalId, invitedBy }) => {
+export const createStaffUser = async ({ email, fullName, role, hospitalId, invitedBy }) => {
   if (role === 'PATIENT' || role === 'SUPER_ADMIN') {
     throw ApiError.forbidden('Cannot invite PATIENT or SUPER_ADMIN roles.');
   }
@@ -82,19 +82,30 @@ export const createInvitedUser = async ({ email, fullName, role, hospitalId, inv
     throw ApiError.conflict('An account with this email address already exists.');
   }
 
+  const defaultPassword = 'Passwor123!';
+  const passwordHash = await hashPassword(defaultPassword);
+
   const user = await prisma.user.create({
     data: {
       email: normalizedEmail,
       fullName: fullName.trim(),
       role,
+      passwordHash,
       isEmailVerified: true,
       authProvider: 'LOCAL',
-      status: 'INVITED',
+      status: 'ACTIVE',
     }
   });
 
-  const token = await createInviteToken(user.id, invitedBy);
-  await sendInviteEmail(user, token);
+  // Fetch hospital name for the email
+  let hospitalName = 'HealthCare+';
+  if (hospitalId) {
+    const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId } });
+    if (hospital) hospitalName = hospital.name;
+  }
+
+  const { sendStaffWelcomeEmail } = await import('./email.service.js');
+  await sendStaffWelcomeEmail(user, defaultPassword, hospitalName);
 
   return user;
 };

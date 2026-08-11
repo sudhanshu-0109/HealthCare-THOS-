@@ -193,6 +193,60 @@ export const sendInviteEmail = async (user, token) => {
 };
 
 /**
+ * Send staff welcome email with their default credentials.
+ */
+export const sendStaffWelcomeEmail = async (user, rawPassword, hospitalName) => {
+  const loginUrl = `${env.CLIENT_URL}/login`;
+  
+  const plainText = `Hi ${user.fullName},\n\nYour HealthCare+ account has been created.\n\nRole: ${user.role}\nHospital: ${hospitalName || 'HealthCare+'}\nEmail: ${user.email}\nTemporary Password: ${rawPassword}\n\nPlease log in and change your password.\n\nLogin here: ${loginUrl}\n\n- HealthCare+ Team`;
+  
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a73e8,#0d47a1);padding:32px 40px;">
+              <h1 style="color:#fff;font-size:22px;margin:0;letter-spacing:-0.5px;">HealthCare+</h1>
+              <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:13px;">Welcome to the Team</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:36px 40px;">
+              <p style="color:#555;margin:0 0 8px;font-size:14px;">Hi ${user.fullName},</p>
+              <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px;font-weight:600;">Your account is ready</h2>
+              <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 16px;">Your HealthCare+ staff account has been successfully created.</p>
+              
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:0 0 24px;">
+                <p style="margin:0 0 8px;font-size:14px;"><strong style="color:#334155;">Role:</strong> <span style="color:#64748b;">${user.role}</span></p>
+                <p style="margin:0 0 8px;font-size:14px;"><strong style="color:#334155;">Hospital:</strong> <span style="color:#64748b;">${hospitalName || 'HealthCare+'}</span></p>
+                <p style="margin:0 0 8px;font-size:14px;"><strong style="color:#334155;">Login Email:</strong> <span style="color:#64748b;">${user.email}</span></p>
+                <p style="margin:0;font-size:14px;"><strong style="color:#334155;">Temporary Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;color:#0f172a;font-family:monospace;">${rawPassword}</code></p>
+              </div>
+              
+              <a href="${loginUrl}" style="display:inline-block;background:#1a73e8;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:6px;">Log In Now</a>
+              
+              <p style="color:#888;font-size:12px;margin:24px 0 0;">Please log in and change your password immediately. If you did not expect this, please contact your administrator.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  await sendEmail({
+    to: user.email,
+    subject: `Welcome to HealthCare+`,
+    text: plainText,
+    html,
+  });
+};
+
+/**
  * Send a transactional notification email (Phase 15 — 4 high-value event types only).
  * @param {{ email: string, fullName: string }} user
  * @param {{ title: string, message: string, type: string }} notif

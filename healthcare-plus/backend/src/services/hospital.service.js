@@ -1,6 +1,6 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
-import { createInvitedUser } from './auth.service.js';
+import { createStaffUser } from './auth.service.js';
 
 export const getHospitals = async () => {
   const hospitals = await prisma.hospital.findMany({
@@ -73,7 +73,7 @@ export const createHospitalWithAdmin = async (data, superAdminId) => {
   });
 
   if (adminEmail && adminName) {
-    await createInvitedUser({
+    await createStaffUser({
       email: adminEmail,
       fullName: adminName,
       role: 'HOSPITAL_ADMIN',

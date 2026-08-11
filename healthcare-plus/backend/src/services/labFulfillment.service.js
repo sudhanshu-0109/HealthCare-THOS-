@@ -125,6 +125,8 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
   const labRequest = await prisma.labRequest.findUnique({
     where: { id: labRequestId },
     include: {
+      items: true,
+      reports: true,
       consultation: {
         include: { queueToken: true, appointment: true },
       },
@@ -138,7 +140,7 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
     throw ApiError.badRequest(`Cannot upload report for a lab request in status: ${labRequest.status}`);
   }
 
-  const { report, newQueueToken } = await prisma.$transaction(async (tx) => {
+  const { report, newQueueToken, isAllComplete } = await prisma.$transaction(async (tx) => {
     const r = await tx.labReport.create({
       data: {
         labRequestId,
@@ -149,67 +151,76 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
       },
     });
 
-    // Advance status to COMPLETED when report uploaded
-    await tx.labRequest.update({
-      where: { id: labRequestId },
-      data: { status: 'COMPLETED' },
-    });
+    const coveredIds = new Set(labRequest.reports.map(r => r.labRequestItemId).filter(Boolean));
+    if (labRequestItemId) coveredIds.add(labRequestItemId);
+    const isAllComplete = coveredIds.size >= labRequest.items.length;
 
     let newQueueToken = null;
 
-    // Automated Lab Report Follow-up Token Flow (e.g. 10.5)
-    if (labRequest.consultation?.queueToken && labRequest.consultation?.appointment) {
-      const originalToken = labRequest.consultation.queueToken;
-      const originalAppt = labRequest.consultation.appointment;
-      const followUpTokenNumber = Math.floor(originalToken.tokenNumber) + 0.5;
-
-      // Check if this sub-token already exists for today to avoid duplicates
-      const existingToken = await tx.queueToken.findFirst({
-        where: {
-          doctorId: originalToken.doctorId,
-          queueDate: originalToken.queueDate,
-          tokenNumber: followUpTokenNumber,
-        },
+    if (isAllComplete) {
+      // Advance status to COMPLETED when all reports uploaded
+      await tx.labRequest.update({
+        where: { id: labRequestId },
+        data: { status: 'COMPLETED' },
       });
 
-      if (!existingToken) {
-        // Create a LITE appointment (free, no strict scheduling constraints)
-        const liteAppt = await tx.appointment.create({
-          data: {
-            patientId: originalAppt.patientId,
-            doctorId: originalAppt.doctorId,
-            hospitalId: originalAppt.hospitalId,
-            departmentId: originalAppt.departmentId,
-            scheduledDate: originalAppt.scheduledDate,
-            scheduledTime: originalAppt.scheduledTime, // Group it near original time
-            fee: 0,
-            status: 'CONFIRMED',
-            appointmentType: 'LITE',
+      // Automated Lab Report Follow-up Token Flow (e.g. 10.5)
+      if (labRequest.consultation?.queueToken && labRequest.consultation?.appointment) {
+        const originalToken = labRequest.consultation.queueToken;
+        const originalAppt = labRequest.consultation.appointment;
+        const followUpTokenNumber = Math.floor(originalToken.tokenNumber) + 0.5;
+
+        // Check if this sub-token already exists for today to avoid duplicates
+        const existingToken = await tx.queueToken.findFirst({
+          where: {
+            doctorId: originalToken.doctorId,
+            queueDate: originalToken.queueDate,
+            tokenNumber: followUpTokenNumber,
           },
         });
 
-        // Create the fractional queue token
-        newQueueToken = await tx.queueToken.create({
-          data: {
-            appointmentId: liteAppt.id,
-            doctorId: originalToken.doctorId,
-            hospitalId: originalToken.hospitalId,
-            queueDate: originalToken.queueDate,
-            tokenNumber: followUpTokenNumber,
-            status: 'WAITING',
-          },
-        });
+        if (!existingToken) {
+          // Create a LITE appointment (free, no strict scheduling constraints)
+          const liteAppt = await tx.appointment.create({
+            data: {
+              patientId: originalAppt.patientId,
+              doctorId: originalAppt.doctorId,
+              hospitalId: originalAppt.hospitalId,
+              departmentId: originalAppt.departmentId,
+              scheduledDate: originalAppt.scheduledDate,
+              scheduledTime: originalAppt.scheduledTime, // Group it near original time
+              fee: 0,
+              status: 'CONFIRMED',
+              appointmentType: 'LITE',
+            },
+          });
+
+          // Create the fractional queue token
+          newQueueToken = await tx.queueToken.create({
+            data: {
+              appointmentId: liteAppt.id,
+              doctorId: originalToken.doctorId,
+              hospitalId: originalToken.hospitalId,
+              queueDate: originalToken.queueDate,
+              tokenNumber: followUpTokenNumber,
+              status: 'WAITING',
+            },
+          });
+        }
       }
     }
 
-    return { report: r, newQueueToken };
+    return { report: r, newQueueToken, isAllComplete };
   });
 
   // Notify patient
+  const itemName = labRequest.items.find(i => i.id === labRequestItemId)?.testName || 'Lab';
   await notify(labRequest.patientId, {
     type: 'LAB_REPORT_READY',
-    title: 'Lab Report Ready',
-    message: 'Your lab test results are now available. You have been placed back in the queue to review them with your doctor.',
+    title: `${itemName} Report Ready`,
+    message: isAllComplete 
+      ? `All your lab test results are now available. You have been placed back in the queue to review them with your doctor.`
+      : `Your ${itemName} result is now available.`,
     relatedId: labRequestId,
   });
 

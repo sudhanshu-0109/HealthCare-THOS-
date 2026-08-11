@@ -1,5 +1,5 @@
 import prisma from '../prisma/client.js';
-import { createInvitedUser } from './auth.service.js';
+import { createStaffUser } from './auth.service.js';
 
 const STAFF_ROLES = ['RECEPTIONIST', 'PHARMACIST', 'LAB_STAFF', 'AMBULANCE_DRIVER'];
 
@@ -49,7 +49,7 @@ export const getStaff = async (hospitalId, role) => {
 export const inviteStaff = async (hospitalId, data, invitedBy) => {
   const { email, fullName, role, vehicleNumber } = data;
 
-  const user = await createInvitedUser({
+  const user = await createStaffUser({
     email,
     fullName,
     role,
