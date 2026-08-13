@@ -1,12 +1,5 @@
 # Healthcare+
 
-> **Last verified against:** `MASTER_PROJECT_KNOWLEDGE.md` v1.0 (compiled 2026-08-11)
-> This README is derived entirely from that audit, which was built by reading every route,
-> controller, service, middleware file, and Prisma schema in the actual codebase. Where the
-> audit labels something as inferred, planned, or unverified, that label is preserved below.
-
----
-
 ## 1. Project Overview
 
 **Healthcare+** is a full-stack, multi-tenant hospital management and patient-facing
@@ -1117,6 +1110,3 @@ intent. Notable deviations:
 
 ---
 
-*This README traces every claim to a specific section of `MASTER_PROJECT_KNOWLEDGE.md`
-(v1.0, 2026-08-11). If the underlying codebase changes, regenerate the audit first, then
-regenerate this file from it — don't hand-edit the two out of sync.*
