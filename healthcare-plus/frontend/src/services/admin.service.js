@@ -1,7 +1,7 @@
 import api from './api';
 
 // Hospitals
-export const getHospitals = () => api.get('/hospitals');
+export const getHospitals = () => api.get('/hospitals/all');
 export const createHospital = (data) => api.post('/hospitals', data);
 export const updateHospital = (id, data) => api.put(`/hospitals/${id}`, data);
 export const getHospitalProfile = () => api.get('/hospitals/me');

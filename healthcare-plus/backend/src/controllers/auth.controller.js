@@ -24,6 +24,7 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Invalid email address format'),
   password: z.string().min(1, 'Password is required'),
+  role: z.enum(['PATIENT', 'DOCTOR', 'HOSPITAL_ADMIN', 'RECEPTIONIST', 'PHARMACIST', 'LAB_STAFF', 'AMBULANCE_DRIVER', 'SUPER_ADMIN']).optional(),
 });
 
 export const acceptInviteSchema = z.object({
@@ -47,6 +48,7 @@ export const verifyOtpSchema = z.object({
 
 export const googleAuthSchema = z.object({
   idToken: z.string().min(1, 'Google ID token is required'),
+  role: z.enum(['PATIENT', 'DOCTOR', 'HOSPITAL_ADMIN', 'RECEPTIONIST', 'PHARMACIST', 'LAB_STAFF', 'AMBULANCE_DRIVER', 'SUPER_ADMIN']).optional(),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -155,7 +157,7 @@ export const resendVerification = asyncHandler(async (req, res) => {
 });
 
 export const googleAuth = asyncHandler(async (req, res) => {
-  const { user, accessToken, refreshToken } = await authService.googleAuth(req.body.idToken);
+  const { user, accessToken, refreshToken } = await authService.googleAuth(req.body);
   setRefreshTokenCookie(res, refreshToken);
   // Refresh token is delivered only via the httpOnly cookie — never echoed to JS.
   res.status(200).json({

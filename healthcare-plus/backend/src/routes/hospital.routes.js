@@ -8,6 +8,7 @@ const router = Router();
 
 router.get('/search', hospitalController.searchHospitals);
 router.get('/', hospitalController.getHospitals);
+router.get('/all', authenticate, checkRole('SUPER_ADMIN'), hospitalController.getAllHospitals);
 
 // Authenticated hospital-admin self-service. MUST precede '/:id' so 'me' is not
 // swallowed by the id param. Scoped to the caller's own hospital (no IDOR).

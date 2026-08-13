@@ -19,6 +19,10 @@ export const getDoctors = asyncHandler(async (req, res) => {
   
   if (req.hospitalId) filters.hospitalId = req.hospitalId;
   
+  if (req.user?.role === 'PATIENT') {
+    filters.hospital = { isActive: true };
+  }
+  
   const doctors = await doctorService.getDoctors(filters);
   res.status(200).json({ success: true, data: doctors });
 });

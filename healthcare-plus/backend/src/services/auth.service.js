@@ -143,7 +143,7 @@ export const acceptInvite = async ({ token, password }) => {
 /**
  * Log in with email and password.
  */
-export const login = async ({ email, password }) => {
+export const login = async ({ email, password, role }) => {
   const normalizedEmail = email.trim().toLowerCase();
   const user = await prisma.user.findUnique({
     where: { email: normalizedEmail },
@@ -178,6 +178,10 @@ export const login = async ({ email, password }) => {
   const isPasswordValid = await comparePassword(password, user.passwordHash || '');
   if (!isPasswordValid) {
     throw ApiError.unauthorized('Invalid email or password.');
+  }
+
+  if (role && user.role !== role) {
+    throw ApiError.forbidden('The selected role does not match this account.', { code: 'ROLE_MISMATCH' });
   }
 
   // Update last login timestamp
@@ -290,7 +294,7 @@ export const resendVerification = async (email) => {
 /**
  * Google OAuth authentication.
  */
-export const googleAuth = async (idToken) => {
+export const googleAuth = async ({ idToken, role }) => {
   let ticket;
   try {
     ticket = await googleClient.verifyIdToken({
@@ -315,6 +319,10 @@ export const googleAuth = async (idToken) => {
     user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
     if (user) {
+      if (role && user.role !== role) {
+        throw ApiError.forbidden('The selected role does not match this account.', { code: 'ROLE_MISMATCH' });
+      }
+
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -338,6 +346,10 @@ export const googleAuth = async (idToken) => {
       });
     }
   } else {
+    if (role && user.role !== role) {
+      throw ApiError.forbidden('The selected role does not match this account.', { code: 'ROLE_MISMATCH' });
+    }
+
     user = await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },

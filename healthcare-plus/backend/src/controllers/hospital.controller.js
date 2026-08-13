@@ -23,6 +23,11 @@ export const getHospitals = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: hospitals });
 });
 
+export const getAllHospitals = asyncHandler(async (req, res) => {
+  const hospitals = await hospitalService.getAllHospitals();
+  res.status(200).json({ success: true, data: hospitals });
+});
+
 export const searchHospitals = asyncHandler(async (req, res) => {
   const { lat, lng, radius } = req.query;
   if (!lat || !lng) {
@@ -37,7 +42,8 @@ export const searchHospitals = asyncHandler(async (req, res) => {
 });
 
 export const getHospitalById = asyncHandler(async (req, res) => {
-  const hospital = await hospitalService.getHospitalById(req.params.id);
+  // Public route, do not allow inactive hospitals
+  const hospital = await hospitalService.getHospitalById(req.params.id, false);
   res.status(200).json({ success: true, data: hospital });
 });
 
@@ -59,7 +65,7 @@ export const getMyHospital = asyncHandler(async (req, res) => {
   if (!req.user.hospitalId) {
     return res.status(404).json({ success: false, message: 'No hospital is linked to your account.' });
   }
-  const hospital = await hospitalService.getHospitalById(req.user.hospitalId);
+  const hospital = await hospitalService.getHospitalById(req.user.hospitalId, true);
   res.status(200).json({ success: true, data: hospital });
 });
 
@@ -77,6 +83,11 @@ export const createHospital = asyncHandler(async (req, res) => {
 });
 
 export const updateHospital = asyncHandler(async (req, res) => {
-  const hospital = await hospitalService.updateHospital(req.params.id, req.body);
+  const data = { ...req.body };
+  if (data.status !== undefined) {
+    data.isActive = data.status === 'ACTIVE';
+    delete data.status;
+  }
+  const hospital = await hospitalService.updateHospital(req.params.id, data);
   res.status(200).json({ success: true, data: hospital });
 });

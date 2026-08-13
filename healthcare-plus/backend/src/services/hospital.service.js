@@ -2,7 +2,7 @@ import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { createStaffUser } from './auth.service.js';
 
-export const getHospitals = async () => {
+export const getAllHospitals = async () => {
   const hospitals = await prisma.hospital.findMany({
     orderBy: { name: 'asc' },
     include: {
@@ -32,15 +32,45 @@ export const getHospitals = async () => {
   });
 };
 
+export const getHospitals = async () => {
+  const hospitals = await prisma.hospital.findMany({
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+    include: {
+      departments: {
+        where: { isActive: true },
+        select: { id: true, name: true },
+      },
+      _count: {
+        select: { doctors: true, appointments: true },
+      },
+      hospitalAdmins: {
+        include: { user: true },
+        take: 1,
+      }
+    },
+  });
+  
+  return hospitals.map(h => {
+    const admin = h.hospitalAdmins[0]?.user;
+    return {
+      ...h,
+      status: 'ACTIVE',
+      doctors: h._count.doctors,
+      patients: h._count.appointments,
+      admin: admin ? { name: admin.fullName, email: admin.email } : null
+    };
+  });
+};
 
-export const getHospitalById = async (id) => {
+export const getHospitalById = async (id, allowInactive = false) => {
   const hospital = await prisma.hospital.findUnique({
     where: { id },
     include: {
       departments: true,
     }
   });
-  if (!hospital) {
+  if (!hospital || (!hospital.isActive && !allowInactive)) {
     throw ApiError.notFound('Hospital not found.');
   }
   return hospital;

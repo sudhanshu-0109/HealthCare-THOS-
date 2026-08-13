@@ -39,6 +39,18 @@ if (env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
+// ── Demo Mode Middleware ──────────────────────────────────────────────────
+import { checkAndRollDemoAppointments } from './services/demo.service.js';
+app.use(async (req, res, next) => {
+  if (env.DEMO_MODE) {
+    // Run it asynchronously in the background so it doesn't block the request immediately
+    // or await it if we want strong consistency. 
+    // Given the simplicity, awaiting it is fine, but it might slow down the very first request of the day.
+    checkAndRollDemoAppointments().catch(err => console.error('[DEMO MODE] Error:', err));
+  }
+  next();
+});
+
 // ── API routes ────────────────────────────────────────────────────────────
 app.use('/api', apiRouter);
 

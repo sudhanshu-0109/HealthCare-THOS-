@@ -24,6 +24,7 @@ if (missing.length > 0) {
 export const env = {
   PORT: parseInt(process.env.PORT, 10) || 5000,
   NODE_ENV: process.env.NODE_ENV || 'development',
+  DEMO_MODE: process.env.DEMO_MODE === 'true',
   CLIENT_URL: process.env.CLIENT_URL,
   DATABASE_URL: process.env.DATABASE_URL,
 

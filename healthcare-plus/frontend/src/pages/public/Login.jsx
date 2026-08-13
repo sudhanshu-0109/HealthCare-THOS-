@@ -67,7 +67,7 @@ export default function Login() {
     if (!email || !password) { setError('Please enter your email and password.'); return; }
     setLoading(true);
     try {
-      const response = await authService.login({ email, password });
+      const response = await authService.login({ email, password, role: selectedRole });
       const { user: verifiedUser, accessToken } = response.data;
       setAuth({ user: verifiedUser, accessToken });
       const redirectUrl = searchParams.get('redirect');
@@ -75,7 +75,9 @@ export default function Login() {
       navigate(targetRoute, { replace: true });
     } catch (err) {
       setAccountNotFound(false);
-      if (err.errors?.accountExists === false) {
+      if (err.errors?.code === 'ROLE_MISMATCH') {
+        setError('Role mismatch — please select the role associated with this account.');
+      } else if (err.errors?.accountExists === false) {
         setAccountNotFound(true);
         setError('No account found with this email. Please create an account first.');
       } else {
@@ -198,7 +200,7 @@ export default function Login() {
             {/* Google OAuth (only for Patient self-registration) */}
             {selectedRole === 'PATIENT' && (
               <>
-                <GoogleLoginButton onError={(msg) => setError(msg)} />
+                <GoogleLoginButton role={selectedRole} onError={(msg) => setError(msg)} />
                 <div className="relative my-5">
                   <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
                   <div className="relative flex justify-center text-xs text-slate-400"><span className="bg-white px-2">or</span></div>

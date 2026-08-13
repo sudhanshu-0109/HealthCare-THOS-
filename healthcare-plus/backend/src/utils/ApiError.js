@@ -36,8 +36,8 @@ export class ApiError extends Error {
   }
 
   /** 403 Forbidden */
-  static forbidden(message = 'You do not have permission to perform this action') {
-    return new ApiError(403, message);
+  static forbidden(message = 'You do not have permission to perform this action', details = null) {
+    return new ApiError(403, message, details);
   }
 
   /** 404 Not Found */

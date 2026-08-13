@@ -9,13 +9,13 @@ import { ROLE_HOME_ROUTES } from '../../utils/constants';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
-const GoogleLoginButtonInner = ({ onError }) => {
+const GoogleLoginButtonInner = ({ role, onError }) => {
   const setAuth = useAuthStore((state) => state.setAuth);
   const navigate = useNavigate();
 
   const handleSuccess = async (credentialResponse) => {
     try {
-      const response = await authService.googleAuth(credentialResponse.credential);
+      const response = await authService.googleAuth({ idToken: credentialResponse.credential, role });
       const { user, accessToken } = response.data;
 
       setAuth({ user, accessToken });
@@ -42,7 +42,7 @@ const GoogleLoginButtonInner = ({ onError }) => {
   );
 };
 
-const GoogleLoginButton = ({ onError }) => {
+const GoogleLoginButton = ({ role, onError }) => {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   if (!clientId) {
@@ -68,7 +68,7 @@ const GoogleLoginButton = ({ onError }) => {
 
   return (
     <GoogleOAuthProvider clientId={clientId}>
-      <GoogleLoginButtonInner onError={onError} />
+      <GoogleLoginButtonInner role={role} onError={onError} />
     </GoogleOAuthProvider>
   );
 };
