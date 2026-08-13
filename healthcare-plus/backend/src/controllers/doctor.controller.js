@@ -8,8 +8,8 @@ export const inviteDoctorSchema = z.object({
   fullName: z.string().min(1),
   departmentId: z.string().uuid(),
   specialization: z.string().min(1),
-  experienceYears: z.number().min(0),
-  consultationFee: z.number().min(0),
+  experienceYears: z.coerce.number().min(0),
+  consultationFee: z.coerce.number().min(0),
 });
 
 export const getDoctors = asyncHandler(async (req, res) => {

@@ -35,7 +35,11 @@ function AddHospitalModal({ open, onClose, onAdd }) {
       const payload = {
         name: form.name,
         address: form.address,
-        phone: form.phone,
+        city: form.city || 'Default City',
+        latitude: parseFloat(form.latitude) || 0,
+        longitude: parseFloat(form.longitude) || 0,
+        contactPhone: form.phone,
+        contactEmail: form.email || 'admin@hospital.com',
         type: form.type,
       };
       if (form.adminEmail) {
@@ -77,7 +81,9 @@ function AddHospitalModal({ open, onClose, onAdd }) {
             {[
               { key: 'name', label: 'Hospital Name', placeholder: 'e.g. Apollo Hospitals' },
               { key: 'address', label: 'Address', placeholder: 'Full address' },
-              { key: 'phone', label: 'Phone Number', placeholder: '+91 XXXXX XXXXX' },
+              { key: 'city', label: 'City', placeholder: 'City name' },
+              { key: 'phone', label: 'Contact Phone', placeholder: '+91 XXXXX XXXXX' },
+              { key: 'email', label: 'Contact Email', placeholder: 'contact@hospital.com' },
             ].map((f) => (
               <div key={f.key}>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">{f.label}</label>

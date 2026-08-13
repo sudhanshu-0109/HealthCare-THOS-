@@ -3,8 +3,8 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import * as emergencyService from '../services/emergency.service.js';
 
 export const createEmergencySchema = z.object({
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.coerce.number(),
+  longitude: z.coerce.number(),
   hospitalId: z.string().uuid().optional(),
 });
 
