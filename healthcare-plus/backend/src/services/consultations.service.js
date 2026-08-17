@@ -58,17 +58,31 @@ export const startConsultation = async ({ appointmentId, queueTokenId, doctorId 
       data: { status: 'IN_PROGRESS', consultationStartAt: new Date() },
     });
 
-    return tx.consultation.create({
-      data: {
-        appointmentId,
-        queueTokenId,
-        doctorId,
-        patientId,
-        hospitalId: token.hospitalId,
-        status: 'IN_PROGRESS',
-      },
-      select: CONSULTATION_SELECT,
+    let consult = await tx.consultation.findUnique({
+      where: { appointmentId },
+      select: CONSULTATION_SELECT
     });
+
+    if (consult) {
+      consult = await tx.consultation.update({
+        where: { id: consult.id },
+        data: { status: 'IN_PROGRESS', startedAt: new Date(), completedAt: null },
+        select: CONSULTATION_SELECT
+      });
+    } else {
+      consult = await tx.consultation.create({
+        data: {
+          appointmentId,
+          queueTokenId,
+          doctorId,
+          patientId,
+          hospitalId: token.hospitalId,
+          status: 'IN_PROGRESS',
+        },
+        select: CONSULTATION_SELECT,
+      });
+    }
+    return consult;
   });
 
   // Emit queue update outside transaction
@@ -113,6 +127,7 @@ export const updateConsultation = async (consultationId, { symptoms, diagnosis, 
 
 /**
  * Complete a consultation — wraps queue completeConsultation + Consultation.status update + timeline event.
+ * Phase 16: queueTokenId may be null for ONLINE consultations.
  */
 export const completeConsultation = async (consultationId, doctorId) => {
   const consultation = await prisma.consultation.findUnique({
@@ -123,17 +138,21 @@ export const completeConsultation = async (consultationId, doctorId) => {
   if (consultation.doctorId !== doctorId) throw ApiError.forbidden('Not your consultation.');
   if (consultation.status === 'COMPLETED') throw ApiError.badRequest('Consultation is already completed.');
 
-  // Atomically: mark QueueToken COMPLETED + Appointment COMPLETED + Consultation COMPLETED
+  // Atomically: mark Consultation COMPLETED + Appointment COMPLETED
+  // Also mark QueueToken COMPLETED if this is an OFFLINE consultation
   const updated = await prisma.$transaction(async (tx) => {
     const c = await tx.consultation.update({
       where: { id: consultationId },
       data: { status: 'COMPLETED', completedAt: new Date() },
       select: CONSULTATION_SELECT,
     });
-    await tx.queueToken.update({
-      where: { id: consultation.queueTokenId },
-      data: { status: 'COMPLETED', completedAt: new Date() },
-    });
+    // Only update queue token for OFFLINE appointments
+    if (consultation.queueTokenId) {
+      await tx.queueToken.update({
+        where: { id: consultation.queueTokenId },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      });
+    }
     await tx.appointment.update({
       where: { id: consultation.appointmentId },
       data: { status: 'COMPLETED' },
@@ -154,13 +173,15 @@ export const completeConsultation = async (consultationId, doctorId) => {
     console.warn('[ConsultationService] Failed to write CONSULTATION timeline event:', err.message);
   }
 
-  // Emit queue update
+  // Emit queue update only for OFFLINE (token exists)
   try {
-    const token = await prisma.queueToken.findUnique({ where: { id: consultation.queueTokenId } });
-    if (token) await queueService.emitQueueUpdateById(doctorId, token.queueDate);
+    if (consultation.queueTokenId) {
+      const token = await prisma.queueToken.findUnique({ where: { id: consultation.queueTokenId } });
+      if (token) await queueService.emitQueueUpdateById(doctorId, token.queueDate);
+    }
   } catch (_) {}
 
-  // Phase 15: Notify patient consultation is done
+  // Notify patient consultation is done
   try {
     await notifyConsultationCompleted(consultation.patientId, updated);
   } catch (notifErr) {
@@ -175,7 +196,7 @@ export const completeConsultation = async (consultationId, doctorId) => {
  */
 export const getRecentConsultations = async (doctorId, hospitalId, limit = 20) => {
   return prisma.consultation.findMany({
-    where: { doctorId, hospitalId },
+    where: { doctorId, hospitalId, status: 'COMPLETED' },
     select: CONSULTATION_SELECT,
     orderBy: { startedAt: 'desc' },
     take: limit,
@@ -204,4 +225,18 @@ export const getConsultationHistory = async (patientId, { doctorId, hospitalId }
     orderBy: { startedAt: 'desc' },
     take: 50,
   });
+};
+
+/**
+ * Phase 16: Get a consultation by appointmentId.
+ * Used by the ConsultationScreen for ONLINE appointments (no queue token path).
+ */
+export const getConsultationByAppointment = async (appointmentId, doctorId) => {
+  const consultation = await prisma.consultation.findUnique({
+    where: { appointmentId },
+    select: CONSULTATION_SELECT,
+  });
+  if (!consultation) throw ApiError.notFound('No consultation found for this appointment.');
+  if (consultation.doctorId !== doctorId) throw ApiError.forbidden('Not your consultation.');
+  return consultation;
 };

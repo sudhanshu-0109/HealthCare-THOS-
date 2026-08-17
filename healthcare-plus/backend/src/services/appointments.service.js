@@ -3,6 +3,7 @@
  * Phase 12 refactor: Razorpay is no longer called here.
  * Payment initiation goes through billing.service.js#createBillAndInitiatePayment.
  * Payment confirmation goes through billing.service.js#verifyAndCompletePayment → onBillPaid().
+ * Phase 16: Support ONLINE consultationType — online appointments skip QueueToken and create OnlineSession.
  */
 
 import prisma from '../prisma/client.js';
@@ -25,24 +26,47 @@ const APPOINTMENT_SELECT = {
   status: true,
   cancelReason: true,
   createdAt: true,
+  appointmentType: true,
+  consultationType: true,
   doctor: {
     select: {
       id: true,
       specialization: true,
       consultationFee: true,
+      liteSlotMinutes: true,
       user: { select: { fullName: true } },
       hospital: { select: { id: true, name: true } },
       department: { select: { id: true, name: true } },
     },
   },
   queueToken: { select: { id: true, tokenNumber: true, status: true } },
+  onlineSession: {
+    select: {
+      id: true,
+      roomId: true,
+      status: true,
+      scheduledStart: true,
+      scheduledEnd: true,
+      patientJoinedAt: true,
+      doctorJoinedAt: true,
+      startedAt: true,
+      endedAt: true,
+    },
+  },
 };
 
 /**
  * Step 1: Initiate booking — validate slot, create Appointment + Bill + Razorpay order.
  * Phase 12: Payment creation is now delegated to billing.service.js.
+ * Phase 16: Accepts consultationType (OFFLINE | ONLINE). Defaults to OFFLINE if not provided.
  */
-export const initiateBooking = async ({ patientId, doctorId, scheduledDate, scheduledTime }) => {
+export const initiateBooking = async ({ patientId, doctorId, scheduledDate, scheduledTime, consultationType = 'OFFLINE' }) => {
+  // Validate consultation type
+  const validTypes = ['OFFLINE', 'ONLINE'];
+  if (!validTypes.includes(consultationType)) {
+    throw ApiError.badRequest(`Invalid consultation type. Allowed: ${validTypes.join(', ')}.`);
+  }
+
   const dateObj = toMidnightUTC(scheduledDate);
 
   const doctor = await prisma.doctor.findUnique({
@@ -71,6 +95,7 @@ export const initiateBooking = async ({ patientId, doctorId, scheduledDate, sche
         fee: doctor.consultationFee,
         status: 'PENDING_PAYMENT',
         appointmentType: 'REGULAR',
+        consultationType,
       },
     });
   } catch (err) {
@@ -88,7 +113,9 @@ export const initiateBooking = async ({ patientId, doctorId, scheduledDate, sche
     sourceId: appointment.id,
     items: [
       {
-        description: `Consultation — Dr. ${doctor.user?.fullName || 'Doctor'} (${doctor.specialization})`,
+        description: `${
+          consultationType === 'ONLINE' ? 'Online Consultation' : 'Consultation'
+        } — Dr. ${doctor.user?.fullName || 'Doctor'} (${doctor.specialization})`,
         quantity: 1,
         unitPrice: Number(doctor.consultationFee),
       },
@@ -97,6 +124,7 @@ export const initiateBooking = async ({ patientId, doctorId, scheduledDate, sche
 
   return {
     appointmentId: appointment.id,
+    consultationType,
     ...billingResult,
     doctor: {
       name: doctor.user?.fullName,
@@ -111,8 +139,9 @@ export const initiateBooking = async ({ patientId, doctorId, scheduledDate, sche
 
 /**
  * onBillPaid — called by billing.service.js#verifyAndCompletePayment after payment success.
- * Confirms the appointment, creates QueueToken, writes timeline event.
- * This is the extracted logic that used to live in confirmPayment().
+ * Phase 16 extension: branches by consultationType.
+ *   OFFLINE — creates QueueToken + emits queue update (original behavior).
+ *   ONLINE  — creates OnlineSession + notifies patient.
  *
  * @param {string} appointmentId
  */
@@ -132,41 +161,81 @@ export const onBillPaid = async (appointmentId) => {
     return;
   }
 
-  const queueDate = appointment.scheduledDate;
+  // ── OFFLINE: existing queue-token flow ─────────────────────────────────────
+  if (appointment.consultationType !== 'ONLINE') {
+    const queueDate = appointment.scheduledDate;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.appointment.update({
-      where: { id: appointmentId },
-      data: { status: 'CONFIRMED' },
+    await prisma.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: appointmentId },
+        data: { status: 'CONFIRMED' },
+      });
+
+      await tx.queueToken.create({
+        data: {
+          appointmentId,
+          doctorId: appointment.doctorId,
+          hospitalId: appointment.hospitalId,
+          queueDate,
+          tokenNumber: 999, // Will be immediately recalculated
+          status: 'WAITING',
+        },
+      });
+
+      await recalculateQueueTokens(appointment.doctorId, queueDate, tx);
     });
 
-    await tx.queueToken.create({
-      data: {
-        appointmentId,
-        doctorId: appointment.doctorId,
-        hospitalId: appointment.hospitalId,
-        queueDate,
-        tokenNumber: 999, // Will be immediately recalculated
-        status: 'WAITING',
-      },
+    // Real-time update for doctor and queue monitor
+    try {
+      await emitQueueUpdateById(appointment.doctorId, queueDate);
+    } catch (err) {
+      console.warn('[Appointments] Failed to emit queue update:', err.message);
+    }
+  } else {
+    // ── ONLINE: create session, no queue token ────────────────────────────────
+    // Build scheduledStart from the appointment's date + time string
+    const [hours, minutes] = appointment.scheduledTime.split(':').map(Number);
+    const scheduledStart = new Date(appointment.scheduledDate);
+    scheduledStart.setUTCHours(hours, minutes, 0, 0);
+
+    // Use doctor's slot duration (fall back to 15 mins)
+    const slotMinutes = appointment.doctor?.liteSlotMinutes ?? 15;
+    const scheduledEnd = new Date(scheduledStart.getTime() + slotMinutes * 60 * 1000);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: appointmentId },
+        data: { status: 'CONFIRMED' },
+      });
+
+      await tx.onlineSession.create({
+        data: {
+          appointmentId,
+          status: 'SCHEDULED',
+          scheduledStart,
+          scheduledEnd,
+        },
+      });
     });
 
-    await recalculateQueueTokens(appointment.doctorId, queueDate, tx);
-  });
-  
-  // Real-time update for doctor and queue monitor
-  try {
-    await emitQueueUpdateById(appointment.doctorId, queueDate);
-  } catch (err) {
-    console.warn('[Appointments] Failed to emit queue update:', err.message);
+    // Notify doctor about new online appointment
+    try {
+      const { notifyOnlineAppointmentConfirmed } = await import('./notifications.service.js');
+      if (typeof notifyOnlineAppointmentConfirmed === 'function') {
+        await notifyOnlineAppointmentConfirmed(appointment.patientId, appointment.doctorId, appointment);
+      }
+    } catch (notifErr) {
+      console.warn('[Appointments] Failed to send online appointment notification:', notifErr.message);
+    }
   }
 
-  // Write APPOINTMENT timeline event (Phase 7 retrofit)
+  // Write APPOINTMENT timeline event (all types)
   try {
+    const modeTag = appointment.consultationType === 'ONLINE' ? '(Online)' : '';
     await addTimelineEvent(appointment.patientId, {
       eventType: 'APPOINTMENT',
       sourceId: appointmentId,
-      title: `Appointment confirmed — Dr. ${appointment.doctor.user?.fullName}, ${appointment.doctor.specialization}`,
+      title: `Appointment confirmed ${modeTag} — Dr. ${appointment.doctor.user?.fullName}, ${appointment.doctor.specialization}`,
       description: `At ${appointment.doctor.hospital?.name} on ${appointment.scheduledDate.toISOString().split('T')[0]} at ${appointment.scheduledTime}`,
       eventDate: appointment.scheduledDate,
     });
@@ -174,7 +243,7 @@ export const onBillPaid = async (appointmentId) => {
     console.warn('[Appointments] Failed to write timeline event:', timelineErr.message);
   }
 
-  // Phase 15: Notify patient of confirmed appointment
+  // Notify patient of confirmed appointment
   try {
     await notifyAppointmentConfirmed(appointment.patientId, appointment);
   } catch (notifErr) {

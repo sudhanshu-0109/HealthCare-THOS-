@@ -50,12 +50,22 @@ export const getEmergencyRequests = async (hospitalId) => {
 };
 
 export const getActiveEmergency = async (patientId) => {
+  // NOTE: 'PENDING' is NOT a valid EmergencyStatus enum value in the Prisma schema.
+  // Including it in the `in` filter causes a Prisma runtime error → 500.
+  // Valid active statuses are: REQUESTED, SEARCHING, DRIVER_ASSIGNED, EN_ROUTE, PICKED_UP.
   return prisma.emergencyRequest.findFirst({
-    where: { 
+    where: {
       patientId,
-      status: { in: ['REQUESTED', 'PENDING', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'PICKED_UP'] }
+      status: { in: ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'PICKED_UP'] },
     },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    include: {
+      ambulance: {
+        include: {
+          driver: { include: { user: { select: { fullName: true } } } },
+        },
+      },
+    },
   });
 };
 

@@ -459,7 +459,7 @@ async function main() {
 
   // [email, completedCount, inProgressIdx (0-based), totalTokens]
   const doctorQueueConfigs = [
-    ['dr.anil.shah@sterling.dev',        8,  8, 18],
+    ['dr.anil.shah@sterling.dev',        6,  6, 20],
     ['dr.meena.patel@sterling.dev',      6,  6, 14],
     ['dr.karan.desai@sterling.dev',      4,  4, 12],
     ['dr.sanjay.verma@sterling.dev',     10, 10, 20],

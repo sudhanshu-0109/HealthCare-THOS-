@@ -13,6 +13,7 @@
  *   hospital:{hospitalId}:queue   — hospital-wide monitoring (Phase 14)
  *   emergency:{requestId}         — patient emergency tracking room
  *   driver:{userId}               — ambulance driver personal room (auto-joined)
+ *   consultation:{appointmentId}  — WebRTC signaling room (Phase 16)
  *
  * Events emitted by server:
  *   queue:updated             → doctor room + individual patient rooms
@@ -28,6 +29,7 @@ import { verifyAccessToken } from '../utils/jwt.js';
 import { env } from '../config/env.js';
 import { registerEmergencyHandlers } from './emergencyHandlers.js';
 import { setIo as setDispatchIo } from '../services/emergencyDispatch.service.js';
+import { registerConsultationHandlers } from './consultationHandlers.js';
 
 let io = null;
 
@@ -128,6 +130,8 @@ export const initializeSocket = (httpServer) => {
 
     // Phase 13: Emergency dispatch handlers
     registerEmergencyHandlers(io, socket, socket.user);
+    // Phase 16: Online consultation signaling handlers
+    registerConsultationHandlers(io, socket, socket.user);
   });
 
   console.log('[Socket.IO] Server initialized with JWT auth');

@@ -62,6 +62,8 @@ function HomeTab() {
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
   const [driverLoc, setDriverLoc] = useState(null); // driver's live GPS position
+  const [routeDist, setRouteDist] = useState(null);
+  const [routeEta, setRouteEta] = useState(null);
   const watchIdRef = useRef(null);
 
   // Rehydrate from the backend on mount so a page refresh mid-trip restores the
@@ -287,10 +289,6 @@ function HomeTab() {
       {activeRequest && (() => {
         const patLat = activeRequest.patientLat ?? activeRequest.latitude ?? null;
         const patLng = activeRequest.patientLng ?? activeRequest.longitude ?? null;
-        const distKm = driverLoc && patLat != null
-          ? haversineKm(driverLoc.lat, driverLoc.lng, patLat, patLng)
-          : null;
-        const eta = estimateEtaMin(distKm);
         return (
           <div className="space-y-3">
             {/* Live map — driver's GPS dot + patient marker */}
@@ -300,8 +298,12 @@ function HomeTab() {
               driverLat={driverLoc?.lat}
               driverLng={driverLoc?.lng}
               status={activeRequest.status}
-              distanceKm={distKm}
-              etaMin={eta}
+              distanceKm={routeDist}
+              etaMin={routeEta}
+              onRouteUpdate={({ distanceKm, etaMin }) => {
+                setRouteDist(distanceKm);
+                setRouteEta(etaMin);
+              }}
             />
 
             <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">

@@ -164,50 +164,7 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
         data: { status: 'COMPLETED' },
       });
 
-      // Automated Lab Report Follow-up Token Flow (e.g. 10.5)
-      if (labRequest.consultation?.queueToken && labRequest.consultation?.appointment) {
-        const originalToken = labRequest.consultation.queueToken;
-        const originalAppt = labRequest.consultation.appointment;
-        const followUpTokenNumber = Math.floor(originalToken.tokenNumber) + 0.5;
 
-        // Check if this sub-token already exists for today to avoid duplicates
-        const existingToken = await tx.queueToken.findFirst({
-          where: {
-            doctorId: originalToken.doctorId,
-            queueDate: originalToken.queueDate,
-            tokenNumber: followUpTokenNumber,
-          },
-        });
-
-        if (!existingToken) {
-          // Create a LITE appointment (free, no strict scheduling constraints)
-          const liteAppt = await tx.appointment.create({
-            data: {
-              patientId: originalAppt.patientId,
-              doctorId: originalAppt.doctorId,
-              hospitalId: originalAppt.hospitalId,
-              departmentId: originalAppt.departmentId,
-              scheduledDate: originalAppt.scheduledDate,
-              scheduledTime: originalAppt.scheduledTime, // Group it near original time
-              fee: 0,
-              status: 'CONFIRMED',
-              appointmentType: 'LITE',
-            },
-          });
-
-          // Create the fractional queue token
-          newQueueToken = await tx.queueToken.create({
-            data: {
-              appointmentId: liteAppt.id,
-              doctorId: originalToken.doctorId,
-              hospitalId: originalToken.hospitalId,
-              queueDate: originalToken.queueDate,
-              tokenNumber: followUpTokenNumber,
-              status: 'WAITING',
-            },
-          });
-        }
-      }
     }
 
     return { report: r, newQueueToken, isAllComplete };
@@ -219,7 +176,7 @@ export const uploadReport = async (labRequestId, { reportFileUrl, resultSummary,
     type: 'LAB_REPORT_READY',
     title: `${itemName} Report Ready`,
     message: isAllComplete 
-      ? `All your lab test results are now available. You have been placed back in the queue to review them with your doctor.`
+      ? `All your lab test results are now available. You can now book a follow-up (Lite) appointment with your doctor.`
       : `Your ${itemName} result is now available.`,
     relatedId: labRequestId,
   });
@@ -283,4 +240,82 @@ export const getHospitalLabRequests = async (hospitalId, { status } = {}) => {
     patient: req.consultation?.patient,
     doctor: req.consultation?.doctor,
   }));
+};
+
+/**
+ * Patient manually books a follow-up (Lite) appointment after lab reports are completed.
+ */
+export const bookLabFollowUp = async (labRequestId, patientId) => {
+  const labRequest = await prisma.labRequest.findUnique({
+    where: { id: labRequestId },
+    include: {
+      consultation: {
+        include: { queueToken: true, appointment: true },
+      },
+    },
+  });
+
+  if (!labRequest) throw ApiError.notFound('Lab request not found.');
+  if (labRequest.patientId !== patientId) throw ApiError.forbidden('Lab request does not belong to you.');
+  if (labRequest.status !== 'COMPLETED') throw ApiError.badRequest('Lab request is not fully completed yet.');
+
+  if (!labRequest.consultation?.queueToken || !labRequest.consultation?.appointment) {
+    throw ApiError.badRequest('Cannot book follow-up: original consultation context is missing.');
+  }
+
+  const originalToken = labRequest.consultation.queueToken;
+  const originalAppt = labRequest.consultation.appointment;
+  const followUpTokenNumber = Math.floor(originalToken.tokenNumber) + 0.5;
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Check if this sub-token already exists for today to avoid duplicates
+    const existingToken = await tx.queueToken.findFirst({
+      where: {
+        doctorId: originalToken.doctorId,
+        queueDate: originalToken.queueDate,
+        tokenNumber: followUpTokenNumber,
+      },
+    });
+
+    if (existingToken) {
+      throw ApiError.badRequest('Follow-up Lite appointment is already booked for this lab test.');
+    }
+
+    // Create a LITE appointment (free, no strict scheduling constraints)
+    const liteAppt = await tx.appointment.create({
+      data: {
+        patientId: originalAppt.patientId,
+        doctorId: originalAppt.doctorId,
+        hospitalId: originalAppt.hospitalId,
+        departmentId: originalAppt.departmentId,
+        scheduledDate: originalAppt.scheduledDate,
+        scheduledTime: originalAppt.scheduledTime, // Group it near original time
+        fee: 0,
+        status: 'CONFIRMED',
+        appointmentType: 'LITE',
+      },
+    });
+
+    // Create the fractional queue token
+    const queueToken = await tx.queueToken.create({
+      data: {
+        appointmentId: liteAppt.id,
+        doctorId: originalToken.doctorId,
+        hospitalId: originalToken.hospitalId,
+        queueDate: originalToken.queueDate,
+        tokenNumber: followUpTokenNumber,
+        status: 'WAITING',
+      },
+    });
+
+    return { appointment: liteAppt, queueToken };
+  });
+
+  try {
+    await emitQueueUpdateById(result.queueToken.doctorId, result.queueToken.queueDate);
+  } catch (err) {
+    console.warn('[LabFulfillment] Failed to emit queue update for follow-up token:', err.message);
+  }
+
+  return result;
 };

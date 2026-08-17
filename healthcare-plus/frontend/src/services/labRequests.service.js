@@ -16,3 +16,6 @@ export const getMyLabRequests = () =>
 export const acceptLabRequest = (id) =>
   api.post(`/lab-requests/${id}/accept`);
 
+export const bookLabFollowUp = (id) =>
+  api.post(`/lab-fulfillment/${id}/book-follow-up`);
+

@@ -57,3 +57,13 @@ export const getConsultationHistory = catchAsync(async (req, res) => {
   );
   res.json({ success: true, data: consultations });
 });
+
+// Phase 16: Get consultation by appointmentId (online clinical notes screen)
+export const getConsultationByAppointment = catchAsync(async (req, res) => {
+  const doctorId = await getDoctorId(req.user.id);
+  const consultation = await consultationsService.getConsultationByAppointment(
+    req.params.appointmentId,
+    doctorId
+  );
+  res.json({ success: true, data: consultation });
+});

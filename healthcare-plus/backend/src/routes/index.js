@@ -45,6 +45,8 @@ import adminQueueRouter from './adminQueue.routes.js';
 import notificationsRouter from './notifications.routes.js';
 import labTestsRouter from './labTests.routes.js';
 import medicinesRouter from './medicines.routes.js';
+// Phase 16
+import onlineSessionRouter from './onlineSession.routes.js';
 
 const router = Router();
 
@@ -89,5 +91,7 @@ router.use('/admin/queue', adminQueueRouter);
 router.use('/notifications', notificationsRouter);
 router.use('/lab-tests', labTestsRouter);
 router.use('/medicines', medicinesRouter);
+// Phase 16
+router.use('/online-sessions', onlineSessionRouter);
 
 export default router;

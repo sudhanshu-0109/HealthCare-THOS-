@@ -106,3 +106,9 @@ export const getMyLabResults = asyncHandler(async (req, res) => {
   const results = await service.getMyLabResults(req.user.id);
   res.json({ success: true, data: results });
 });
+
+export const bookLabFollowUp = asyncHandler(async (req, res) => {
+  const service = await import('../services/labFulfillment.service.js');
+  const result = await service.bookLabFollowUp(req.params.id, req.user.id);
+  res.json({ success: true, data: result });
+});

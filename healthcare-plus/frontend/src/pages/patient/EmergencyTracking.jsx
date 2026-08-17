@@ -20,7 +20,7 @@ import {
   Heart, Loader2, PhoneCall,
 } from 'lucide-react';
 import * as dispatchService from '../../services/emergencyDispatch.service';
-import { joinEmergencyRoom, leaveEmergencyRoom, onSocketEvent } from '../../services/socket';
+import { joinEmergencyRoom, leaveEmergencyRoom, onSocketEvent, getSocket } from '../../services/socket';
 import { haversineKm, estimateEtaMin } from '../../utils/distance';
 import LiveTrackingMap from '../../components/emergency/LiveTrackingMap';
 
@@ -67,6 +67,9 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
   const [fallbackMsg, setFallbackMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [routeDist, setRouteDist] = useState(null);
+  const [routeEta, setRouteEta] = useState(null);
+  const [socketConnected, setSocketConnected] = useState(true);
 
   // Keep a ref to the latest status so the poll can decide when to stop.
   const statusRef = useRef(status);
@@ -110,6 +113,21 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [requestId, applyRequest]);
+
+  // Track socket connected state for the disconnect banner in LiveTrackingMap.
+  useEffect(() => {
+    const s = getSocket();
+    if (!s) return;
+    const onConnect = () => setSocketConnected(true);
+    const onDisconnect = () => setSocketConnected(false);
+    setSocketConnected(s.connected);
+    s.on('connect', onConnect);
+    s.on('disconnect', onDisconnect);
+    return () => {
+      s.off('connect', onConnect);
+      s.off('disconnect', onDisconnect);
+    };
+  }, []);
 
   // Join the emergency room + subscribe to real server events.
   useEffect(() => {
@@ -160,11 +178,9 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
     return () => clearInterval(interval);
   }, [requestId, applyRequest]);
 
-  // Real distance + ETA from live coordinates (never a countdown timer).
-  const distanceKm = driverLoc && patientLoc
-    ? haversineKm(driverLoc.lat, driverLoc.lng, patientLoc.lat, patientLoc.lng)
-    : null;
-  const etaMin = estimateEtaMin(distanceKm);
+  // Distance and ETA are now provided by LiveTrackingMap (OSRM API)
+  const distanceKm = routeDist;
+  const etaMin = routeEta;
 
   const isFallback = status === 'NO_DRIVER_FALLBACK';
   const isCancelled = status === 'CANCELLED';
@@ -218,8 +234,13 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
           status={status}
           driverName={driverInfo?.name}
           vehicleNumber={driverInfo?.vehicleNumber}
-          distanceKm={distanceKm}
-          etaMin={etaMin}
+          distanceKm={routeDist}
+          etaMin={routeEta}
+          socketConnected={socketConnected}
+          onRouteUpdate={({ distanceKm, etaMin }) => {
+            setRouteDist(distanceKm);
+            setRouteEta(etaMin);
+          }}
         />
       </div>
 

@@ -75,7 +75,7 @@ export const getSlotsWithStatus = async (doctorId, dateStr) => {
     where: {
       doctorId,
       scheduledDate: date,
-      status: { in: ['CONFIRMED', 'PENDING_PAYMENT'] },
+      status: { not: 'CANCELLED' },
     },
     select: { scheduledTime: true },
   });

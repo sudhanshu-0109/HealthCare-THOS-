@@ -267,3 +267,17 @@ export const markAllNotificationsRead = async (userId) => {
     data: { isRead: true },
   });
 };
+
+export const notifyOnlineAppointmentConfirmed = async (patientId, doctorId, appointment) => {
+  // Notify doctor that they have a new online appointment booked
+  const patientName = appointment.patient?.fullName || 'A patient';
+  const timeStr = `${appointment.scheduledDate.toISOString().split('T')[0]} at ${appointment.scheduledTime}`;
+  
+  await notify(doctorId, {
+    type: 'APPOINTMENT_CONFIRMED',
+    title: 'New Online Consultation Booked',
+    message: `${patientName} has booked an online video consultation with you for ${timeStr}.`,
+    relatedId: appointment.id,
+  });
+};
+

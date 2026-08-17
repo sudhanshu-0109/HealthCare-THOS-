@@ -34,6 +34,9 @@ import LiveQueue from '../pages/patient/LiveQueue';
 import Passport from '../pages/patient/Passport';
 import MedicalTimeline from '../pages/patient/MedicalTimeline';
 import EmergencyTracking from '../pages/patient/EmergencyTracking';
+// Phase 16
+import WaitingRoom from '../pages/patient/WaitingRoom';
+import VideoConsultation from '../pages/patient/VideoConsultation';
 
 // Admin pages
 import HospitalAdminDashboard from '../pages/admin/Dashboard';
@@ -43,6 +46,8 @@ import DoctorDashboard from '../pages/doctor/Dashboard';
 import DoctorQueue from '../pages/doctor/Queue';
 import ConsultationScreen from '../pages/doctor/ConsultationScreen';
 import PatientProfileView from '../pages/doctor/PatientProfileView';
+// Phase 16
+import DoctorVideoConsultation from '../pages/doctor/DoctorVideoConsultation';
 
 // Lab pages
 import LabDashboard from '../pages/lab/Dashboard';
@@ -89,7 +94,10 @@ const AppRouter = () => {
         <Route path="/patient/timeline" element={<MedicalTimeline />} />
         <Route path="/patient/emergency/:requestId" element={<EmergencyTracking />} />
         <Route path="/patient/billing" element={<PatientDashboard />} />
-        
+        {/* Phase 16: Online consultation routes */}
+        <Route path="/patient/waiting-room/:appointmentId" element={<WaitingRoom />} />
+        <Route path="/patient/video-consultation/:appointmentId" element={<VideoConsultation />} />
+
         {/* Redirect old dashboard routes */}
         <Route path="/dashboard" element={<PatientDashboard />} />
         <Route path="/appointments" element={<PatientDashboard />} />
@@ -104,6 +112,8 @@ const AppRouter = () => {
         <Route path="/doctor/queue" element={<DoctorQueue />} />
         <Route path="/doctor/consultation/:appointmentId" element={<ConsultationScreen />} />
         <Route path="/doctor/passport/:patientId" element={<PatientProfileView />} />
+        {/* Phase 16: Doctor video call */}
+        <Route path="/doctor/video-consultation/:appointmentId" element={<DoctorVideoConsultation />} />
       </Route>
 
       {/* ── Hospital Admin routes (protected, role=HOSPITAL_ADMIN) ─────── */}

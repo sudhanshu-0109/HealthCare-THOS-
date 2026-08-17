@@ -21,4 +21,7 @@ router.post('/:id/upload-report', authenticate, checkRole('LAB_STAFF'), scopeToH
 // Patient views own lab results
 router.get('/patient/results', authenticate, checkRole('PATIENT'), ctrl.getMyLabResults);
 
+// Patient books a follow-up Lite appointment for a completed lab request
+router.post('/:id/book-follow-up', authenticate, checkRole('PATIENT'), ctrl.bookLabFollowUp);
+
 export default router;

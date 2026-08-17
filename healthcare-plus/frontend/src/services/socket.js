@@ -162,3 +162,46 @@ export const onSocketEvent = (event, handler) => {
   s.on(event, handler);
   return () => s.off(event, handler);
 };
+
+// ─── Phase 16: Online Consultation Signaling ────────────────────────────────
+
+/**
+ * Join the WebRTC signaling room for an online consultation.
+ * The room is tracked and re-joined automatically on reconnect.
+ */
+export const joinConsultationRoom = (appointmentId) => {
+  const s = getSocket();
+  if (!appointmentId) return;
+  const key = `consultation:${appointmentId}`;
+  joinIntents.set(key, { event: 'consultation:join', payload: { appointmentId } });
+  if (s) s.emit('consultation:join', { appointmentId });
+};
+
+/**
+ * Leave the WebRTC signaling room.
+ */
+export const leaveConsultationRoom = (appointmentId) => {
+  joinIntents.delete(`consultation:${appointmentId}`);
+  if (socket && appointmentId) socket.emit('consultation:leave', { appointmentId });
+};
+
+/**
+ * Send a WebRTC SDP offer to the other participant.
+ */
+export const sendOffer = (appointmentId, sdp) => {
+  if (socket) socket.emit('consultation:offer', { appointmentId, sdp });
+};
+
+/**
+ * Send a WebRTC SDP answer to the other participant.
+ */
+export const sendAnswer = (appointmentId, sdp) => {
+  if (socket) socket.emit('consultation:answer', { appointmentId, sdp });
+};
+
+/**
+ * Send an ICE candidate to the other participant.
+ */
+export const sendIceCandidate = (appointmentId, candidate) => {
+  if (socket) socket.emit('consultation:ice-candidate', { appointmentId, candidate });
+};

@@ -8,8 +8,9 @@ import {
   LayoutDashboard, Users, Activity, Stethoscope, FlaskConical,
   Pill, CheckCircle2, Clock, Plus, Trash2, X,
   Loader2, Calendar, AlertCircle, RefreshCw, ChevronRight,
-  ArrowRight, User, ChevronDown, FileText
+  ArrowRight, User, ChevronDown, FileText, Video, Monitor,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
 import * as queueService from '../../services/queue.service';
@@ -621,10 +622,20 @@ function QueueTab({ doctorProfile }) {
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 
 function OverviewTab({ doctorProfile, queue }) {
+  const navigate = useNavigate();
   const waiting = queue.filter((t) => t.status === 'WAITING').length;
   const completed = queue.filter((t) => t.status === 'COMPLETED').length;
   const inProgress = queue.filter((t) => t.status === 'IN_PROGRESS').length;
   const total = queue.length;
+
+  // Phase 16: online session stats
+  const [onlineStats, setOnlineStats] = useState(null);
+  useEffect(() => {
+    import('../../services/onlineSession.service')
+      .then(({ getDoctorOnlineStats }) => getDoctorOnlineStats())
+      .then((res) => setOnlineStats(res.data?.data || res.data))
+      .catch(() => {});
+  }, []);
 
   const stats = [
     { label: "Today's Total", value: total, icon: Users, color: 'bg-cyan-50 text-cyan-600' },
@@ -661,6 +672,35 @@ function OverviewTab({ doctorProfile, queue }) {
           );
         })}
       </div>
+
+      {/* Phase 16: Online Consultations card */}
+      {onlineStats !== null && (
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-100 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                <Video className="w-4 h-4 text-violet-600" />
+              </div>
+              <p className="font-semibold text-slate-900 text-sm">Online Consultations</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center">
+              <p className="text-xl font-bold text-violet-700">{onlineStats.today ?? 0}</p>
+              <p className="text-xs text-slate-500">Today</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-amber-600">{onlineStats.upcoming ?? 0}</p>
+              <p className="text-xs text-slate-500">Upcoming</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-emerald-600">{onlineStats.completed ?? 0}</p>
+              <p className="text-xs text-slate-500">Completed</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {doctorProfile && (
         <div className="bg-white rounded-2xl border border-slate-100 p-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Profile</p>

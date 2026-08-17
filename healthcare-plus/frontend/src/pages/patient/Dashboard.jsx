@@ -10,7 +10,8 @@ import {
   Bell, AlertTriangle, Heart, Search, Star, MapPin, Clock, Stethoscope,
   Brain, Phone, X, CheckCircle2, Navigation, ChevronRight, Activity,
   FileText, Loader2, Filter, RefreshCw, Building2, Users,
-  TrendingUp, Download, Eye, ChevronDown, Shield, Zap, AlertCircle, Package
+  TrendingUp, Download, Eye, ChevronDown, Shield, Zap, AlertCircle, Package,
+  Video
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
@@ -561,15 +562,29 @@ function AppointmentsTab() {
               <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {apt.scheduledDate ? new Date(apt.scheduledDate).toLocaleDateString('en-IN') : apt.date}</span>
                 <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {apt.scheduledTime || apt.time}</span>
-                {apt.queueToken && <span className="bg-slate-100 px-2 py-0.5 rounded-full font-mono">T-{apt.queueToken.tokenNumber}</span>}
+                {apt.consultationType === 'ONLINE' ? (
+                  <span className="bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <Video className="w-3 h-3" /> Online
+                  </span>
+                ) : (
+                  apt.queueToken && <span className="bg-slate-100 px-2 py-0.5 rounded-full font-mono">T-{apt.queueToken.tokenNumber}</span>
+                )}
               </div>
               {apt.status === 'CONFIRMED' && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate(`/appointments/${apt.id}/queue`, { state: { appointment: apt } })}
-                    className="flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1">
-                    <Activity className="w-3.5 h-3.5" /> View Queue
-                  </button>
+                  {apt.consultationType === 'ONLINE' ? (
+                    <button
+                      onClick={() => navigate(`/patient/waiting-room/${apt.id}`)}
+                      className="flex-1 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1">
+                      <Video className="w-3.5 h-3.5" /> Join Waiting Room
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/appointments/${apt.id}/queue`, { state: { appointment: apt } })}
+                      className="flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1">
+                      <Activity className="w-3.5 h-3.5" /> View Queue
+                    </button>
+                  )}
                   <button className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors">
                     Cancel
                   </button>
@@ -689,6 +704,20 @@ function LabReportsTab() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const handleBookLite = async (r) => {
+    setActionLoading(r.id);
+    try {
+      await labRequestsService.bookLabFollowUp(r.id);
+      alert('Follow-up Lite appointment booked successfully! Please check your queue.');
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to book Lite appointment.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
 
   useEffect(() => {
     labRequestsService.getMyLabRequests()
@@ -763,6 +792,19 @@ function LabReportsTab() {
                 <div className="mt-4 flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-xl p-3">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Tests in progress — reports will appear here when ready
+                </div>
+              )}
+
+              {r.status === 'COMPLETED' && (
+                <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={() => handleBookLite(r)}
+                    disabled={actionLoading === r.id}
+                    className="py-2 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-2"
+                  >
+                    {actionLoading === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                    Book Follow-up (Lite)
+                  </button>
                 </div>
               )}
             </div>
