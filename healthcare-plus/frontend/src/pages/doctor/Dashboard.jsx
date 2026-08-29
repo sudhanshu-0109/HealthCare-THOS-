@@ -4,13 +4,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Activity, Stethoscope, FlaskConical,
   Pill, CheckCircle2, Clock, Plus, Trash2, X,
   Loader2, Calendar, AlertCircle, RefreshCw, ChevronRight,
-  ArrowRight, User, ChevronDown, FileText, Video, Monitor,
+  ArrowRight, User, ChevronDown, FileText, Video, Wifi, MapPin
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
 import * as queueService from '../../services/queue.service';
@@ -337,7 +337,77 @@ function ReportListModal({ reports, onClose }) {
 
 // ── Queue Tab ──────────────────────────────────────────────────────────────────
 
+/** Small pill badge showing ONLINE (violet) or OFFLINE/In-Person (slate) */
+function ConsultTypeBadge({ type }) {
+  if (type === 'ONLINE') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 text-[10px] font-bold tracking-wide">
+        <Wifi className="w-2.5 h-2.5" /> Online
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold tracking-wide">
+      <MapPin className="w-2.5 h-2.5" /> In-Person
+    </span>
+  );
+}
+
+/**
+ * Phase 16: Online Appointments Panel — shown at the top of the Queue tab.
+ * Uses the doctor-scoped GET /appointments/doctor/mine endpoint (no PATIENT role conflict).
+ */
+function OnlineAppointmentsPanel({ doctorProfile }) {
+  const navigate = useNavigate();
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Guard: need doctorProfile before fetching
+    if (!doctorProfile) return;
+    api.get('/appointments/doctor/mine', {
+      params: { consultationType: 'ONLINE', status: 'CONFIRMED', date: today, limit: 10 },
+    })
+      .then((res) => setSessions(res.data?.appointments || []))
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
+  }, [doctorProfile]);
+
+  if (loading || sessions.length === 0) return null;
+
+  return (
+    <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-2xl p-4 text-white mb-4 shadow-lg shadow-violet-900/30">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center">
+          <Video className="w-3.5 h-3.5 text-white" />
+        </div>
+        <p className="text-white text-sm font-bold">Online Consultations Today</p>
+        <span className="ml-auto bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+          {sessions.length}
+        </span>
+      </div>
+      <div className="space-y-2">
+        {sessions.map((apt) => (
+          <div key={apt.id} className="bg-white/10 hover:bg-white/20 transition-colors rounded-xl p-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-sm truncate">{apt.patient?.fullName || 'Patient'}</p>
+              <p className="text-violet-200 text-xs mt-0.5">{apt.scheduledTime} · {apt.doctor?.user?.fullName || apt.doctor?.specialization || ''}</p>
+            </div>
+            <button
+              onClick={() => navigate(`/doctor/video-consultation/${apt.id}`)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white text-violet-700 rounded-xl text-xs font-bold hover:bg-violet-50 transition-colors shadow-sm"
+            >
+              <Video className="w-3.5 h-3.5" /> Start Call
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function QueueTab({ doctorProfile }) {
+  const navigate = useNavigate();
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -460,6 +530,9 @@ function QueueTab({ doctorProfile }) {
 
   return (
     <div className="p-4 sm:p-6 pb-24 lg:pb-6 space-y-4">
+      {/* Phase 16: Online Appointments Panel (shown above offline queue) */}
+      <OnlineAppointmentsPanel doctorProfile={doctorProfile} />
+
       {successMsg && (
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-sm text-emerald-700 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" /> {successMsg}
@@ -480,69 +553,94 @@ function QueueTab({ doctorProfile }) {
       )}
 
       {/* Current Patient */}
-      {currentToken && (
-        <div className="bg-gradient-to-br from-cyan-600 to-teal-700 rounded-2xl p-5 text-white">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-cyan-100 text-xs font-semibold uppercase tracking-wide">Now Seeing</p>
-              <p className="font-bold text-xl mt-0.5 flex items-center gap-2">
-                T-{currentToken.tokenNumber}
-                <span className="text-sm font-normal text-cyan-200 border-l border-cyan-400/50 pl-2">
-                  {currentToken.appointment?.scheduledTime || ''}
-                </span>
-              </p>
+      {currentToken && (() => {
+        const isOnline = currentToken.appointment?.consultationType === 'ONLINE';
+        const cardGradient = isOnline
+          ? 'bg-gradient-to-br from-violet-600 to-purple-700'
+          : 'bg-gradient-to-br from-cyan-600 to-teal-700';
+        const mutedText = isOnline ? 'text-violet-200' : 'text-cyan-200';
+        const dividerBorder = isOnline ? 'border-violet-400/50' : 'border-cyan-400/50';
+        return (
+          <div className={`${cardGradient} rounded-2xl p-5 text-white`}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className={`${mutedText} text-xs font-semibold uppercase tracking-wide`}>Now Seeing</p>
+                  <ConsultTypeBadge type={currentToken.appointment?.consultationType} />
+                </div>
+                <p className="font-bold text-xl mt-0.5 flex items-center gap-2">
+                  {isOnline ? '🎥' : 'T-'}{isOnline ? '' : currentToken.tokenNumber}{isOnline ? `Appt` : ''}
+                  <span className={`text-sm font-normal ${mutedText} border-l ${dividerBorder} pl-2`}>
+                    {currentToken.appointment?.scheduledTime || ''}
+                  </span>
+                </p>
+              </div>
+              <div className={`w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center`}>
+                {isOnline ? <Video className="w-5 h-5" /> : <User className="w-5 h-5" />}
+              </div>
             </div>
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <User className="w-5 h-5" />
-            </div>
-          </div>
-          <p className="font-semibold">{currentPatientName}</p>
-          <StatusBadge status={currentToken.status} size="xs" className="mt-1" />
+            <p className="font-semibold">{currentPatientName}</p>
+            <StatusBadge status={currentToken.status} size="xs" className="mt-1" />
 
-          {/* Actions */}
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {currentToken.status === 'CALLED' && (
-              <button onClick={() => handleStartConsultation(currentToken)}
-                disabled={!!actionLoading}
-                className="py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1">
-                {actionLoading === 'start' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Stethoscope className="w-3 h-3" />}
-                Start Consult
-              </button>
-            )}
-            {currentToken.status === 'IN_PROGRESS' && (
-              <>
-                <button onClick={() => setShowPrescribe(true)}
-                  className="py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
-                  <Pill className="w-3 h-3" /> Prescribe
+            {/* Actions */}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {/* ONLINE: show Start Video Call button */}
+              {isOnline && currentToken.status === 'CALLED' && (
+                <button onClick={() => navigate(`/doctor/video-consultation/${currentToken.appointment?.id}`)}
+                  className="col-span-2 py-2.5 bg-white text-violet-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-violet-50 transition-colors shadow-sm">
+                  <Video className="w-3.5 h-3.5" /> Start Video Call
                 </button>
-                <button onClick={() => setShowLabRequest(true)}
-                  className="py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
-                  <FlaskConical className="w-3 h-3" /> Lab Request
-                </button>
-                {currentToken.appointment?.appointmentType === 'LITE' && (
-                  <button onClick={() => handleViewReport(currentToken.appointment.patient.id)}
-                    disabled={actionLoading === 'report'}
-                    className="col-span-2 py-2 bg-blue-500/80 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
-                    {actionLoading === 'report' ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-                    View Uploaded Report
-                  </button>
-                )}
-                <button onClick={() => handleCompleteConsultation(currentToken.id)}
+              )}
+              {/* OFFLINE: standard Start Consult */}
+              {!isOnline && currentToken.status === 'CALLED' && (
+                <button onClick={() => handleStartConsultation(currentToken)}
                   disabled={!!actionLoading}
-                  className="col-span-2 py-2 bg-emerald-400/80 hover:bg-emerald-400 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1">
-                  {actionLoading === 'complete' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                  Complete & Next
+                  className="py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1">
+                  {actionLoading === 'start' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Stethoscope className="w-3 h-3" />}
+                  Start Consult
                 </button>
-              </>
-            )}
-            <button onClick={() => handleSkip(currentToken.id)}
-              disabled={!!actionLoading}
-              className={`py-2 bg-amber-400/80 hover:bg-amber-400 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1 ${currentToken.status === 'CALLED' ? 'col-span-2' : ''}`}>
-              Skip
-            </button>
+              )}
+              {currentToken.status === 'IN_PROGRESS' && (
+                <>
+                  {isOnline && (
+                    <button onClick={() => navigate(`/doctor/video-consultation/${currentToken.appointment?.id}`)}
+                      className="col-span-2 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+                      <Video className="w-3 h-3" /> Rejoin Video Call
+                    </button>
+                  )}
+                  <button onClick={() => setShowPrescribe(true)}
+                    className="py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
+                    <Pill className="w-3 h-3" /> Prescribe
+                  </button>
+                  <button onClick={() => setShowLabRequest(true)}
+                    className="py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
+                    <FlaskConical className="w-3 h-3" /> Lab Request
+                  </button>
+                  {!isOnline && currentToken.appointment?.appointmentType === 'LITE' && (
+                    <button onClick={() => handleViewReport(currentToken.appointment.patient.id)}
+                      disabled={actionLoading === 'report'}
+                      className="col-span-2 py-2 bg-blue-500/80 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
+                      {actionLoading === 'report' ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                      View Uploaded Report
+                    </button>
+                  )}
+                  <button onClick={() => handleCompleteConsultation(currentToken.id)}
+                    disabled={!!actionLoading}
+                    className="col-span-2 py-2 bg-emerald-400/80 hover:bg-emerald-400 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1">
+                    {actionLoading === 'complete' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                    Complete & Next
+                  </button>
+                </>
+              )}
+              <button onClick={() => handleSkip(currentToken.id)}
+                disabled={!!actionLoading}
+                className={`py-2 bg-amber-400/80 hover:bg-amber-400 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1 ${(currentToken.status === 'CALLED' && !isOnline) ? 'col-span-2' : ''}`}>
+                Skip
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Waiting list */}
       {waiting.length > 0 && (
@@ -551,20 +649,30 @@ function QueueTab({ doctorProfile }) {
             Waiting ({waiting.length})
           </p>
           <div className="space-y-2">
-            {waiting.map((token, i) => (
-              <div key={token.id} className="bg-white rounded-xl border border-slate-100 p-3 flex items-center gap-3">
-                <div className="w-12 h-9 bg-amber-100 rounded-xl flex items-center justify-center text-amber-700 text-xs font-bold flex-shrink-0">
-                  T-{token.tokenNumber}
+            {waiting.map((token, i) => {
+              const isOnline = token.appointment?.consultationType === 'ONLINE';
+              return (
+                <div key={token.id} className={`bg-white rounded-xl border p-3 flex items-center gap-3 ${
+                  isOnline ? 'border-violet-200 bg-violet-50/40' : 'border-slate-100'
+                }`}>
+                  <div className={`w-12 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                    isOnline ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {isOnline ? <Video className="w-4 h-4" /> : `T-${token.tokenNumber}`}
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {token.appointment?.patient?.fullName || 'Patient'}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <p className="text-[10px] text-slate-500 font-semibold">{token.appointment?.scheduledTime || ''}</p>
+                      <ConsultTypeBadge type={token.appointment?.consultationType} />
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-400">#{i + 1}</span>
                 </div>
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <p className="text-sm font-medium text-slate-900 truncate">
-                    {token.appointment?.patient?.fullName || 'Patient'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-semibold">{token.appointment?.scheduledTime || ''}</p>
-                </div>
-                <span className="text-xs text-slate-400">#{i + 1}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -574,16 +682,23 @@ function QueueTab({ doctorProfile }) {
         <div className="bg-slate-50 rounded-2xl p-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Completed ({completed.length})</p>
           <div className="space-y-1.5">
-            {completed.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 text-sm">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                <span className="text-slate-700">{t.appointment?.patient?.fullName || 'Patient'}</span>
-                <div className="text-right ml-auto">
-                  <span className="text-slate-400 text-xs font-bold">T-{t.tokenNumber}</span>
-                  <span className="text-slate-400 text-[10px] block font-semibold">{t.appointment?.scheduledTime || ''}</span>
+            {completed.map((t) => {
+              const isOnline = t.appointment?.consultationType === 'ONLINE';
+              return (
+                <div key={t.id} className="flex items-center gap-2 text-sm">
+                  {isOnline
+                    ? <Video className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                    : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  }
+                  <span className="text-slate-700">{t.appointment?.patient?.fullName || 'Patient'}</span>
+                  <ConsultTypeBadge type={t.appointment?.consultationType} />
+                  <div className="text-right ml-auto">
+                    {!isOnline && <span className="text-slate-400 text-xs font-bold">T-{t.tokenNumber}</span>}
+                    <span className="text-slate-400 text-[10px] block font-semibold">{t.appointment?.scheduledTime || ''}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -622,20 +737,10 @@ function QueueTab({ doctorProfile }) {
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 
 function OverviewTab({ doctorProfile, queue }) {
-  const navigate = useNavigate();
   const waiting = queue.filter((t) => t.status === 'WAITING').length;
   const completed = queue.filter((t) => t.status === 'COMPLETED').length;
   const inProgress = queue.filter((t) => t.status === 'IN_PROGRESS').length;
   const total = queue.length;
-
-  // Phase 16: online session stats
-  const [onlineStats, setOnlineStats] = useState(null);
-  useEffect(() => {
-    import('../../services/onlineSession.service')
-      .then(({ getDoctorOnlineStats }) => getDoctorOnlineStats())
-      .then((res) => setOnlineStats(res.data?.data || res.data))
-      .catch(() => {});
-  }, []);
 
   const stats = [
     { label: "Today's Total", value: total, icon: Users, color: 'bg-cyan-50 text-cyan-600' },
@@ -672,35 +777,6 @@ function OverviewTab({ doctorProfile, queue }) {
           );
         })}
       </div>
-
-      {/* Phase 16: Online Consultations card */}
-      {onlineStats !== null && (
-        <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-100 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-                <Video className="w-4 h-4 text-violet-600" />
-              </div>
-              <p className="font-semibold text-slate-900 text-sm">Online Consultations</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="text-center">
-              <p className="text-xl font-bold text-violet-700">{onlineStats.today ?? 0}</p>
-              <p className="text-xs text-slate-500">Today</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-amber-600">{onlineStats.upcoming ?? 0}</p>
-              <p className="text-xs text-slate-500">Upcoming</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-emerald-600">{onlineStats.completed ?? 0}</p>
-              <p className="text-xs text-slate-500">Completed</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {doctorProfile && (
         <div className="bg-white rounded-2xl border border-slate-100 p-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Profile</p>

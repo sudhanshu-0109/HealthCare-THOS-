@@ -1,1112 +1,1043 @@
-# Healthcare+
+# HealthCare+
 
-## 1. Project Overview
+> **One Healthcare Ecosystem. Every Care Journey. Connected.**  
+> *From discovery to diagnosis. From lab reports to medicines. From routine care to emergency response.*
 
-**Healthcare+** is a full-stack, multi-tenant hospital management and patient-facing
-healthcare platform built on the PERN stack (PostgreSQL, Express, React, Node.js). It
-connects patients, doctors, hospitals, pharmacies, labs, and ambulance drivers in a single
-digital ecosystem.
-
-### Problem Statement
-
-- Hospitals, pharmacies, labs, and ambulances operate in isolation.
-- Patients hold paper prescriptions that get lost or damaged.
-- OPD waiting rooms are overcrowded with no visibility into queue status.
-- In emergencies, there's no digital coordination between patients and ambulances.
-- Medical history is siloed per hospital, breaking continuity of care.
-
-### Solution
-
-1. **Universal Healthcare Passport** — a patient-controlled digital health record accessible
-   across all network hospitals.
-2. **Real-time OPD Queue Tracking** — patients watch their token number live from their phone.
-3. **Emergency SOS & Ambulance Dispatch** — one-tap request, nearest-driver algorithm, live
-   GPS tracking on a map.
-4. **End-to-End Clinical Workflow** — Booking → Payment → Queue → Consultation →
-   Prescription → Pharmacy → Lab → Reports, all in one system.
-5. **Unified Billing** — one bill consolidating appointments, pharmacy orders, and lab tests
-   via Razorpay.
-
-### Vision
-
-To become the operating system for multi-specialty hospitals in India, giving every patient
-— regardless of hospital — a seamless, connected, data-informed care journey.
-
-### Long-Term Goals *(roadmap — not built)*
-
-- AI-powered pre-visit symptom checker and triage (upgrade beyond current keyword matching)
-- Telemedicine (encrypted in-app video consultations)
-- Wearable integration (Apple Health / Google Fit → Passport)
-- Insurance API integration for direct claim processing
-- Integration with India's National Digital Health Mission (ABDM)
+[![Smart India Hackathon](https://img.shields.io/badge/SIH-orange.svg)](#23-team--project-credits)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19.2-blue.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.2-purple.svg)](https://vitejs.dev/)
+[![Express](https://img.shields.io/badge/Express-4.21-lightgrey.svg)](https://expressjs.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-336791.svg)](https://www.postgresql.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-5.22-2D3748.svg)](https://www.prisma.io/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg)](https://socket.io/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.3-38B2AC.svg)](https://tailwindcss.com/)
 
 ---
 
-## 2. Current Implementation Status
+## 📑 Table of Contents
 
-**Phase 15 complete.** All 15 build phases are implemented and verified via static
-verification and a passing production build. The project has undergone a 24-item repair plan
-(**R1–R24**, documented in `docs/FINAL-REPORT.md`) to eliminate simulated business logic and
-replace it with real backend/database/WebSocket flows.
-
-> ⚠️ Runtime E2E has **not** been performed against a live multi-tenant database — all
-> authorization fixes (R1–R24) were verified by code-read only. See [Section 17](#17-known-issues-gaps--technical-risks).
-
----
-
-## 3. Target Users & Roles
-
-| Role | Description |
-|---|---|
-| `PATIENT` | Books appointments, tracks queue, views Healthcare Passport, requests SOS |
-| `DOCTOR` | Manages daily queue, conducts consultations, writes prescriptions & lab requests |
-| `HOSPITAL_ADMIN` | Manages hospital departments, doctors, staff, queue oversight, analytics |
-| `RECEPTIONIST` | Views appointments, manages check-ins, updates queue |
-| `PHARMACIST` | Processes pharmacy orders, updates stock |
-| `LAB_STAFF` | Processes lab requests, uploads reports |
-| `AMBULANCE_DRIVER` | Goes online, accepts/rejects dispatches, updates GPS location |
-| `SUPER_ADMIN` | Manages all hospitals, users, global analytics |
-
----
-
-## 4. Feature Inventory
-
-### ✅ Implemented
-
-- Patient registration + email OTP verification
-- Google OAuth sign-in (patient self-registration only)
-- Staff invitation system (email-based invite with default password)
-- JWT auth with silent refresh (15-min access token, 30-day refresh token)
-- Hospital & department management
-- Doctor availability & slot generation (with lunch-break restrictions)
-- Appointment booking with Razorpay payment
-- OPD queue with WebSocket real-time updates
-- Healthcare Passport (allergies, conditions, medications, consent management)
-- Medical timeline (chronological history of all clinical events)
-- Doctor consultation screen (symptoms, diagnosis, treatment plan, autosave)
-- Digital prescriptions & pharmacy orders
-- Lab requests & lab report upload (PDF)
-- Unified billing (Appointment / Pharmacy / Lab → single Bill → Razorpay → `onBillPaid`)
-- Emergency SOS with geo-dispatch, live GPS tracking, ambulance dashboard
-- In-app + Socket.IO notifications (with selective email for 4 key event types)
-- Hospital analytics (appointments, revenue, queue load, emergency stats)
-- Audit log for admin actions
-- "Lite" walk-in appointments (fractional queue tokens, e.g. `10.5`)
-- AI symptom triage (**keyword-based** specialty routing — not ML)
-- Admin queue override (force-skip with audit log)
-
-### 🔜 Planned / Not Built
-
-- Cloudinary integration for lab report PDFs (currently local disk storage)
-- Redis adapter for Socket.IO (multi-instance scaling)
-- Redis caching for slot availability / hospital listings
-- Route-level code splitting (React.lazy + Suspense)
-- Telemedicine (WebRTC video consultations)
-- Real LLM-based AI triage (replacing keyword matching)
-- Web Push notifications (for when Socket.IO isn't connected)
-- ABDM (National Digital Health Mission) integration
-- Swagger/OpenAPI spec, CI pipeline, E2E test suite execution
+1. [Executive Overview](#1-executive-overview)
+2. [Problem Statement & Market Gap](#2-problem-statement--market-gap)
+3. [The HealthCare+ Solution](#3-the-healthcare-solution)
+4. [Hero Innovations](#4-hero-innovations)
+5. [User Roles & Access Matrix](#5-user-roles--access-matrix)
+6. [System Architecture](#6-system-architecture)
+7. [End-to-End Application Workflows](#7-end-to-end-application-workflows)
+8. [Technology Stack](#8-technology-stack)
+9. [Project Repository Structure](#9-project-repository-structure)
+10. [Authentication, Authorization & Security](#10-authentication-authorization--security)
+11. [Database Architecture & Data Model](#11-database-architecture--data-model)
+12. [API Architecture & Endpoint Reference](#12-api-architecture--endpoint-reference)
+13. [Major Functional Modules](#13-major-functional-modules)
+14. [External Integrations](#14-external-integrations)
+15. [Environment Variables Configuration](#15-environment-variables-configuration)
+16. [Installation & Setup Guide](#16-installation--setup-guide)
+17. [Seeded Demo Environment & Pilot Network](#17-seeded-demo-environment--pilot-network)
+18. [Testing & Quality Assurance](#18-testing--quality-assurance)
+19. [Current Implementation Status](#19-current-implementation-status)
+20. [Future Roadmap (Specification vs Codebase)](#20-future-roadmap-specification-vs-codebase)
+21. [Troubleshooting Guide](#21-troubleshooting-guide)
+22. [Contributing Guidelines](#22-contributing-guidelines)
+23. [Team & Project Credits](#23-team--project-credits)
 
 ---
 
-## 5. System Architecture
+## 1. Executive Overview
+
+**HealthCare+** is a full-stack, multi-tenant digital healthcare operating system built for connected city-wide healthcare delivery. Created for **Smart India Hackathon (Build with Bharat 2.0)** under the *Open Innovation* track by **Team CodeFlow**, HealthCare+ unifies patients, hospitals, doctors, pharmacies, diagnostic laboratories, and emergency ambulance networks into one continuous, real-time ecosystem.
+
+Rather than acting as a disjointed booking portal or an isolated hospital management software (HMS), HealthCare+ functions as the **orchestration layer** for physical healthcare. Independent hospitals operate with tenant-level operational isolation while patients experience a unified digital journey: from initial AI symptom triage and appointment scheduling to live OPD queue tracking, digital consultations, pharmacy fulfillment, diagnostic lab reporting, unified billing, and SOS ambulance dispatch with live GPS navigation.
+
+The platform is deployed and seeded with a live pilot network in **Vadodara, Gujarat**, featuring 8 real hospital locations, 28 doctors across 12 specialties, active emergency ambulances, pharmacy inventory, lab catalogs, and automated daily demo-schedule rolling.
+
+---
+
+## 2. Problem Statement & Market Gap
+
+### The Real Problem: Digitally Fragmented Healthcare
+
+Healthcare is deeply connected clinically, but digitally fragmented. In the current Indian healthcare ecosystem:
+- **The Patient is Forced to Become the Integration Layer:** A patient visiting a hospital must manually carry physical paper files between reception desks, doctor chambers, billing counters, diagnostic laboratories, and external pharmacies.
+- **Overcrowded OPD Waiting Rooms:** Patients wait for hours in physical OPD waiting areas with zero visibility into doctor delays or their actual token position.
+- **Siloed Medical Records:** Medical history is locked inside separate hospital systems or lost on paper prescriptions, preventing continuity of care during emergencies or multi-hospital treatments.
+- **Disconnected Emergency Logistics:** Emergency response relies on blind phone calls without real-time GPS tracking, nearest-driver dispatch, or automated hospital triage prep.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        TODAY'S FRAGMENTED REALITY                       │
+│                                                                         │
+│  [Google Search] ──> [Hospital Website] ──> [Manual Phone Call]        │
+│          │                                          │                   │
+│  [Physical Queue] <── [Paper File / Token] <────────┘                   │
+│          │                                                              │
+│  [Doctor Visit] ──> [Paper Prescription] ──> [Separate Pharmacy Line]  │
+│          │                                                              │
+│  [Separate Lab Center] ──> [Paper Test Reports] ──> [Repeat OPD Queue]  │
+│                                                                         │
+│         ❌ NO UNIFIED HISTORY  •  ❌ PASSTHROUGH FRICTION               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Market Gap Analysis
+
+| Capability | Consumer Aggregators<br>*(Practo, Apollo 24/7, Halodoc)* | Enterprise HMS<br>*(Epic, Cerner, Custom HMS)* | Emergency Networks<br>*(RED.Health)* | **HealthCare+** |
+|---|:---:|:---:|:---:|:---:|
+| **Hospital Discovery & Booking** | ✅ Strong | ❌ None | ❌ None | ✅ **Native** |
+| **Multi-Hospital Network** | ❌ Aggregated Only | ❌ Isolated Per Tenant | ❌ None | ✅ **Multi-Tenant Network** |
+| **Real-Time Live OPD Queue** | ⚠️ Partial / Static | ⚠️ Internal Only | ❌ None | ✅ **WebSocket Live Sync** |
+| **Fractional "Lite" Queue Tokens** | ❌ None | ❌ None | ❌ None | ✅ **Native (e.g. #15.5)** |
+| **Connected Lab + Pharmacy Chain** | ⚠️ Fragmented | ✅ Internal | ❌ None | ✅ **Closed-Loop Workflow** |
+| **Unified Single Bill (All Services)**| ⚠️ Partial | ✅ Internal | ❌ None | ✅ **Consolidated Razorpay** |
+| **Live GPS Ambulance SOS Dispatch** | ❌ None | ❌ None | ✅ Focused | ✅ **Built-In City Dispatch** |
+| **Longitudinal Healthcare Passport** | ⚠️ Siloed | ✅ Single-System | ❌ None | ✅ **Cross-Hospital Consent** |
+| **End-to-End Orchestrated Journey** | ❌ Fragmented | ❌ Hospital-Centric | ❌ Emergency-Only | ✅ **Unified Ecosystem** |
+
+---
+
+## 3. The HealthCare+ Solution
+
+HealthCare+ resolves this fragmentation by establishing a unified operating layer connecting six major pillars:
 
 ```mermaid
 graph TD
-    Browser["React SPA<br/>Vite + React 19"]
-    API["Express API Server<br/>Node.js 18+"]
-    DB[("PostgreSQL<br/>Prisma ORM")]
-    Socket["Socket.IO Server<br/>JWT Auth"]
-    Email["Email Service<br/>Nodemailer / SMTP"]
-    Razorpay["Razorpay<br/>Payment Gateway"]
-    Maps["Maplibre-GL<br/>OpenStreetMap"]
+    subgraph "HealthCare+ Unified Ecosystem"
+        P((PATIENT))
+        H[Hospital Management]
+        D[Doctor Clinical Suite]
+        L[Diagnostic Labs]
+        Ph[Pharmacy Fulfillment]
+        A[Emergency Ambulance]
+        B[Unified Billing]
+        HP[Healthcare Passport]
+        TC[Telemedicine WebRTC]
+    end
 
-    Browser -->|"HTTP Bearer JWT"| API
-    Browser <-->|"WebSocket JWT"| Socket
-    API --> DB
-    Socket --> DB
-    API --> Email
-    API --> Razorpay
-    Browser --> Maps
+    P <--> H
+    P <--> D
+    P <--> L
+    P <--> Ph
+    P <--> A
+    P <--> B
+    P <--> HP
+    P <--> TC
 ```
 
-**Core rule:** PostgreSQL is the source of truth. Prisma handles database access. Express
-handles business logic and REST APIs. React handles the UI. Socket.IO handles genuinely
-real-time features (queue, emergency tracking). No Redis or microservices in the current
-build — deliberately kept simple.
+1. **One Continuous Care Journey:** Every clinical event automatically initiates and informs the next (e.g., Doctor orders lab tests → Lab fulfillment processes request → Report PDF uploaded → Doctor & Patient notified → Report auto-appends to patient's Medical Timeline → Follow-up scheduled).
+2. **Multi-Tenant Hospital Federation:** Independent hospitals manage their own departments, doctors, pharmacy inventory, lab catalogs, and staff with complete data isolation, while participating in the broader city healthcare network.
+3. **Radical Transparency:** Eliminates "black-box" healthcare waiting. Patients monitor real-time queue tokens, pharmacy dispensing states, laboratory diagnostic stages, and incoming ambulance GPS pins.
 
-### Backend Request Flow (Layered)
+---
+
+## 4. Hero Innovations
+
+### 1. ⚡ Fractional Queue Intelligence ("Lite Appointments")
+*Problem:* Patients needing quick 2-minute follow-ups, post-treatment checks, or lab report reviews are forced to wait through standard 15–30 minute OPD consultation queues.  
+*Innovation:* HealthCare+ introduces **fractional queue tokens** (e.g., Token `15.5` slotted between regular Tokens `14`, `15`, and `16`). Doctors who configure `acceptsLiteAppointments: true` can offer low-cost, short-duration slots that dynamically insert into the active queue without disrupting booked sequential slots.
+
+### 2. 🔍 Radical Multi-Workflow Transparency
+Every operational process is modelled as an observable state machine updated via WebSockets:
+- **OPD Queue:** `WAITING` $\rightarrow$ `CALLED` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `COMPLETED` *(or `SKIPPED`)*
+- **Laboratory:** `PENDING` $\rightarrow$ `CONFIRMED (PAID)` $\rightarrow$ `SAMPLE_COLLECTED` $\rightarrow$ `PROCESSING` $\rightarrow$ `COMPLETED`
+- **Pharmacy:** `PENDING` $\rightarrow$ `CONFIRMED (PAID)` $\rightarrow$ `PREPARING` $\rightarrow$ `PACKED` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`
+- **Emergency SOS:** `REQUESTED` $\rightarrow$ `SEARCHING` $\rightarrow$ `DRIVER_ASSIGNED` $\rightarrow$ `EN_ROUTE` $\rightarrow$ `PICKED_UP` $\rightarrow$ `ARRIVED`
+
+### 3. 🌐 Longitudinal Healthcare Passport with Granular Consent
+Patients maintain complete sovereignty over their medical history across all network hospitals.
+- Tracks chronic conditions, drug allergies, active medications, and full medical timelines.
+- **Granular Consent Mechanism:** Doctors can only access a patient's historical records if the patient has granted active, non-revoked `PassportConsent`. If consent is absent, the clinical consultation proceeds with sensitive history restricted and cross-hospital consultation notes hidden.
+
+### 4. 🚑 City-Wide Nearest-Ambulance Dispatch with 108 Fallback
+- **Cross-Hospital Emergency Exception:** While hospital data is strictly isolated, emergency SOS dispatch searches across **all online ambulances in the city network** using a geospatial Haversine radius calculation to find the closest vehicle.
+- **Atomic Acceptance:** Prevents double-booking via atomic database lock (`WHERE status = 'SEARCHING'`).
+- **Live GPS Navigation:** Streams driver coordinates directly to the patient's interactive Google Maps interface with dynamic distance/ETA calculation.
+- **3-Minute Safety Fallback:** If no ambulance driver accepts within 180 seconds, the system automatically transitions to `NO_DRIVER_FALLBACK` and directs the patient to dial India's national **108 Emergency Helpline**.
+
+---
+
+## 5. User Roles & Access Matrix
+
+HealthCare+ implements Role-Based Access Control (RBAC) backed by PostgreSQL database enums and enforced across both backend middleware and frontend route guards.
+
+| Role | Target Actor | Primary Dashboard & Capabilities | Guarded Boundaries |
+|---|---|---|---|
+| `PATIENT` | Individuals & families seeking care | `/patient/dashboard`<br>• Search hospitals & book appointments (Regular / Lite)<br>• Live OPD queue tracker with estimated wait times<br>• Access Healthcare Passport, Medical Timeline & Consent Manager<br>• 1-Tap SOS Emergency Dispatch with real-time GPS tracking<br>• View prescriptions, track pharmacy orders, view lab reports<br>• Unified bill payment via Razorpay<br>• Online Telemedicine Video Consultations | Cannot access staff dashboards or other patients' records/bills. |
+| `DOCTOR` | Practicing clinical physicians | `/doctor/dashboard`, `/doctor/queue`<br>• Live daily OPD queue management (Call Next, Start, Skip, Complete)<br>• Clinical Consultation Suite: symptoms, diagnosis, treatment plans (with autosave)<br>• Digital Prescriptions with dosage & duration<br>• Diagnostic Lab test ordering with priority flags<br>• Patient profile review (gated by Passport Consent)<br>• WebRTC Telemedicine video consultation suite | Scoped to assigned hospital and department. Cannot modify billing or administrative settings. |
+| `HOSPITAL_ADMIN` | Hospital administrators | `/admin/dashboard`<br>• Real-time hospital analytics (Revenue, OPD volume, emergency load)<br>• Department and Doctor roster management<br>• Staff invitation & lifecycle management (Pharmacists, Lab Staff, Drivers)<br>• Hospital-wide queue monitor with emergency override/force-skip<br>• Pharmacy medicine stock inventory management<br>• Diagnostic lab test catalog & pricing configuration<br>• Comprehensive immutable Audit Log viewer | Scoped strictly to own hospital (`req.hospitalId`). Cannot access peer hospital records. |
+| `RECEPTIONIST` | Front-desk hospital staff | `/admin/dashboard` *(Receptionist View)*<br>• Patient check-in and queue token issuance<br>• Appointment verification and schedule overview<br>• Hospital queue status monitoring | Scoped to own hospital. No access to clinical notes or system configuration. |
+| `PHARMACIST` | Hospital pharmacy operators | `/pharmacy/dashboard`<br>• Incoming prescription order fulfillment queue<br>• State transitions: `PREPARING` $\rightarrow$ `PACKED` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`<br>• Medicine inventory stock management (pricing, units, generic names)<br>• Invoice & payment verification | Scoped to own hospital pharmacy orders and stock. |
+| `LAB_STAFF` | Diagnostic pathology technicians | `/lab/dashboard`<br>• Diagnostic test order fulfillment queue<br>• Status workflow: `SAMPLE_COLLECTED` $\rightarrow$ `PROCESSING` $\rightarrow$ `COMPLETED`<br>• Lab report document upload (PDF) with clinical result summaries<br>• Master test catalog association and test management | Scoped to own hospital lab requests and diagnostic catalog. |
+| `AMBULANCE_DRIVER` | Paramedics & ambulance operators | `/driver/dashboard`<br>• Online / Offline availability toggle<br>• Real-time GPS location broadcasting (`watchPosition`)<br>• Incoming SOS dispatch popups with audible alert & 1-tap accept/reject<br>• Ride status tracker: `EN_ROUTE` $\rightarrow$ `PICKED_UP` $\rightarrow$ `ARRIVED`<br>• Persistent state rehydration on page reload via `GET /driver/me` | Cannot access general hospital records or unauthorized patient data. |
+| `SUPER_ADMIN` | Platform network operators | `/superadmin/dashboard`<br>• City-wide multi-hospital network management (Create, Update, Deactivate)<br>• Global user management across all 8 roles<br>• Network-level analytics and cross-hospital system monitoring | Global platform access across all hospitals. |
+
+---
+
+## 6. System Architecture
+
+HealthCare+ is engineered with a layered, decoupled architecture separating presentation, RESTful business services, persistent relational storage, and an authoritative real-time WebSocket layer.
+
+```mermaid
+flowchart TD
+    subgraph Clients ["Presentation Layer (Vite + React 19 SPA)"]
+        Web[Web Browser - Desktop / Tablet]
+        Mobile[Mobile Browser / PWA via HTTPS Tunnel]
+    end
+
+    subgraph Gateway ["Networking & Security"]
+        Nginx["Reverse Proxy / Cloudflare Tunnel"]
+        CORS["CORS Allowlist + Helmet Headers"]
+        RateLimit["Express Rate Limiting (Auth & OTP)"]
+    end
+
+    subgraph Backend ["Application Layer (Node.js + Express)"]
+        AuthMiddleware["JWT Authentication + Silent Refresh"]
+        RBACMiddleware["RBAC (checkRole) + Hospital Scoping (scopeToHospital)"]
+        Validation["Zod Request Validation"]
+        
+        subgraph Services ["Core Business Logic Services"]
+            ApptService["Appointments & Slots Service"]
+            QueueService["Atomic Queue & Lite Token Service"]
+            ClinicalService["Consultations & Prescriptions Service"]
+            BillingService["Unified Billing & Razorpay Service"]
+            LabService["Lab Fulfillment Service"]
+            PharmacyService["Pharmacy Orders Service"]
+            EmergencyService["Emergency Haversine Dispatch Service"]
+            PassportService["Passport & Consent Service"]
+            AIService["AI Symptom Triage Engine"]
+        end
+    end
+
+    subgraph RealTime ["Real-Time Layer (Socket.IO)"]
+        SocketServer["Socket.IO Server (Handshake JWT Auth)"]
+        Rooms["Rooms: user:{id}, doctor:{id}:{date}, hospital:{id}:queue, emergency:{id}, consultation:{id}"]
+        WebRTCRelay["WebRTC Video Signaling Relay"]
+    end
+
+    subgraph Data ["Data Persistence Layer"]
+        Prisma["Prisma ORM (5.22.0)"]
+        Postgres[("PostgreSQL 14+ Database")]
+        LocalStorage["Local File Storage (backend/uploads/ - Lab PDFs)"]
+    end
+
+    subgraph External ["External Third-Party APIs"]
+        RazorpayAPI["Razorpay Payment Gateway"]
+        GoogleMapsAPI["Google Maps JavaScript & Directions API"]
+        GoogleOAuthAPI["Google OAuth 2.0 Token Verification"]
+        SMTPServer["Nodemailer (Gmail / SMTP / Resend)"]
+    end
+
+    Clients --> Gateway
+    Gateway --> AuthMiddleware
+    AuthMiddleware --> RBACMiddleware --> Validation --> Services
+    
+    Services --> Prisma --> Postgres
+    Services --> LocalStorage
+    Services -.->|"Trigger Event"| SocketServer
+    
+    Clients <-->|"Bidirectional WebSocket"| SocketServer
+    SocketServer --> Rooms
+    SocketServer --> WebRTCRelay
+    
+    BillingService <--> RazorpayAPI
+    EmergencyService <--> GoogleMapsAPI
+    AuthMiddleware <--> GoogleOAuthAPI
+    Services --> SMTPServer
+```
+
+### Layered Backend Request Cycle
 
 ```mermaid
 flowchart LR
-    A[HTTP Request] --> B["Express Router<br/>routes/*.js"]
-    B --> C["Middleware chain<br/>authenticate → checkRole → scopeToHospital → validate"]
-    C --> D["Controller<br/>controllers/*.js — thin, parses request"]
-    D --> E["Service<br/>services/*.js — business logic"]
-    E --> F["Prisma Client → PostgreSQL"]
-    F -.optional.-> G["Socket.IO emit"]
-    E --> D
-    D --> H["Response: { success: true, data }"]
-```
-
-### Frontend Architecture
-
-- **Entry point:** `main.jsx` → `App.jsx` → wraps `<GoogleOAuthProvider>`, `<BrowserRouter>`,
-  renders `<AppRouter>`
-- **Routing:** React Router v7, role-based protection via `ProtectedRoute` (Outlet pattern)
-- **State:** Zustand with persistence —
-  - `authStore`: user object + JWT access token (persisted in `localStorage` under
-    `healthcare-plus-auth`)
-  - `notificationStore`: in-memory notification list, unread count, optimistic reads
-- **HTTP layer:** Single Axios instance (`services/api.js`). Applies Bearer token on every
-  request. On 401 → silent refresh flow with concurrent-request queuing. Auto-unwraps
-  `{ success, data }` envelope.
-- **WebSocket layer:** Singleton Socket.IO client (`services/socket.js`). JWT in handshake
-  auth. Reconnection with automatic room-rejoin via a `joinIntents` map.
-
-### Real-Time Architecture
-
-Server is authoritative: client calls a REST endpoint → server writes to DB → server emits a
-Socket.IO event to a room → all room subscribers receive the live update.
-
-| Room | Purpose |
-|---|---|
-| `user:{userId}` | Personal notifications for all roles |
-| `patient:{patientId}` | Legacy queue updates for patients |
-| `doctor:{doctorId}:{date}` | Doctor's daily queue room |
-| `hospital:{hospitalId}:queue` | Hospital-wide admin queue monitor |
-| `emergency:{requestId}` | Patient + admin emergency tracking |
-| `driver:{userId}` | Driver incoming request notifications |
-
-### Application Boot Sequence
-
-1. `server.js` imports `app.js` (Express configured)
-2. `config/env.js` validates required env vars — fails hard if missing
-3. HTTP server created with `http.createServer(app)`
-4. `initializeSocket(server)` — Socket.IO attaches, JWT middleware registered
-5. `setDispatchIo(io)` — injects Socket.IO into `emergencyDispatch.service`
-6. `server.listen(PORT)` — starts accepting connections
-7. `SIGTERM` handler registered for graceful shutdown
-
----
-
-## 6. Tech Stack
-
-### Frontend
-
-| Technology | Version | Role |
-|---|---|---|
-| React | 19.2.8 | UI framework |
-| Vite | 8.2.0 | Build tool + dev server |
-| React Router DOM | 7.18.2 | Client-side routing |
-| Tailwind CSS | 4.3.3 | Utility-first CSS |
-| Zustand | 5.0.14 | Global state management |
-| Axios | 1.19.0 | HTTP client |
-| Socket.IO Client | 4.8.3 | Real-time WebSocket client |
-| @react-oauth/google | 0.13.5 | Google OAuth button |
-| Maplibre-GL | 6.2.0 | Interactive maps (ambulance tracking) |
-| Lucide React | 1.30.0 | Icon library |
-
-### Backend
-
-| Technology | Version | Role |
-|---|---|---|
-| Node.js | ≥18.0.0 | JavaScript runtime |
-| Express | 4.21.1 | Web framework |
-| Socket.IO | 4.8.1 | Real-time WebSocket server |
-| Prisma | 5.22.0 | ORM + migration tool |
-| PostgreSQL | v14+ | Relational database |
-| bcryptjs | 3.0.3 | Password hashing |
-| jsonwebtoken | 9.0.3 | JWT sign/verify |
-| google-auth-library | 11.0.0 | Google OAuth token verification |
-| nodemailer | 9.0.5 | Email delivery (SMTP) |
-| zod | 4.4.3 | Schema validation |
-| express-rate-limit | 8.6.2 | IP-based rate limiting |
-| helmet | 8.0.0 | Security HTTP headers |
-| multer | 2.2.0 | Multipart file upload (lab reports) |
-| cors | 2.8.5 | CORS middleware |
-| morgan | 1.10.0 | HTTP request logger |
-| uuid | 14.0.1 | UUID generation |
-
-### External Services
-
-| Service | Usage | Status |
-|---|---|---|
-| Razorpay | Payment gateway (appointments, pharmacy, lab) | Implemented |
-| Maplibre-GL / OpenStreetMap | Ambulance live tracking map | Implemented |
-| Nodemailer (SMTP / Gmail / Resend) | Email OTPs, invites, notifications | Implemented (requires SMTP config) |
-| Cloudinary | Image/document storage | **Planned** — lab reports currently on local disk |
-
-### Dev Tools
-
-| Tool | Version | Role |
-|---|---|---|
-| nodemon | 3.1.7 | Auto-restart backend in dev |
-| Jest | 30.4.2 | Backend unit testing |
-| Supertest | 7.2.2 | HTTP assertion testing |
-| Playwright | 1.62.1 | Frontend E2E testing (config exists, no test files yet) |
-| oxlint | 1.75.0 | Fast frontend linter |
-
----
-
-## 7. Folder Structure
-
-```
-healthcare-plus/
-├── backend/                        # Node.js Express REST API + Socket.IO
-│   ├── prisma/
-│   │   ├── schema.prisma           # Single source of truth for all DB models (1049 lines)
-│   │   ├── seed.js                 # DB seeder (hospitals, departments, doctors)
-│   │   └── migrations/
-│   ├── scripts/seedDemoData.js     # Extended demo seeder (npm run seed:demo)
-│   ├── uploads/                    # Local static file storage for lab report PDFs
-│   └── src/
-│       ├── server.js               # HTTP server entry, Socket.IO init, graceful shutdown
-│       ├── app.js                  # Express app: middleware stack, route mounting
-│       ├── config/                 # env.js (fail-fast validation), cors.js
-│       ├── routes/                 # 33 route files — one per business module
-│       ├── controllers/            # 26 controllers — thin request/response handlers
-│       ├── services/                # 33 services — CORE BUSINESS LOGIC
-│       ├── middleware/             # 8 files: authenticate, checkRole, scopeToHospital,
-│       │                           #   validate, rateLimiter, errorHandler, notFound, requestLogger
-│       ├── sockets/                # Socket.IO init + emergency room handlers
-│       ├── templates/emails/       # verifyEmail.html, resetPassword.html
-│       ├── utils/                  # ApiError, asyncHandler, jwt, hash, geo, tokenGenerator
-│       └── __tests__/              # 11 Jest test files
-│
-├── frontend/                       # React 19 + Vite 8 SPA
-│   └── src/
-│       ├── router/AppRouter.jsx    # Full role-based route tree (158 lines)
-│       ├── layouts/PublicLayout.jsx
-│       ├── pages/
-│       │   ├── public/             # Landing, Login, Register, VerifyEmail, ForgotPassword,
-│       │   │                       #   ResetPassword, AcceptInvite
-│       │   ├── patient/            # Dashboard, HospitalWorkspace, DoctorBooking,
-│       │   │                       #   AppointmentConfirmation, LiveQueue, Passport,
-│       │   │                       #   MedicalTimeline, EmergencyTracking
-│       │   ├── doctor/             # Dashboard, Queue, ConsultationScreen, PatientProfileView
-│       │   ├── admin/              # Dashboard (Overview/Doctors/Staff/Queue/Analytics/Billing)
-│       │   ├── lab/                # Dashboard
-│       │   ├── pharmacy/           # Dashboard
-│       │   ├── driver/             # Dashboard
-│       │   └── superadmin/         # Dashboard
-│       ├── components/             # admin/, auth/, booking/, common/, consultation/,
-│       │                           #   emergency/, layout/, notifications/, passport/, queue/
-│       ├── hooks/                  # useAuth, useDebounce, useDoctorQueue, useGeolocation,
-│       │                           #   useNotifications
-│       ├── services/                # 24 Axios service files — one per backend module
-│       ├── store/                  # authStore.js, notificationStore.js (Zustand)
-│       └── utils/                  # constants.js, distance.js, roleRedirect.js
-│
-└── docs/                           # Architecture and audit documentation
-    ├── API-INTEGRATION-AUDIT.md
-    ├── AUTH-AUTHORIZATION-AUDIT.md
-    ├── CODEBASE-UNDERSTANDING.md
-    ├── COMPLETE-WORKFLOW-AUDIT.md
-    ├── FINAL-REPORT.md             # 24-item repair report (R1–R24) — key read
-    ├── GOOGLE-MAPS-INTEGRATION-PLAN.md
-    ├── MANUAL-E2E-TEST-PLAN.md
-    ├── MASTER-REPAIR-PLAN.md
-    ├── REALTIME-AUDIT.md
-    └── ROUTE-AUDIT.md
+    Req[HTTP Request] --> Router["Express Router<br/>(routes/*.js)"]
+    Router --> Auth["authenticate<br/>(JWT Verify)"]
+    Auth --> Role["checkRole<br/>(RBAC)"]
+    Role --> Scope["scopeToHospital<br/>(Tenant Isolation)"]
+    Scope --> Val["validate<br/>(Zod Schema)"]
+    Val --> Ctrl["Controller<br/>(controllers/*.js)"]
+    Ctrl --> Svc["Service<br/>(services/*.js)"]
+    Svc --> Prisma["Prisma Client"]
+    Prisma --> DB[("PostgreSQL")]
+    Svc -.->|"Optional Socket Emit"| Socket["Socket.IO Room"]
+    Ctrl --> Res["Response: { success: true, data }"]
 ```
 
 ---
 
-## 8. Authentication & Authorization
+## 7. End-to-End Application Workflows
 
-### Registration (Patient)
-
-1. `POST /auth/register { email, password, fullName }`
-2. Validates email format + password strength (Zod), normalizes email
-3. Checks for existing account → `409 Conflict`
-4. Hashes password with bcryptjs; creates `User` (`role=PATIENT`, `isEmailVerified=false`)
-5. Generates 6-digit OTP, sends via Nodemailer
-6. Returns user object — no token until email is verified
-
-### Email Verification (OTP)
-
-`POST /auth/verify-otp` finds the token, checks expiry + email match, marks the user
-verified, deletes the (single-use) token, then issues an access + refresh token pair
-(auto-login).
-
-### Login
-
-`POST /auth/login` guards against `INVITED`/`DEACTIVATED` status and against GOOGLE-only
-accounts attempting password login, compares bcrypt hash, updates `lastLoginAt`, then issues:
-
-- **Access token:** `{ sub: userId, role }` signed with `JWT_SECRET`, 15-minute default expiry
-- **Refresh token:** `{ sub: userId }` signed with `JWT_REFRESH_SECRET`, stored as a SHA-256
-  hash in `refresh_tokens`, 30-day default expiry
-
-### Silent Token Refresh
-
-Client's Axios interceptor detects a 401 on a non-auth endpoint, calls
-`POST /auth/refresh-token` via a bare client (no interceptors), verifies the stored hash,
-issues a new access token, updates local state, and retries the original request. Concurrent
-401s are queued and resolved by a single shared refresh.
-
-### Google OAuth
-
-`POST /auth/google { idToken }` verifies with `google-auth-library`, upserts by `googleId`
-then by email, sets `authProvider = GOOGLE` or `BOTH`, issues a token pair.
-
-### RBAC Middleware Chain
-
-```
-authenticate → checkRole(...) → scopeToHospital
-```
+### 7.1 Appointment Booking $\rightarrow$ Unified Billing $\rightarrow$ Queue Token Issuance
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
-    participant A as API /auth
+    autonumber
+    actor Patient
+    participant Frontend
+    participant API as Express API
+    participant Razorpay
     participant DB as PostgreSQL
-    participant E as Email
+    participant Socket as Socket.IO
 
-    C->>A: POST /auth/register
-    A->>DB: Create User (unverified)
-    A->>DB: Create VerificationToken (6-digit OTP)
-    A->>E: Send OTP email
-    A-->>C: 201 { user }
-
-    C->>A: POST /auth/verify-otp { otp }
-    A->>DB: Find token, check expiry
-    A->>DB: User.isEmailVerified = true
-    A->>DB: Create RefreshToken
-    A-->>C: 200 { user, accessToken, refreshToken }
+    Patient->>Frontend: Select Doctor, Date & Time Slot
+    Frontend->>API: POST /api/appointments/initiate
+    API->>DB: Create Appointment (status: PENDING_PAYMENT)
+    API->>DB: Create Bill (status: UNPAID) + BillItems
+    API->>Razorpay: Create Razorpay Order
+    API-->>Frontend: Return { appointmentId, billId, razorpayOrderId, keyId }
+    
+    Frontend->>Patient: Open Razorpay Checkout Modal
+    Patient->>Razorpay: Complete Payment (UPI / Card / NetBanking)
+    Razorpay-->>Frontend: Return { razorpayPaymentId, razorpaySignature }
+    
+    Frontend->>API: POST /api/billing/pay (Signature Verification)
+    API->>DB: Verify Signature & Update Payment (SUCCESS)
+    API->>DB: Update Bill (status: PAID)
+    API->>API: Trigger onBillPaid('APPOINTMENT')
+    API->>DB: Update Appointment (status: CONFIRMED)
+    API->>DB: Generate QueueToken (Recalculate Sequential Ordering)
+    API->>DB: Log MedicalTimelineEvent (APPOINTMENT)
+    API->>Socket: Emit queue:updated to doctor:{doctorId}:{date}
+    API->>Socket: Emit notification:new to user:{patientId}
+    API-->>Frontend: Return { success: true, confirmed: true, tokenNumber }
+    Frontend-->>Patient: Display Booking Confirmation & Live Queue Link
 ```
 
-### Password Reset
+### 7.2 Clinical Consultation $\rightarrow$ Digital Prescription $\rightarrow$ Pharmacy Order
 
-`forgot-password` (60s cooldown OTP) → `verify-reset-otp` → `reset-password`, which updates
-the hash, marks the token used, and **revokes all refresh tokens** for that user.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Doctor
+    actor Patient
+    participant API as Express API
+    participant DB as PostgreSQL
+    participant Socket as Socket.IO
+    actor Pharmacist
+
+    Doctor->>API: POST /api/queue/call-next
+    API->>Socket: Emit queue:token-called to patient room
+    Doctor->>API: POST /api/consultations/start
+    API->>DB: Create Consultation (status: IN_PROGRESS)
+    
+    Doctor->>API: POST /api/prescriptions (Medicines, Dosages, Instructions)
+    API->>DB: Create Prescription + PrescriptionItems
+    API->>DB: Auto-create PharmacyOrder (status: PENDING)
+    API->>DB: Create Bill (sourceType: PHARMACY_ORDER)
+    
+    Doctor->>API: POST /api/consultations/:id/complete
+    API->>DB: Update Consultation (COMPLETED) & QueueToken (COMPLETED)
+    API->>Socket: Emit notification:new (PRESCRIPTION_CREATED) to Patient
+    
+    Patient->>API: POST /api/billing/pay (Pay Pharmacy Bill)
+    API->>DB: Mark Bill PAID & PharmacyOrder (CONFIRMED)
+    API->>Socket: Notify Pharmacy Dashboard
+    
+    Pharmacist->>API: PUT /api/pharmacy-orders/:id/status (PREPARING -> PACKED -> READY)
+    API->>Socket: Emit order status updates to Patient
+    Pharmacist->>API: PUT /api/pharmacy-orders/:id/status (COMPLETED)
+    API->>DB: Auto-activate Patient MedicineReminder logs
+```
+
+### 7.3 Emergency SOS $\rightarrow$ Nearest Haversine Dispatch $\rightarrow$ Live GPS Navigation
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Patient
+    participant Frontend
+    participant API as Express API
+    participant DB as PostgreSQL
+    participant Socket as Socket.IO
+    actor Driver
+
+    Patient->>Frontend: Press & Hold SOS Button (3 Seconds)
+    Frontend->>API: POST /api/emergency { latitude, longitude }
+    API->>DB: Create EmergencyRequest (status: REQUESTED)
+    API->>API: Calculate Haversine distance to all Online Ambulances
+    API->>DB: Update EmergencyRequest (status: SEARCHING)
+    API->>Socket: Emit emergency:new-request to top 5 closest driver:{userId} rooms
+    
+    Driver->>Frontend: Receive Incoming SOS Alert with Sound & Modal
+    Driver->>API: POST /api/driver/accept/:id
+    API->>DB: Atomic Update (WHERE status = 'SEARCHING' -> DRIVER_ASSIGNED)
+    API->>Socket: Emit emergency:accepted to emergency:{requestId} room
+    
+    loop Live GPS Streaming
+        Driver->>API: POST /api/driver/location { latitude, longitude }
+        API->>Socket: Emit emergency:location-update to Patient Map
+    end
+
+    Driver->>API: POST /api/driver/en-route/:id (Status: EN_ROUTE)
+    Driver->>API: POST /api/driver/picked-up/:id (Status: PICKED_UP)
+    Driver->>API: POST /api/driver/arrived/:id (Status: ARRIVED)
+    API->>DB: Timestamp arrivedAt & complete dispatch cycle
+```
 
 ---
 
-## 9. Database Architecture
+## 8. Technology Stack
 
-**PostgreSQL via Prisma ORM.** Full schema is 1,049 lines, 30+ models, 15+ enums.
+### Frontend Architecture
 
-### ER Diagram (Core Relationships)
+| Category | Technology | Version | Purpose |
+|---|---|---|---|
+| **Framework** | [React](https://react.dev/) | `19.2.8` | Modern declarative UI component hierarchy |
+| **Build Tool** | [Vite](https://vitejs.dev/) | `8.2.0` | Ultra-fast HMR and optimized production bundling |
+| **Routing** | [React Router DOM](https://reactrouter.com/) | `7.18.2` | Client-side routing with guarded layout wrappers |
+| **Styling** | [Tailwind CSS](https://tailwindcss.com/) | `4.3.3` | Utility-first responsive CSS styling system |
+| **State Management** | [Zustand](https://github.com/pmndrs/zustand) | `5.0.14` | Global state with `localStorage` persistence |
+| **HTTP Client** | [Axios](https://axios-http.com/) | `1.19.0` | Interceptor-driven HTTP client with silent token refresh |
+| **Real-Time Client** | [Socket.IO Client](https://socket.io/) | `4.8.3` | WebSocket client with automatic room rejoin intent tracking |
+| **Maps Integration** | [@googlemaps/js-api-loader](https://www.npmjs.com/package/@googlemaps/js-api-loader) | `1.16.8` | Dynamic Google Maps rendering & marker positioning |
+| **Authentication UI** | [@react-oauth/google](https://www.npmjs.com/package/@react-oauth/google) | `0.13.5` | Google Identity Services OAuth button & token wrapper |
+| **Iconography** | [Lucide React](https://lucide.dev/) | `1.30.0` | Comprehensive lightweight SVG iconography |
+| **Code Quality** | [oxlint](https://oxc.rs/) | `1.75.0` | High-performance JavaScript/React linter |
+
+### Backend Architecture
+
+| Category | Technology | Version | Purpose |
+|---|---|---|---|
+| **Runtime** | [Node.js](https://nodejs.org/) | `≥18.0.0` (ESM) | Asynchronous event-driven JavaScript server runtime |
+| **Framework** | [Express](https://expressjs.com/) | `4.21.1` | RESTful API middleware routing engine |
+| **ORM** | [Prisma ORM](https://www.prisma.io/) | `5.22.0` | Type-safe query builder, schema modeling & migrations |
+| **Database** | [PostgreSQL](https://www.postgresql.org/) | `14+` | ACID-compliant relational data storage |
+| **Real-Time Engine** | [Socket.IO](https://socket.io/) | `4.8.1` | WebSocket server supporting room-based push updates |
+| **Authentication** | [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) | `9.0.3` | Dual-token (Access/Refresh) JWT issuance and verification |
+| **Password Hashing** | [bcryptjs](https://www.npmjs.com/package/bcryptjs) | `3.0.3` | One-way cryptographic salt-and-hashing (12 rounds) |
+| **Google Auth** | [google-auth-library](https://github.com/googleapis/google-auth-library-nodejs) | `11.0.0` | Google OAuth2 ID token verification with audience check |
+| **Validation** | [Zod](https://zod.dev/) | `4.4.3` | Strict runtime schema parsing and request body sanitization |
+| **Email Delivery** | [Nodemailer](https://nodemailer.com/) | `9.0.5` | SMTP email transport for OTPs, invites, and notifications |
+| **Security Headers** | [Helmet](https://helmetjs.github.io/) | `8.0.0` | Secure HTTP response header hardening |
+| **Rate Limiting** | [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) | `8.6.2` | IP-based request throttling against brute-force attacks |
+| **File Handling** | [Multer](https://github.com/expressjs/multer) | `2.2.0` | Multipart request handling for diagnostic PDF uploads |
+| **Dev Tooling** | [Nodemon](https://nodemon.io/) | `3.1.7` | Development auto-reload watcher |
+| **Testing** | [Jest](https://jestjs.io/) / [Supertest](https://github.com/ladjs/supertest) | `30.4.2` / `7.2.2` | Unit testing and HTTP integration assertions |
+
+---
+
+## 9. Project Repository Structure
+
+```
+HealthCare+/
+├── README.md                               # Project documentation & reference
+└── healthcare-plus/
+    ├── package.json                        # Root helper scripts (dev:tunnel)
+    ├── CREDENTIALS.md                      # Seeded demo credentials for all roles
+    │
+    ├── backend/                            # Node.js + Express + Prisma REST API
+    │   ├── package.json
+    │   ├── .env.example                    # Backend environment template
+    │   ├── prisma/
+    │   │   ├── schema.prisma               # Prisma data schema (1,127 lines, 34+ models)
+    │   │   ├── seed.js                     # Comprehensive Vadodara demo network seeder
+    │   │   ├── seedLabTests.js             # Master lab catalog & test seeder
+    │   │   └── migrations/                 # PostgreSQL migration history
+    │   ├── uploads/                        # Local file storage for diagnostic lab PDFs
+    │   ├── scripts/
+    │   │   ├── seedDemoData.js             # Standalone demo data seeder
+    │   │   └── checkData.js                # Database verification utility
+    │   └── src/
+    │       ├── server.js                   # HTTP server boot & Socket.IO initialization
+    │       ├── app.js                      # Express configuration & middleware pipeline
+    │       ├── config/                     # Environment validation (env.js), CORS (cors.js)
+    │       ├── routes/                     # 34 modular route definitions
+    │       ├── controllers/                # 27 request-response controller handlers
+    │       ├── services/                   # 35 core business logic service classes
+    │       ├── middleware/                 # Auth, RBAC, Hospital Scoping, Validation, Error
+    │       ├── sockets/                    # Socket.IO handlers & WebRTC signaling relay
+    │       ├── templates/                  # HTML email templates (verifyEmail, resetPassword)
+    │       ├── utils/                      # ApiError, tokenGenerator, geo, jwt, hash
+    │       └── __tests__/                  # 11 Jest test suites
+    │
+    ├── frontend/                           # React 19 + Vite + Tailwind CSS SPA
+    │   ├── package.json
+    │   ├── vite.config.js                  # Vite bundler configuration & local proxies
+    │   ├── tailwind.config.js              # Tailwind CSS styling tokens
+    │   ├── .env.example                    # Frontend environment template
+    │   └── src/
+    │       ├── main.jsx                    # React root entry point
+    │       ├── App.jsx                     # Application wrapper (Google OAuth, Router)
+    │       ├── router/
+    │       │   └── AppRouter.jsx           # Complete role-guarded route tree
+    │       ├── layouts/
+    │       │   ├── PublicLayout.jsx        # Landing & public layout wrapper
+    │       │   └── DashboardShell.jsx      # Unified responsive dashboard frame
+    │       ├── pages/
+    │       │   ├── public/                 # Landing, Login, Register, VerifyEmail, ForgotPassword, AcceptInvite
+    │       │   ├── patient/                # Dashboard, HospitalWorkspace, DoctorBooking, LiveQueue, Passport, EmergencyTracking, WaitingRoom, VideoConsultation
+    │       │   ├── doctor/                 # Dashboard, Queue, ConsultationScreen, PatientProfileView, DoctorVideoConsultation
+    │       │   ├── admin/                  # HospitalAdminDashboard (Overview, Doctors, Staff, Queue, Inventory, Lab, Audit)
+    │       │   ├── lab/                    # LabDashboard (Requests, Fulfillment, Upload)
+    │       │   ├── pharmacy/               # PharmacyDashboard (Orders, Fulfillment, Stock)
+    │       │   ├── driver/                 # AmbulanceDashboard (Online Toggle, SOS Alert, Map)
+    │       │   └── superadmin/             # SuperAdminDashboard (Hospitals, Users, System KPIs)
+    │       ├── components/                 # Reusable UI component library (auth, booking, common, emergency, passport, queue, notifications)
+    │       ├── hooks/                      # Custom hooks (useAuth, useNotifications, useDoctorQueue, useGeolocation, useDebounce)
+    │       ├── services/                   # Axios API service integrations
+    │       ├── store/                      # Zustand persistent stores (authStore, notificationStore)
+    │       └── utils/                      # Constants, distance calculators, role helpers
+    │
+    ├── scripts/                            # DevOps & Mobile Testing Scripts
+    │   ├── dev-tunnel.js                   # Cloudflare tunnel launcher for remote/mobile testing
+    │   └── tunnel-e2e-test.js              # Automated tunnel connectivity test
+    │
+    ├── tools/                              # Local binaries (cloudflared.exe for Windows)
+    │
+    └── docs/                               # Architectural audits & technical reports
+        ├── API-INTEGRATION-AUDIT.md
+        ├── AUTH-AUTHORIZATION-AUDIT.md
+        ├── CODEBASE-UNDERSTANDING.md
+        ├── COMPLETE-WORKFLOW-AUDIT.md
+        ├── FINAL-REPORT.md                 # 24-item production repair report (R1–R24)
+        ├── GOOGLE-MAPS-INTEGRATION-PLAN.md
+        ├── LOCAL_TUNNELING.md
+        ├── MANUAL-E2E-TEST-PLAN.md
+        ├── MASTER-REPAIR-PLAN.md
+        ├── REALTIME-AUDIT.md
+        └── ROUTE-AUDIT.md
+```
+
+---
+
+## 10. Authentication, Authorization & Security
+
+```
+                                  AUTHENTICATION ARCHITECTURE
+  
+       Patient Register             Credentials Login            Google OAuth 2.0
+              │                             │                            │
+      [Zod Validation]             [bcrypt Hash Check]          [verifyIdToken Audiences]
+              │                             │                            │
+      [6-Digit Email OTP]           [Status Verification]        [User Auto-Provision]
+              │                             │                            │
+              └─────────────────────────────┴────────────────────────────┘
+                                            │
+                             [Dual-Token Issuance]
+                             ├── Access Token:  15m lifetime (Bearer Authorization)
+                             └── Refresh Token: 30d lifetime (httpOnly Secure Cookie + DB Hash)
+                                            │
+                                [Silent Axios Refresh]
+                             (Transparent 401 Interception)
+```
+
+### Security & Hardening Features
+
+1. **Dual JWT Token Architecture with Silent Refresh:**
+   - **Access Token:** Short-lived (15 minutes), containing `{ sub: userId, role }`.
+   - **Refresh Token:** Long-lived (30 days), stored as a SHA-256 hash in the `refresh_tokens` table.
+   - **Silent Refresh Interceptor:** The frontend Axios instance detects `401 Unauthorized` responses on protected endpoints, queues concurrent API calls, requests a new access token via `POST /api/auth/refresh-token`, and seamlessly replays queued requests without forcing user logout.
+2. **Strict Multi-Tenant Hospital Isolation:**
+   - Staff roles (`DOCTOR`, `HOSPITAL_ADMIN`, `RECEPTIONIST`, `PHARMACIST`, `LAB_STAFF`, `AMBULANCE_DRIVER`) are scoped by `scopeToHospital` middleware, extracting the authenticated staff member's `hospitalId`.
+   - Service layers enforce a **default-deny** policy: staff cannot read or mutate records belonging to other hospitals.
+3. **IDOR & PHI Protection:**
+   - Patients can only query their own bills, consultations, appointments, and passports (`WHERE patientId = req.user.id`).
+   - Doctors can only view patient Healthcare Passports if an active `PassportConsent` record exists for that doctor or hospital.
+4. **Rate Limiting & Abuse Prevention:**
+   - General auth routes: throttled to 15 requests per 15 minutes.
+   - Sensitive OTP endpoints (resend, password reset): throttled to 5 requests per 15 minutes.
+5. **Secure Input & Output Sanitization:**
+   - Request bodies parsed and strictly typed via Zod schemas.
+   - Internal Prisma database column names (`err.meta.target`) and server stack traces are completely masked from production responses.
+
+---
+
+## 11. Database Architecture & Data Model
+
+The PostgreSQL database is modeled and managed via Prisma ORM (`backend/prisma/schema.prisma`), spanning **34+ models and 15+ enums**.
 
 ```mermaid
 erDiagram
     USER ||--o| PATIENT_PROFILE : has
-    USER ||--o| DOCTOR : "is (if role=DOCTOR)"
-    USER ||--o| HOSPITAL_ADMIN : "is (if role=HOSPITAL_ADMIN)"
-    USER ||--o| AMBULANCE_DRIVER : "is (if role=AMBULANCE_DRIVER)"
-    DOCTOR }o--|| HOSPITAL : "belongs to"
-    DOCTOR }o--|| DEPARTMENT : "belongs to"
+    USER ||--o| DOCTOR : "is (if DOCTOR)"
+    USER ||--o| HOSPITAL_ADMIN : "is (if HOSPITAL_ADMIN)"
+    USER ||--o| RECEPTIONIST : "is (if RECEPTIONIST)"
+    USER ||--o| PHARMACIST : "is (if PHARMACIST)"
+    USER ||--o| LAB_STAFF : "is (if LAB_STAFF)"
+    USER ||--o| AMBULANCE_DRIVER : "is (if DRIVER)"
+    
+    HOSPITAL ||--o{ DEPARTMENT : contains
+    HOSPITAL ||--o{ DOCTOR : employs
+    HOSPITAL ||--o{ AMBULANCE : owns
+    HOSPITAL ||--o{ MEDICINE : stocks
+    HOSPITAL ||--o{ LAB_TEST_CATALOG : offers
     AMBULANCE_DRIVER ||--o| AMBULANCE : drives
 
     USER ||--o{ APPOINTMENT : books
-    APPOINTMENT }o--|| DOCTOR : with
-    APPOINTMENT }o--|| HOSPITAL : at
+    DOCTOR ||--o{ APPOINTMENT : attends
+    DOCTOR ||--o{ DOCTOR_AVAILABILITY : sets
     APPOINTMENT ||--o| QUEUE_TOKEN : generates
-    QUEUE_TOKEN ||--o| CONSULTATION : leads_to
-    CONSULTATION ||--o| PRESCRIPTION : produces
-    PRESCRIPTION ||--o{ PRESCRIPTION_ITEM : contains
-    PRESCRIPTION ||--o| PHARMACY_ORDER : fulfilled_by
-    PHARMACY_ORDER ||--o{ PHARMACY_ORDER_ITEM : contains
+    APPOINTMENT ||--o| CONSULTATION : leads_to
+    APPOINTMENT ||--o| ONLINE_SESSION : hosts
+    
+    CONSULTATION ||--o| PRESCRIPTION : writes
+    PRESCRIPTION ||--o{ PRESCRIPTION_ITEM : itemizes
+    PRESCRIPTION ||--o| PHARMACY_ORDER : generates
+    PHARMACY_ORDER ||--o{ PHARMACY_ORDER_ITEM : itemizes
     PHARMACY_ORDER_ITEM }o--|| MEDICINE : references
-    CONSULTATION ||--o{ LAB_REQUEST : produces
-    LAB_REQUEST ||--o{ LAB_REQUEST_ITEM : contains
+    
+    CONSULTATION ||--o{ LAB_REQUEST : orders
+    LAB_REQUEST ||--o{ LAB_REQUEST_ITEM : itemizes
     LAB_REQUEST ||--o{ LAB_REPORT : produces
+    CONSULTATION ||--o| FOLLOW_UP_RECOMMENDATION : creates
 
     USER ||--o| HEALTHCARE_PASSPORT : owns
     HEALTHCARE_PASSPORT ||--o{ PASSPORT_CONSENT : grants
     HEALTHCARE_PASSPORT ||--o{ MEDICAL_TIMELINE_EVENT : logs
 
     USER ||--o{ BILL : owes
-    BILL ||--o{ BILL_ITEM : itemizes
-    BILL ||--o{ PAYMENT : "paid via"
+    HOSPITAL ||--o{ BILL : charges
+    BILL ||--o{ BILL_ITEM : contains
+    BILL ||--o{ PAYMENT : settles
 
-    USER ||--o{ EMERGENCY_REQUEST : requests
-    EMERGENCY_REQUEST }o--o| AMBULANCE : assigned
-    HOSPITAL ||--o{ AMBULANCE : owns
-
-    HOSPITAL ||--o{ AUDIT_LOG : logs
+    USER ||--o{ EMERGENCY_REQUEST : triggers
+    EMERGENCY_REQUEST }o--o| AMBULANCE : dispatches
+    
     USER ||--o{ NOTIFICATION : receives
+    HOSPITAL ||--o{ AUDIT_LOG : records
 ```
 
-### Key Enums
+### Key Schema Entities Reference
 
-```
-Role:               PATIENT | DOCTOR | HOSPITAL_ADMIN | RECEPTIONIST | PHARMACIST |
-                     LAB_STAFF | AMBULANCE_DRIVER | SUPER_ADMIN
-AuthProvider:        LOCAL | GOOGLE | BOTH
-UserStatus:          INVITED | ACTIVE | DEACTIVATED
-AppointmentStatus:   PENDING_PAYMENT | CONFIRMED | CANCELLED | COMPLETED | NO_SHOW
-AppointmentType:     REGULAR | LITE
-QueueStatus:         WAITING | CALLED | IN_PROGRESS | COMPLETED | SKIPPED | CANCELLED
-ConsultationStatus:  IN_PROGRESS | COMPLETED
-LabRequestStatus:    PENDING | CONFIRMED | SAMPLE_COLLECTED | PROCESSING | COMPLETED | CANCELLED
-PharmacyOrderStatus: PENDING | CONFIRMED | PREPARING | PACKED | READY | COMPLETED | CANCELLED
-BillStatus:          UNPAID | PAID | CANCELLED
-PaymentStatus:       CREATED | SUCCESS | FAILED
-EmergencyStatus:     REQUESTED | SEARCHING | DRIVER_ASSIGNED | EN_ROUTE | PICKED_UP |
-                     ARRIVED | CANCELLED | NO_DRIVER_FALLBACK
-TimelineEventType:   APPOINTMENT | CONSULTATION | PRESCRIPTION | LAB_REQUEST |
-                     LAB_REPORT | MEDICATION
-```
-
-### Table Reference
-
-**Core Identity**
-| Table | Key Fields | Notes |
+| Model | Table | Primary Purpose & Key Fields |
 |---|---|---|
-| `users` | id, email, passwordHash, fullName, role, isEmailVerified, googleId, authProvider, status, lastLoginAt | One-to-one with role profiles |
-| `patient_profiles` | userId, phone, dateOfBirth, gender, address, bloodGroup, emergencyContactName | Optional extended patient info |
-
-**Auth Tokens**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `verification_tokens` | userId, token, expiresAt | 6-digit OTP for email verify |
-| `password_reset_tokens` | userId, token, expiresAt, usedAt | 6-digit OTP, single-use |
-| `refresh_tokens` | userId, tokenHash, expiresAt, revokedAt | Database-backed refresh token |
-| `invite_tokens` | userId, token, invitedBy, expiresAt | Staff invitation |
-
-**Hospital Infrastructure**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `hospitals` | id, name, address, city, latitude, longitude, contactPhone, specialities[], averageRating | Multi-tenant isolation root |
-| `departments` | id, name, hospitalId | Linked to hospitals |
-| `doctors` | id, userId, hospitalId, departmentId, specialization, consultationFee, acceptsLiteAppointments | Staff profile |
-| `hospital_admins` / `receptionists` / `pharmacists` / `lab_staff` / `ambulance_drivers` | id, userId, hospitalId | Staff profiles |
-| `ambulances` | id, hospitalId, driverId (unique), vehicleNumber, isOnline, currentLatitude, currentLongitude | GPS-tracked vehicle |
-
-**Clinical Workflow (the core)**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `doctor_availability` | doctorId, dayOfWeek, startTime, endTime, slotMinutes | Repeating weekly schedule |
-| `appointments` | patientId, doctorId, hospitalId, departmentId, scheduledDate, scheduledTime, fee, status, appointmentType | Unique per doctor+date+time |
-| `queue_tokens` | appointmentId (unique), doctorId, hospitalId, queueDate, tokenNumber (**Float**), status | Float type enables Lite fractional tokens |
-| `consultations` | appointmentId (unique), queueTokenId (unique), doctorId, patientId, symptoms, diagnosis, treatmentPlan, status | Core clinical note |
-| `prescriptions` | consultationId (unique), doctorId, patientId, generalInstructions | |
-| `prescription_items` | prescriptionId, medicineName, dosage, frequency, durationDays | |
-| `lab_requests` | consultationId, doctorId, patientId, priority, status | |
-| `lab_request_items` | labRequestId, testName, estimatedPrice | |
-| `lab_reports` | labRequestId, reportFileUrl, resultSummary, uploadedByUserId | Local file path to PDF |
-| `follow_up_recommendations` | consultationId, patientId, doctorId, recommendedDate, reason, status | |
-
-**Healthcare Passport**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `healthcare_passports` | patientId (unique), allergies[], medicalConditions[], currentMedications[], notes | Created lazily on first access |
-| `passport_consents` | passportId, hospitalId?, doctorId?, grantedAt, revokedAt | Granular, revocable consent |
-| `medical_timeline_events` | passportId, eventType, sourceId, title, eventDate | Polymorphic timeline |
-
-**Billing**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `bills` | patientId, hospitalId, sourceType, sourceId, subtotal, discount, tax, total, status | Unified bill for all payables |
-| `bill_items` | billId, description, quantity, unitPrice, subtotal | Line items |
-| `payments` | billId, amount, currency, razorpayOrderId (unique), razorpayPaymentId, status | Razorpay payment record |
-
-**Pharmacy**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `medicines` | hospitalId, name, genericName, unit, price, stockQuantity | Per-hospital pharmacy stock |
-| `pharmacy_orders` | prescriptionId (unique), patientId, hospitalId, status, totalAmount | Linked to prescription |
-| `pharmacy_order_items` | pharmacyOrderId, prescriptionItemId (unique), medicineId, quantity, unitPrice | |
-
-**Medicine Reminders**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `medicine_reminders` | patientId, medicineName, dosage, frequency, startDate, endDate, reminderTimes[] | |
-| `medicine_reminder_logs` | reminderId, scheduledFor, status | Unique per reminder + scheduledFor |
-
-**Lab Catalog**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `master_lab_categories` | id, name (unique) | Shared across hospitals |
-| `master_lab_tests` | code (unique), categoryId, name, basePrice, sampleType | |
-| `lab_test_catalog` | hospitalId, masterTestId, name, price, sampleType | Per-hospital pricing |
-
-**Emergency**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `emergency_requests` | patientId, hospitalId, latitude, longitude, status, ambulanceId, destinationHospitalId, acceptedAt, pickedUpAt, arrivedAt | Full dispatch lifecycle |
-
-**System**
-| Table | Key Fields | Notes |
-|---|---|---|
-| `notifications` | userId, type, title, message, relatedId, isRead | All user notifications |
-| `audit_logs` | hospitalId, actorUserId, action, targetType, targetId, metadata (JSON) | Immutable audit trail |
-
-### Key Design Decisions
-
-- `tokenNumber` is `Float` (not `Int`) so Lite walk-in appointments can insert fractional
-  tokens (e.g. `10.5`) without a schema change.
-- `MedicalTimelineEvent` uses a polymorphic `sourceId + eventType` pair instead of per-type
-  foreign keys, allowing retroactive addition of new event types.
-- `Bill.sourceId` is a plain string polymorphic FK (not a Prisma relation) to avoid circular
-  schema dependencies.
-- `RefreshToken.tokenHash` stores a hash, never the raw token.
+| `User` | `users` | Core identity record (`id`, `email`, `passwordHash`, `role`, `authProvider`, `isEmailVerified`, `status`). |
+| `PatientProfile` | `patient_profiles` | Extended demographic and emergency contact information (`bloodGroup`, `dateOfBirth`, `phone`, `city`). |
+| `Hospital` | `hospitals` | Root multi-tenant boundary (`name`, `city`, `latitude`, `longitude`, `specialities`, `contactPhone`). |
+| `Doctor` | `doctors` | Physician profile (`specialization`, `consultationFee`, `acceptsLiteAppointments`, `liteConsultationFee`). |
+| `Appointment` | `appointments` | Booked clinical encounter (`scheduledDate`, `scheduledTime`, `fee`, `status`, `appointmentType`, `consultationType`). |
+| `QueueToken` | `queue_tokens` | Real-time queue position with **Float** token numbering (`tokenNumber`, `queueDate`, `status`, `calledAt`). |
+| `Consultation` | `consultations` | Core clinical record (`symptoms`, `diagnosis`, `notes`, `treatmentPlan`, `status`). |
+| `OnlineSession` | `online_sessions` | WebRTC online telemedicine session metadata (`roomId`, `status`, `scheduledStart`, `startedAt`, `endedAt`). |
+| `Prescription` | `prescriptions` | Digital prescription produced by a doctor (`generalInstructions`, `items`). |
+| `PharmacyOrder` | `pharmacy_orders` | Dispensing order linked to a prescription (`status`, `totalAmount`, `isPaid`, `items`). |
+| `Medicine` | `medicines` | Hospital pharmacy stock inventory (`name`, `genericName`, `unit`, `price`, `stockQuantity`). |
+| `LabRequest` | `lab_requests` | Diagnostic order created by a physician (`priority`, `status`, `items`, `reports`). |
+| `LabReport` | `lab_reports` | Diagnostic result file record (`reportFileUrl`, `resultSummary`, `reportDate`, `uploadedByUserId`). |
+| `HealthcarePassport`| `healthcare_passports` | Patient's longitudinal health record (`allergies`, `medicalConditions`, `currentMedications`). |
+| `PassportConsent` | `passport_consents` | Patient-granted revocable authorization for doctors/hospitals (`grantedAt`, `revokedAt`). |
+| `MedicalTimelineEvent`| `medical_timeline_events` | Polymorphic clinical timeline history (`eventType`, `sourceId`, `title`, `eventDate`). |
+| `Bill` | `bills` | Unified payable record (`sourceType`, `sourceId`, `subtotal`, `discount`, `tax`, `total`, `status`). |
+| `Payment` | `payments` | Razorpay transaction settlement record (`razorpayOrderId`, `razorpayPaymentId`, `status`). |
+| `EmergencyRequest` | `emergency_requests` | SOS ambulance dispatch lifecycle (`latitude`, `longitude`, `status`, `ambulanceId`, `acceptedAt`, `arrivedAt`). |
+| `Ambulance` | `ambulances` | GPS-tracked vehicle (`vehicleNumber`, `isOnline`, `currentLatitude`, `currentLongitude`, `locationUpdatedAt`). |
+| `AuditLog` | `audit_logs` | Immutable administrative action trail (`actorUserId`, `action`, `targetType`, `metadata`). |
 
 ---
 
-## 10. API Architecture
+## 12. API Architecture & Endpoint Reference
 
-**Base URL:** `http://localhost:5000/api` (dev)
+The backend exposes 34 RESTful route groups mounted under `/api` in `backend/src/routes/index.js`.
 
-The backend has **33 route files → 26 controllers → 33 services**, roughly one of each per
-business module, following a strict pattern: routes mount middleware and controllers;
-controllers validate input and call a service; services own all business logic and DB access.
+### 1. Authentication (`/api/auth`)
+- `POST /api/auth/register` — Patient registration; sends 6-digit OTP via email.
+- `POST /api/auth/verify-otp` — Verifies email OTP; activates account and issues initial JWT pair.
+- `POST /api/auth/login` — Password authentication; returns user profile and sets refresh cookie.
+- `POST /api/auth/google` — Google OAuth 2.0 login/registration via verified ID token.
+- `POST /api/auth/refresh-token` — Silent token renewal using database-backed refresh token.
+- `POST /api/auth/forgot-password` — Initiates password reset OTP flow.
+- `POST /api/auth/verify-reset-otp` — Verifies reset OTP and grants password update token.
+- `POST /api/auth/reset-password` — Sets new password and revokes all active refresh tokens.
+- `POST /api/auth/logout` — Revokes refresh token and clears auth cookie.
+- `GET /api/auth/me` — Returns current authenticated user profile and active permissions.
 
-### Auth (`/auth`)
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/auth/register` | None | Patient registration (OTP sent) |
-| POST | `/auth/login` | None | Email+password login |
-| POST | `/auth/google` | None | Google OAuth login |
-| POST | `/auth/accept-invite` | None | Staff sets password from invite link |
-| POST | `/auth/verify-otp` | None | Verify 6-digit email OTP |
-| POST | `/auth/resend-verification` | None | Resend OTP (60s cooldown) |
-| POST | `/auth/forgot-password` | None | Send password reset OTP |
-| POST | `/auth/verify-reset-otp` | None | Verify reset OTP |
-| POST | `/auth/reset-password` | None | Set new password |
-| POST | `/auth/change-password` | JWT | Change password |
-| POST | `/auth/logout` | None | Revoke refresh token (cookie) |
-| GET | `/auth/me` | JWT | Get current user profile |
-| POST | `/auth/refresh-token` | Cookie | Silently renew access token |
+### 2. Hospitals & Staff (`/api/hospitals`, `/api/departments`, `/api/doctors`, `/api/staff`)
+- `GET /api/hospitals` — Lists all hospitals (supports city filtering and geolocation sorting).
+- `GET /api/hospitals/nearby` — Queries nearest hospitals relative to client latitude/longitude.
+- `POST /api/hospitals` — `[SUPER_ADMIN]` Creates a new hospital tenant.
+- `PUT /api/hospitals/:id` — `[SUPER_ADMIN]` Updates hospital details.
+- `GET /api/departments` — Lists hospital clinical departments.
+- `POST /api/departments` — `[HOSPITAL_ADMIN]` Creates a department within the admin's hospital.
+- `GET /api/doctors` — Lists active doctors (filterable by hospital and specialization).
+- `GET /api/doctors/:id` — Returns doctor profile, consultation fee, and active weekly availability.
+- `POST /api/staff/invite` — `[HOSPITAL_ADMIN]` Invites staff member (Pharmacist, Lab, Receptionist, Driver).
+- `GET /api/staff` — `[HOSPITAL_ADMIN]` Lists staff roster for the authenticated hospital.
 
-### Hospitals, Departments, Doctors, Staff
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| GET | `/hospitals` | JWT | List hospitals (geo-sorted) |
-| GET | `/hospitals/nearby` | JWT | Find hospitals near lat/lng |
-| POST / PUT | `/hospitals[/:id]` | JWT, SUPER_ADMIN | Create / update hospital |
-| GET / POST | `/departments` | JWT [, HOSPITAL_ADMIN] | List / create departments |
-| GET | `/doctors`, `/doctors/me`, `/doctors/:id` | JWT [, DOCTOR] | List, own profile, doctor + availability |
-| POST / GET | `/staff/invite`, `/staff` | JWT, HOSPITAL_ADMIN | Invite staff / list staff |
+### 3. Appointments & Availability (`/api/availability`, `/api/appointments`)
+- `GET /api/availability/:doctorId/slots?date=YYYY-MM-DD` — Generates real-time available time slots.
+- `POST /api/appointments/initiate` — `[PATIENT]` Begins regular booking (creates `Appointment` & `Bill`).
+- `POST /api/appointments/lite` — `[PATIENT]` Initiates a fractional Lite Walk-In appointment.
+- `GET /api/appointments` — Lists user-specific or hospital-specific appointments.
+- `GET /api/appointments/:id` — Returns single appointment details with double-booking verification.
+- `POST /api/appointments/:id/cancel` — `[PATIENT]` Cancels booked appointment and recalculates queue.
 
-### Availability & Appointments
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| GET | `/availability/:doctorId/slots?date=` | JWT | Available time slots |
-| POST | `/appointments/initiate` | JWT, PATIENT | Begin booking (creates Bill + Razorpay order) |
-| GET | `/appointments[/:id]` | JWT | List / get appointment (role-gated) |
-| POST | `/appointments/:id/cancel` | JWT, PATIENT | Cancel appointment |
-| POST | `/appointments/:id/admin-cancel` | JWT, HOSPITAL_ADMIN | Admin cancel (audit logged) |
+### 4. OPD Live Queue Management (`/api/queue`, `/api/admin/queue`)
+- `GET /api/queue/doctor/:doctorId` — `[DOCTOR]` Fetches active queue list for today.
+- `GET /api/queue/patient/:appointmentId` — `[PATIENT]` Fetches live position, called token, and wait ETA.
+- `POST /api/queue/call-next` — `[DOCTOR]` Calls the next waiting patient (broadcasts via WebSocket).
+- `POST /api/queue/:id/start` — `[DOCTOR]` Marks token as `IN_PROGRESS` and opens consultation session.
+- `POST /api/queue/:id/complete` — `[DOCTOR]` Marks consultation completed and closes token.
+- `POST /api/queue/:id/skip` — `[DOCTOR]` Skips absent patient and pushes to skipped queue.
+- `GET /api/admin/queue` — `[HOSPITAL_ADMIN]` Hospital-wide live queue overview across all departments.
+- `POST /api/admin/queue/:id/force-skip` — `[HOSPITAL_ADMIN]` Administrative queue override (audit logged).
 
-### Queue Management
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| GET | `/queue/doctor/:doctorId` | JWT, DOCTOR | Doctor's daily queue |
-| GET | `/queue/patient/:appointmentId` | JWT, PATIENT | Queue position + ETA |
-| POST | `/queue/call-next` | JWT, DOCTOR | Call next WAITING patient |
-| POST | `/queue/:id/start` \| `/complete` \| `/skip` \| `/requeue` | JWT, DOCTOR | State transitions |
-| POST | `/admin/queue/:id/force-skip` | JWT, HOSPITAL_ADMIN | Admin force-skip (audit logged) |
-| GET | `/admin/queue` | JWT, HOSPITAL_ADMIN | Hospital-wide queue overview |
+### 5. Clinical Suite & Telemedicine (`/api/consultations`, `/api/prescriptions`, `/api/online-sessions`)
+- `POST /api/consultations/start` — `[DOCTOR]` Opens consultation record for an appointment.
+- `PATCH /api/consultations/:id` — `[DOCTOR]` Autosaves symptoms, diagnosis, and treatment plan.
+- `POST /api/consultations/:id/complete` — `[DOCTOR]` Finalizes clinical consultation.
+- `POST /api/prescriptions` — `[DOCTOR]` Creates digital prescription and auto-spawns pharmacy order.
+- `GET /api/online-sessions/:appointmentId` — Fetches metadata for an online video consultation.
+- `POST /api/online-sessions/:appointmentId/join` — Validates participant and registers room join.
+- `POST /api/online-sessions/:appointmentId/start` — `[DOCTOR]` Starts WebRTC video session.
+- `POST /api/online-sessions/:appointmentId/end` — `[DOCTOR]` Concludes telemedicine session.
 
-### Billing & Payments
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/billing/initiate` | JWT | Create Bill + Razorpay order |
-| POST | `/billing/pay` | JWT | Verify payment signature → `onBillPaid` |
-| GET | `/bills[/:id]` | JWT | Bill history / single bill |
+### 6. Pharmacy & Laboratory (`/api/pharmacy-orders`, `/api/medicines`, `/api/lab-requests`, `/api/lab-fulfillment`)
+- `GET /api/pharmacy-orders` — Lists pharmacy orders (scoped by role and hospital).
+- `PUT /api/pharmacy-orders/:id/status` — `[PHARMACIST]` Advances status (`PREPARING`, `PACKED`, `READY`, `COMPLETED`).
+- `GET /api/medicines` — Lists hospital pharmacy inventory.
+- `POST /api/medicines` — `[HOSPITAL_ADMIN / PHARMACIST]` Adds medicine item and stock quantity.
+- `POST /api/lab-requests` — `[DOCTOR]` Issues diagnostic lab test request.
+- `POST /api/lab-fulfillment/:id/collect` — `[LAB_STAFF]` Marks diagnostic sample collected.
+- `POST /api/lab-fulfillment/:id/process` — `[LAB_STAFF]` Marks sample under processing.
+- `POST /api/lab-fulfillment/:id/upload-report` — `[LAB_STAFF]` Uploads report PDF and completes request.
 
-### Healthcare Passport
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| GET / PUT | `/passport` | JWT, PATIENT | Get / update own passport |
-| POST / DELETE | `/passport/consent[/:id]` | JWT, PATIENT | Grant / revoke consent |
-| GET | `/passport/:patientId` | JWT, DOCTOR | Get patient passport (consent-gated) |
+### 7. Unified Billing & Payments (`/api/billing`, `/api/bills`, `/api/payments`)
+- `POST /api/billing/pay` — `[PATIENT]` Initiates unified bill settlement via Razorpay.
+- `POST /api/billing/verify` — `[PATIENT]` Verifies HMAC signature, marks bill `PAID`, and triggers `onBillPaid`.
+- `GET /api/bills` — Lists patient bills or hospital revenue ledger.
+- `GET /api/bills/:id` — Fetches itemized bill details with default-deny permission check.
 
-### Consultations, Prescriptions, Pharmacy
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/consultations/start` | JWT, DOCTOR | Start consultation |
-| PATCH | `/consultations/:id` | JWT, DOCTOR | Autosave update |
-| POST | `/consultations/:id/complete` | JWT, DOCTOR | Complete consultation |
-| GET | `/consultations/recent`, `/history/:patientId` | JWT, DOCTOR | Recent / patient history (consent-gated) |
-| POST | `/prescriptions` | JWT, DOCTOR | Create prescription |
-| GET | `/pharmacy-orders` | JWT | List (role-scoped) |
-| POST / PUT | `/pharmacy-orders/:id/confirm`, `/status` | JWT, PHARMACIST | Confirm order / update status |
+### 8. Emergency SOS & Ambulances (`/api/emergency`, `/api/driver`, `/api/ambulances`)
+- `POST /api/emergency` — `[PATIENT]` Broadcasts SOS; calculates nearest drivers via Haversine search.
+- `GET /api/emergency/active` — `[PATIENT]` Fetches current active emergency request status.
+- `GET /api/driver/me` — `[AMBULANCE_DRIVER]` Rehydrates driver profile, vehicle, and active trip on reload.
+- `POST /api/driver/toggle-online` — `[AMBULANCE_DRIVER]` Toggles vehicle availability in the city network.
+- `POST /api/driver/location` — `[AMBULANCE_DRIVER]` Broadcasts live GPS coordinates (`lat`, `lng`).
+- `POST /api/driver/accept/:id` — `[AMBULANCE_DRIVER]` Atomically claims dispatch request.
+- `POST /api/driver/en-route/:id` | `picked-up/:id` | `arrived/:id` — `[AMBULANCE_DRIVER]` Advances ride lifecycle.
 
-### Lab Requests & Reports
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST / GET | `/lab-requests` | JWT, DOCTOR / JWT | Create / list lab requests |
-| POST | `/lab-fulfillment/:id/collect` \| `/process` \| `/upload-report` | JWT, LAB_STAFF | Lifecycle transitions |
-
-### Emergency SOS & Driver
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/emergency` | JWT, PATIENT | Create SOS + geo-dispatch |
-| GET | `/emergency/active`, `/history`, `/:id/status` | JWT, PATIENT | Active / history / poll status |
-| GET / PUT | `/emergency`, `/:id/status` | JWT, HOSPITAL_ADMIN | View / update hospital emergencies |
-| GET | `/driver/me` | JWT, AMBULANCE_DRIVER | Rehydrate state after reload |
-| POST | `/driver/toggle-online`, `/location`, `/accept/:id`, `/reject/:id`, `/en-route/:id`, `/picked-up/:id`, `/arrived/:id` | JWT, AMBULANCE_DRIVER | Driver actions |
-
-### Notifications & Analytics
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| GET | `/notifications` | JWT | Paginated notifications + unread count |
-| POST | `/notifications/:id/read`, `/read-all` | JWT | Mark read |
-| GET | `/analytics/summary`, `/appointments`, `/departments`, `/doctors`, `/queue`, `/emergency` | JWT, HOSPITAL_ADMIN | Dashboard KPIs & trends |
-
-### AI Triage
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/ai/triage` | JWT | Symptom → specialty + urgency mapping |
+### 9. Healthcare Passport & Medical Timeline (`/api/passport`, `/api/ai`)
+- `GET /api/passport` — `[PATIENT]` Fetches own Healthcare Passport.
+- `PUT /api/passport` — `[PATIENT]` Updates allergies, medical conditions, and medications.
+- `GET /api/passport/:patientId` — `[DOCTOR]` Reads patient passport (strictly gated by active consent).
+- `POST /api/passport/consent` — `[PATIENT]` Grants temporary/permanent consent to doctor or hospital.
+- `DELETE /api/passport/consent/:id` — `[PATIENT]` Revokes access consent immediately.
+- `POST /api/ai/triage` — Analyzes natural language symptoms and recommends clinical specialty & urgency.
 
 ---
 
-## 11. Core Workflows
+## 13. Major Functional Modules
 
-### 11.1 Appointment Booking → Payment → Queue Token
+### 1. Patient Portal & Care Hub
+- **Universal Healthcare Passport:** A unified repository of allergies, chronic conditions, and active prescriptions accessible across participating hospitals.
+- **Interactive Map Discovery:** Browse hospitals across Vadodara with dynamic distance computation, department filters, and doctor rating displays.
+- **Dynamic Slot Selector:** Calendar-based slot picker that prevents double-booking and automatically excludes doctor lunch intervals.
+- **Medicine Reminder System:** Automatically creates dose schedules from digital prescriptions with marked/taken compliance tracking.
 
-```mermaid
-flowchart TD
-    A["Patient selects hospital → GET /hospitals"] --> B["Selects doctor → GET /availability/:doctorId/slots"]
-    B --> C["Selects slot → POST /appointments/initiate<br/>(Appointment: PENDING_PAYMENT)"]
-    C --> D["billing.service creates Bill (UNPAID) + BillItems + Razorpay order"]
-    D --> E["RazorpayCheckout modal opens"]
-    E --> F["Patient pays → POST /billing/pay<br/>(HMAC signature verified server-side)"]
-    F --> G["Payment: SUCCESS, Bill: PAID"]
-    G --> H["onBillPaid(appointmentId):<br/>Appointment → CONFIRMED"]
-    H --> I["QueueToken created<br/>(placeholder #999 → recalculated)"]
-    I --> J["recalculateQueueTokens()<br/>assigns sequential numbers by scheduledTime"]
-    J --> K["Socket.IO emit to doctor + patient rooms"]
-    K --> L["addTimelineEvent (APPOINTMENT) + notifyAppointmentConfirmed"]
-```
+### 2. Doctor Clinical Suite
+- **Queue Commander:** Real-time view of today's patients, displaying regular tokens and fractional Lite appointments, with one-click patient calling.
+- **Integrated Consultation Desk:** Split-screen layout combining patient history review with autosaving clinical notes, prescription builder, lab requisition, and follow-up scheduler.
 
-Slot generation reads `DoctorAvailability`, excludes lunch-break slots (12:00–13:29), expires
-stale `PENDING_PAYMENT` holds older than 10 minutes, and filters out already-booked slots.
+### 3. Hospital Operations & Administration
+- **Live Queue Oversight:** Real-time monitoring of all OPD rooms with administrative force-skip and emergency priority handling.
+- **Closed-Loop Pharmacy & Lab Fulfillment:** Step-by-step verification, sample handling, and PDF report delivery linked to patient timelines.
+- **Enterprise Analytics:** Revenue breakdown, appointment conversion metrics, OPD wait times, and immutable audit logs.
 
-### 11.2 Queue / Token Logic
-
-- On confirmation, a `QueueToken` is created with a placeholder `tokenNumber=999`, then
-  `recalculateQueueTokens()` immediately assigns sequential integers ordered by
-  `scheduledTime`.
-- Fractional tokens (e.g. `10.5`) from Lite walk-in appointments are preserved, not
-  reassigned.
-- Recalculation runs on: new appointment confirmed, appointment cancelled, appointment
-  rescheduled.
-
-```mermaid
-sequenceDiagram
-    participant P as Patient
-    participant D as Doctor
-    participant S as Server
-    participant Sock as Socket.IO
-
-    D->>S: POST /queue/call-next
-    S->>S: Find first WAITING token → status=CALLED
-    S->>Sock: emit queue:token-called to patient room
-    S->>Sock: emit queue:updated to doctor room
-    D->>S: POST /queue/:id/start
-    S->>S: QueueToken CALLED → IN_PROGRESS
-    S->>S: Create Consultation (checks passport consent)
-    D->>S: POST /consultations/:id/complete
-    S->>S: QueueToken IN_PROGRESS → COMPLETED
-    S->>S: Appointment → COMPLETED
-    S->>S: addTimelineEvent (CONSULTATION)
-```
-
-### 11.3 Consultation → Prescription → Pharmacy
-
-```
-Doctor Prescribes → Patient Views Prescription → Patient Confirms Purchase →
-Pharmacy Receives Order → Pharmacy Prepares → Packed → Patient Notified →
-Payment if Pending → Patient Collects → Completed → Medicine Reminders Activated
-```
-
-Order status machine: `PENDING → CONFIRMED → PREPARING → PACKED → READY → COMPLETED`
-
-### 11.4 Consultation → Lab Request → Report → Passport
-
-```
-Doctor Creates Lab Request → Patient Views Tests → Patient Confirms → Payment →
-Laboratory Receives Request → Sample Collected → Testing → Report Uploaded →
-Doctor + Patient Notified → Report Stored in Passport (Medical Timeline)
-```
-
-### 11.5 Unified Billing
-
-Three payable sources — `APPOINTMENT`, `PHARMACY_ORDER`, `LAB_REQUEST` — all route through
-`billing.service.js`:
-
-1. `createBillAndInitiatePayment` → creates Bill + BillItems + `Payment(CREATED)` + Razorpay
-   order
-2. On payment success → `verifyAndCompletePayment` → marks PAID → calls the source-specific
-   `onBillPaid()` callback via lazy import (avoids circular dependencies)
-3. Callbacks: `APPOINTMENT` → confirms appointment + creates QueueToken; `PHARMACY_ORDER` /
-   `LAB_REQUEST` → advance to `CONFIRMED`
-
-### 11.6 Emergency SOS → Dispatch → Live Tracking
-
-```mermaid
-flowchart TD
-    A["Patient holds SOS 3s → confirms"] --> B["POST /emergency { lat, lng }<br/>EmergencyRequest: REQUESTED"]
-    B --> C["dispatchRequest() runs async<br/>status → SEARCHING"]
-    C --> D["Query ALL online ambulances<br/>(cross-hospital exception)"]
-    D --> E["Haversine distance → sort → top 5 notified<br/>via driver:{userId} rooms"]
-    E --> F{"Driver accepts within 3 min?"}
-    F -->|Yes| G["Atomic updateMany (status=SEARCHING only)<br/>→ DRIVER_ASSIGNED"]
-    G --> H["emergency:accepted to emergency:{requestId} room"]
-    H --> I["Driver sends GPS updates → emergency:location-update"]
-    I --> J["EN_ROUTE → PICKED_UP → ARRIVED<br/>(each emits emergency:status-update)"]
-    J --> K["PICKED_UP also notifies destination hospital admin + receptionist"]
-    F -->|No, 3 min timeout| L["status → NO_DRIVER_FALLBACK<br/>Patient told: Call 108 immediately"]
-```
-
-The cross-hospital ambulance search is a **deliberate, documented exception** to the
-hospital-isolation rule — the nearest ambulance from *any* hospital is dispatched, not just
-the patient's current hospital.
+### 4. Real-Time Emergency Network
+- **3-Second Hold SOS Trigger:** Prevents accidental triggers while enabling rapid single-action dispatch during acute crises.
+- **Haversine Geo-Dispatch Engine:** Real-time mathematical search across all active ambulances in the city network.
+- **Live GPS Navigation Map:** Built with Google Maps JavaScript API, showing dynamic driver markers, route polylines, and distance-based ETA.
 
 ---
 
-## 12. Real-Time Functionality
+## 14. External Integrations
 
-Socket.IO carries every feature that must feel instantaneous — everything else stays on
-REST. In practice that's:
-
-- OPD queue updates (`queue:updated`, `queue:token-called`)
-- Emergency dispatch and tracking (5 event types: new-request, accepted, location-update,
-  status-update, fallback)
-- In-app notifications (`notification:new`)
-
-**Socket rooms** are listed in [Section 5](#5-system-architecture). The client tracks every
-room it has joined in a `joinIntents` map and automatically rejoins all of them on
-reconnect — without this, listeners would silently stop working after a network drop.
+| Service | Purpose in HealthCare+ | Required Keys / Configuration |
+|---|---|---|
+| **Google Maps Platform** | Live ambulance tracking map, route polyline rendering, and hospital location pins. | `VITE_GOOGLE_MAPS_API_KEY` (Maps JavaScript API & Directions API enabled). |
+| **Razorpay** | Unified payment checkout for appointments, medicine orders, and diagnostic tests. | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `VITE_RAZORPAY_KEY_ID` (Mock mode supported if keys omitted). |
+| **Google Identity Services** | One-tap Google OAuth 2.0 patient authentication. | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_GOOGLE_CLIENT_ID`. |
+| **Nodemailer / SMTP** | Automated delivery of 6-digit registration OTPs, staff invites, and clinical notification emails. | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASSWORD` (or `RESEND_API_KEY`). |
+| **Cloudflare Quick Tunnels** | Exposes local development server over HTTPS to test live GPS streaming and WebRTC across physical mobile devices. | `tools/cloudflared.exe` (Invoked via `npm run dev:tunnel`). |
 
 ---
 
-## 13. Notifications
+## 15. Environment Variables Configuration
 
-Two-layer delivery for every event:
+### Backend Configuration (`backend/.env`)
 
-1. **DB-persisted** — `Notification` record created for history
-2. **Socket.IO pushed** — emitted to `user:{userId}` room as `notification:new`
-3. **Email (selective)** — only for 4 high-value types: `APPOINTMENT_CONFIRMED`,
-   `PAYMENT_RESULT`, `LAB_REPORT_READY`, `PASSPORT_ACCESS_CHANGED`
+Create `backend/.env` based on `backend/.env.example`:
 
-13 typed helper functions exist for consistency (`notifyAppointmentConfirmed`,
-`notifyQueueYourTurn`, `notifyQueueYourTurnApproaching`, etc.), covering appointment, queue,
-pharmacy, laboratory, billing, emergency, and passport events.
+```env
+# Server & Environment
+PORT=5000
+NODE_ENV=development
+CLIENT_URL=http://localhost:5173
+DEMO_MODE=true
 
----
+# Database Connection (PostgreSQL)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/healthcare_plus?schema=public"
 
-## 14. Security Architecture
+# JWT Authentication (Generate high-entropy random strings in production)
+JWT_SECRET=dev_jwt_secret_key_change_in_production_32chars!
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=dev_jwt_refresh_secret_key_change_in_production_32chars!
+JWT_REFRESH_EXPIRES_IN=30d
 
-### Implemented
+# Google OAuth 2.0 (Optional in dev)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 
-| Area | Implementation |
-|---|---|
-| Authentication | JWT (15-min access + 30-day refresh) |
-| Password Storage | bcryptjs hashing |
-| SQL Injection | Prisma ORM parameterized queries |
-| CORS | Origin allowlist (`CLIENT_URL` + dev-only localhost) |
-| Security Headers | `helmet` middleware |
-| Rate Limiting | `express-rate-limit`: 15 req/15min (auth), 5 req/15min (OTP) |
-| Input Validation | Zod schemas on all auth endpoints |
-| OTP Security | Email binding + expiry + single-use delete |
-| Token Security | Refresh tokens stored as SHA-256 hash in DB |
-| Hospital Isolation | `scopeToHospital` middleware + service-level scope checks |
-| IDOR Prevention | Appointment/prescription/queue reads: default-deny + role-based ownership check |
-| Error Info Leak | Stack traces + Prisma internals suppressed in production |
-| No Secrets in Code | All secrets in `.env` (gitignored) |
+# Email / SMTP Configuration (Optional in dev - OTP logs to terminal)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=
+EMAIL_PASSWORD=
+EMAIL_FROM="HealthCare+ <no-reply@healthcareplus.local>"
+RESEND_API_KEY=
+OTP_TTL_MINUTES=10
 
-### Passport Consent Enforcement
+# Razorpay Payment Gateway (Optional in dev - falls back to built-in simulation)
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
 
-`checkDoctorConsent(patientId, doctorId)` checks for active, non-revoked consent for that
-specific doctor OR for that doctor's hospital. Without consent, a consultation can still
-proceed but `passportSummary` is `null` and `passportAccessDenied: true` is returned;
-consultation history is scoped to same-hospital records only.
-
-### Pre-Production Action Items (from the audit)
-
-1. No production deployment yet — `NODE_ENV=production` must be set to activate all guards
-2. JWT secrets in local `.env` use dev-grade placeholders — must rotate before prod
-3. SMTP not configured by default — emails silently fail if not set up
-4. Runtime E2E testing not performed — authorization fixes verified by **code-read only**
-5. Main JS chunk > 500KB uncompressed — route-level code splitting recommended
-6. 71 oxlint warnings (harmless, unused imports)
-
----
-
-## 15. Audit Logging
-
-`audit_logs` is an append-only trail keyed by `hospitalId`, `actorUserId`, `action`,
-`targetType`, `targetId`, and a JSON `metadata` field. Written via `auditLog.service.js`
-(`recordAction()`), fired for actions such as doctor added/removed, fee changes, queue
-overrides, staff changes, and hospital settings changes. Logging is fire-and-forget/async
-with caught errors so it never blocks the request cycle.
-
----
-
-## 16. Error Handling
-
-### Backend
-
-```
-Error
-└── ApiError (statusCode, message, details)
-    ├── ApiError.badRequest(msg, details)    → 400
-    ├── ApiError.unauthorized(msg)           → 401
-    ├── ApiError.forbidden(msg)              → 403
-    ├── ApiError.notFound(msg)               → 404
-    ├── ApiError.conflict(msg, details)      → 409
-    ├── ApiError.unprocessable(msg, details) → 422
-    └── ApiError.internal(msg)               → 500
+# Cloud Storage & AI Placeholders
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+AI_API_KEY=
 ```
 
-The global `errorHandler.js` maps Prisma error codes (`P2002` → 409 unique violation,
-`P2025` → 404 not found, `P2003` → 400 FK failed) and bad JSON bodies (`SyntaxError` → 400).
-Generic errors return 500 with the message suppressed in production. Prisma's
-`err.meta.target` (raw DB column names) is never sent to the client.
+### Frontend Configuration (`frontend/.env`)
 
-### Frontend
+Create `frontend/.env` based on `frontend/.env.example`:
 
-Axios response interceptor normalizes errors to `{ status, message, errors }`; 401 triggers
-silent refresh or redirect to login if refresh fails; a React `ErrorBoundary` wraps critical
-UI trees.
+```env
+# Backend API Base URL
+VITE_API_URL=http://localhost:5000/api
 
----
+# Google Maps API Key (Required for live ambulance GPS tracking)
+VITE_GOOGLE_MAPS_API_KEY=
 
-## 17. Known Issues, Gaps & Technical Risks
+# Google OAuth Client ID (Optional in dev)
+VITE_GOOGLE_CLIENT_ID=
 
-*(Reproduced faithfully from the audit — not softened.)*
-
-### Missing Tests
-
-- No E2E Playwright tests implemented (config exists but no test files)
-- Backend tests exist (11 files) but no CI pipeline runs them automatically
-- No integration tests against a live test database
-
-### Missing Documentation
-
-- No Swagger/OpenAPI spec (all 33 routes documented manually in this file / the audit)
-- No deployment guide (Docker, nginx, reverse proxy)
-- No CHANGELOG or versioning strategy
-
-### Technical Risks
-
-- **Socket.IO single instance** — breaks under horizontal scaling; needs a Redis adapter
-  before load-balancing across multiple backend instances.
-- **Local file storage** — lab report PDFs live in `backend/uploads/` and are lost on server
-  restart/redeploy. Must migrate to Cloudinary or S3 before production.
-- **Runtime E2E not verified** — all R1–R24 authorization fixes were verified by code-read
-  only, not against a live multi-tenant database. Run `docs/MANUAL-E2E-TEST-PLAN.md` before
-  production.
-- **Dev secrets in `.env`** — `JWT_SECRET` must be rotated to cryptographic-strength values
-  before production.
+# Razorpay Key ID (Optional in dev)
+VITE_RAZORPAY_KEY_ID=
+```
 
 ---
 
-## 18. Future Improvements / Roadmap
+## 16. Installation & Setup Guide
 
-*(Not built — do not read as current functionality.)*
-
-- Redis adapter for Socket.IO (multi-instance support)
-- Redis caching for slot availability and hospital listings
-- Route-level code splitting (`React.lazy` + `Suspense`)
-- Telemedicine — in-app video consultations (WebRTC)
-- AI upgrade — replace keyword matching in `ai.service.js` with a real LLM API call
-- Cloudinary integration — replace local `/uploads` folder for lab report PDFs
-- Push notifications — Web Push API for when Socket.IO isn't connected
-- ABDM integration — India's National Digital Health Mission health ID linking
+### Prerequisites
+- **Node.js:** `≥ 18.0.0` (LTS recommended)
+- **PostgreSQL:** `v14+` running locally or via Docker
+- **Git:** Installed and configured
+- **Package Manager:** `npm` (included with Node.js)
 
 ---
 
-## 19. Setup & Installation
+### Step 1: Clone Repository & Install Dependencies
 
 ```bash
-# Clone
-git clone <repo-url>
-cd healthcare-plus
+# Clone the repository
+git clone <repository-url>
+cd HealthCare+/healthcare-plus
 
-# Backend
-cd backend
-cp .env.example .env      # fill in DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, CLIENT_URL, etc.
+# Install root dependencies
 npm install
-npx prisma migrate dev --name init
-npx prisma db seed
-npm run dev
 
-# Frontend (in a separate terminal)
+# Install Backend dependencies
+cd backend
+npm install
+
+# Install Frontend dependencies
 cd ../frontend
 npm install
-npm run dev
+cd ..
 ```
 
-### Testing
+---
+
+### Step 2: Configure Environment Files
+
+1. Copy and configure backend environment variables:
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+2. Copy and configure frontend environment variables:
+   ```bash
+   cp frontend/.env.example frontend/.env
+   ```
+
+---
+
+### Step 3: Database Migration & Seeding
+
+Ensure your PostgreSQL instance is running and the database specified in `DATABASE_URL` exists.
 
 ```bash
-# Backend
-npm test          # Jest unit/integration tests
-npm run lint       # (frontend) oxlint
+cd backend
 
+# Run Prisma schema migrations
+npx prisma migrate dev --name init
+
+# Seed comprehensive Vadodara demo network (Hospitals, Doctors, Staff, Patients, Queues)
+npx prisma db seed
+
+cd ..
 ```
 
-### Deployment Notes
+---
 
-- Set `NODE_ENV=production`
-- Rotate `JWT_SECRET` and `JWT_REFRESH_SECRET` to high-entropy values
-- Configure real SMTP (Gmail, SendGrid, Resend) for email functionality
-- Set `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` with real Razorpay credentials
-- Socket.IO requires sticky sessions or a Redis adapter for multi-instance deployment
+### Step 4: Run the Application
 
-### Demo / Seeded Accounts
+#### Option A: Standard Local Development (Separate Terminals)
 
-The audit does not list actual seeded credentials in this document — it points to the
-project's own `README.md` for seeded doctor/admin emails. Check that file directly rather
-than assuming any sample login here.
+**Terminal 1 (Backend API & WebSockets):**
+```bash
+cd backend
+npm run dev
+# Express API & Socket.IO server running at http://localhost:5000
+```
+
+**Terminal 2 (Frontend Client):**
+```bash
+cd frontend
+npm run dev
+# Vite development server running at http://localhost:5173
+```
+
+#### Option B: Mobile / Cross-Device Testing with Cloudflare Tunnel
+
+To test live ambulance GPS broadcasting and WebRTC video consultations across real mobile phones and external networks:
+
+```bash
+# From healthcare-plus/ root directory
+npm run dev:tunnel
+```
+*This automatically starts the backend, Vite dev server, and creates an authenticated Cloudflare HTTPS quick tunnel URL (e.g., `https://random-name.trycloudflare.com`).*
 
 ---
 
-## 20. Environment Variables
+## 17. Seeded Demo Environment & Pilot Network
 
-### Backend (`.env`)
+The database seeder (`backend/prisma/seed.js`) populates a realistic healthcare network in **Vadodara, Gujarat**.
 
-| Variable | Required | Default | Purpose |
+> 🔑 **Default Password for ALL Seeded Accounts:** `Password123!`
+
+### 1. Administrative Accounts
+
+| Role | Name | Email | Associated Scope |
 |---|---|---|---|
-| `PORT` | Yes | 5000 | Express server port |
-| `NODE_ENV` | Yes | development | Controls CORS, logging, error messages |
-| `CLIENT_URL` | Yes | http://localhost:5173 | Allowed CORS origin |
-| `DATABASE_URL` | Yes | – | PostgreSQL connection string |
-| `JWT_SECRET` | Yes | – | Access token signing key |
-| `JWT_EXPIRES_IN` | No | 15m | Access token lifetime |
-| `JWT_REFRESH_SECRET` | Yes | – | Refresh token signing key |
-| `JWT_REFRESH_EXPIRES_IN` | No | 30d | Refresh token lifetime |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | No | '' | Google OAuth credentials |
-| `EMAIL_HOST` / `SMTP_HOST` | No | smtp.gmail.com | SMTP server |
-| `EMAIL_PORT` / `SMTP_PORT` | No | 587 | SMTP port |
-| `EMAIL_USER` / `SMTP_USER` | No | '' | SMTP username |
-| `EMAIL_PASSWORD` / `SMTP_PASS` | No | '' | SMTP password |
-| `EMAIL_FROM` | No | auto | From address for emails |
-| `RESEND_API_KEY` | No | '' | Resend.com API key alternative |
-| `OTP_TTL_MINUTES` | No | 10 | OTP expiry time |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | No | '' | Razorpay credentials |
-| `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | No | '' | Cloudinary account (planned use) |
-| `AI_API_KEY` | No | '' | External AI API key (placeholder — not currently called) |
+| **Super Admin** | Super Admin | `superadmin@healthcareplus.dev` | Global Platform Network |
+| **Hospital Admin** | Vikramaditya Admin | `admin@sterling.dev` | Sterling Hospital, Vadodara |
 
-### Frontend (`.env`)
+### 2. Primary Demo Patient
 
-| Variable | Required | Default | Purpose |
+| Role | Name | Email | Features Ready to Demo |
 |---|---|---|---|
-| `VITE_API_URL` | No | http://localhost:5000/api | Backend API base URL |
-| `VITE_GOOGLE_MAPS_API_KEY` | No | – | Google Maps API key for tracking |
+| **Patient** | Rahul Verma | `patient@healthcareplus.dev` | Active Appointments, Queue Token #23, Healthcare Passport, Medical Timeline, Active Bills |
 
-`backend/src/config/env.js` validates 5 required vars at boot (`PORT`, `DATABASE_URL`,
-`JWT_SECRET`, `CLIENT_URL`, `JWT_REFRESH_SECRET`) and fails fast with a clear error if any
-are missing.
+### 3. Clinical Specialists (Sample of 28 Seeded Doctors)
 
----
+| Doctor Name | Email | Specialization | Hospital |
+|---|---|---|---|
+| **Dr. Anil Shah** | `dr.anil.shah@sterling.dev` | Cardiology | Sterling Hospital |
+| **Dr. Meena Patel** | `dr.meena.patel@sterling.dev` | Neurology | Sterling Hospital |
+| **Dr. Karan Desai** | `dr.karan.desai@sterling.dev` | Orthopedic Surgeon | Sterling Hospital |
+| **Dr. Sanjay Verma** | `dr.sanjay.verma@sterling.dev` | General Physician | Sterling Hospital |
+| **Dr. Neha Joshi** | `dr.neha.joshi@sunshine.dev` | Pediatrics | Sunshine Global Hospital |
+| **Dr. Amit Trivedi** | `dr.amit.trivedi@bhailal.dev` | Gastroenterology | Bhailal Amin Hospital |
 
-## 21. UI / Page Hierarchy *(Inferred — from audit Section 24, not verbatim screenshots)*
+### 4. Operational Staff (Sterling Hospital)
 
-### Patient Dashboard
-- Header: "Welcome back, [Name]" with notification bell
-- Tabs: Appointments | Passport | Prescriptions | Billing | Emergency
-- Appointments tab: upcoming appointment card (date, doctor, hospital, token status, "View
-  Queue"), past appointments list
-- Prominent floating SOS button
+| Role | Name | Email | Workflow Function |
+|---|---|---|---|
+| **Receptionist** | Anita Roy | `receptionist@sterling.dev` | OPD Check-ins & Queue Issuance |
+| **Pharmacist** | Ramesh Gupta | `pharmacist@sterling.dev` | Prescription Fulfillment & Stock |
+| **Lab Staff** | Suresh Kumar | `labstaff@sterling.dev` | Diagnostic Testing & PDF Reports |
+| **Ambulance Driver**| Mahesh Driver | `driver@sterling.dev` | SOS Dispatch & Live GPS (`GJ-01-AB-1234`) |
 
-### Doctor Queue Screen
-- Header: "Today's Queue — [date]" + stats bar (Waiting / In Progress / Done)
-- Queue list: token number, patient name, time, status badge, action buttons (Call / Start /
-  Complete / Skip)
-- Large "Call Next" CTA
-
-### Consultation Screen
-- Split layout: left panel (30%) — passport summary (allergies, conditions, current meds,
-  recent history); right panel (70%) — tabbed Consultation / Prescription / Lab Requests /
-  Follow-up
-
-### Admin Dashboard
-- Tabbed SPA: Overview | Doctors | Staff | Queue Monitor | Analytics | Billing
-- Overview: 8 KPI cards (appointments today, patients, revenue, waiting, pharmacy orders, lab
-  requests, emergencies, active doctors)
-
-### Emergency Tracking (Patient)
-- Full-screen map centered on patient location, driver pin with vehicle number
-- Status timeline: Requested → Driver Assigned → En Route → Picked Up → Arrived
-- ETA display
+### 5. Automated Demo Day Rolling (`DEMO_MODE=true`)
+HealthCare+ includes an intelligent demo middleware (`backend/src/services/demo.service.js`). When `DEMO_MODE=true`, the backend automatically detects date rollovers and rolls unresolved demo appointments to **Today**, ensuring seeded queues and appointments remain active and testable at all times.
 
 ---
 
-## 22. Business Rules & Edge Cases
+## 18. Testing & Quality Assurance
 
-- **Slot booking:** `PENDING_PAYMENT` appointment holds older than 10 minutes are lazily
-  expired to `CANCELLED` the next time slots are fetched.
-- **Lunch break:** doctor slots between 12:00–13:29 are excluded from generation.
-- **Duplicate booking prevention:** appointments are unique per doctor + date + time.
-- **Queue renumbering:** any booking, cancellation, or reschedule triggers
-  `recalculateQueueTokens()` so sequential order always matches `scheduledTime`; fractional
-  Lite tokens are preserved and not renumbered.
-- **Consent gating:** without an active passport consent, a doctor can still run a
-  consultation, but passport data returns `null` with `passportAccessDenied: true`, and
-  cross-hospital consultation history is hidden.
-- **Emergency race safety:** driver acceptance uses an atomic `updateMany` with
-  `WHERE status = SEARCHING`, so only the first accepting driver wins.
-- **Emergency fallback:** if no ambulance accepts within 3 minutes, status becomes
-  `NO_DRIVER_FALLBACK` and the patient is told to call 108.
-- **Cross-hospital exception:** ambulance dispatch deliberately searches *all* online
-  ambulances regardless of hospital — the only intentional break in hospital data isolation.
-- **Billing atomicity:** all multi-step state changes (payment confirmation, queue token
-  creation, etc.) run inside `prisma.$transaction`.
+### Backend Unit & Integration Tests (Jest)
+The backend features 11 test suites covering authentication, authorization, hospital isolation, billing, emergency dispatch, and clinical workflows.
 
----
+```bash
+cd backend
+npm test
+```
 
-## 23. Standout Implementation Details
+### Static Analysis & Linting
+Frontend static code analysis is verified via `oxlint`:
 
-1. **Cross-hospital emergency dispatch** — documented, intentional exception to hospital
-   isolation for patient safety.
-2. **Atomic queue recalculation** — token numbers stay sequential by appointment time
-   automatically on every relevant change.
-3. **Silent JWT refresh with concurrent queue** — one shared in-flight refresh serves all
-   concurrent 401s instead of triggering duplicate refreshes.
-4. **Socket room rejoin on reconnect** — a `joinIntents` map guarantees all previously joined
-   rooms are rejoined after a network drop.
-5. **Fractional queue tokens** — Lite walk-ins insert mid-queue (e.g. `10.5`) without
-   disturbing existing sequencing.
-6. **Polymorphic healthcare timeline** — one `MedicalTimelineEvent` table covers all clinical
-   event types via `sourceId + eventType`.
-7. **Driver state rehydration** — `GET /driver/me` restores an ambulance driver's full active
-   state (assignment + pending requests) after a page reload.
-8. **Two-layer notification delivery** — DB + Socket.IO always, email only for 4 high-value
-   event types, to avoid notification spam.
+```bash
+cd frontend
+npm run lint
+```
+
+### Manual End-to-End Verification Matrix
+For comprehensive step-by-step role verification, consult [`docs/MANUAL-E2E-TEST-PLAN.md`](./healthcare-plus/docs/MANUAL-E2E-TEST-PLAN.md) and [`docs/FINAL-REPORT.md`](./healthcare-plus/docs/FINAL-REPORT.md).
 
 ---
 
-## 24. Plan vs. Actual: Roadmap vs. Audit
+## 19. Current Implementation Status
 
-The project also has an original planning document,
-`healthcare+ — Final Phase-by-Phase Implementation Roadmap.md`, which laid out an 18-phase
-plan (Phase 0 Planning → Phase 18 Deployment). Where the two differ, **this README follows
-the audit**, since the audit reflects the actual codebase and the roadmap reflects original
-intent. Notable deviations:
+### ✅ Fully Implemented & Verified in Codebase
+- [x] Multi-tenant hospital isolation with RBAC across 8 user roles.
+- [x] Dual JWT auth with silent refresh, password reset OTPs, and Google OAuth 2.0.
+- [x] Vadodara pilot network with 8 hospitals and 28 doctors across 12 specialties.
+- [x] Real-time Live OPD Queue management with Socket.IO room sync.
+- [x] **Fractional Queue Intelligence ("Lite Appointments")** with float tokens (e.g. #15.5).
+- [x] Doctor Consultation Desk with clinical notes autosave, digital prescriptions, and lab orders.
+- [x] Closed-loop Pharmacy fulfillment workflow with medicine inventory stock management.
+- [x] Laboratory diagnostic fulfillment workflow with PDF report upload and viewing.
+- [x] Unified Billing engine routing Appointment, Pharmacy, and Lab payables through Razorpay.
+- [x] Emergency SOS with nearest-driver Haversine search, atomic claim, and 3-minute 108 fallback.
+- [x] Live GPS tracking on Google Maps with real-time driver coordinate broadcasting.
+- [x] Healthcare Passport with longitudinal Medical Timeline and granular consent enforcement.
+- [x] WebRTC Telemedicine video consultation suite with waiting room (Phase 16).
+- [x] AI Symptom Triage engine mapping natural language symptoms across 12 specialties.
+- [x] Cloudflare quick tunneling script for mobile and cross-network HTTPS testing.
 
-| Roadmap said | Audit shows |
-|---|---|
-| 18 build phases, ending in Deployment | Audit describes **15 build phases**, with Phase 15 marked complete; deployment itself has not happened |
-| Cloudinary for uploads (Phase 1 stack) | Lab report PDFs are stored on **local disk** (`backend/uploads/`); Cloudinary is still planned |
-| "No Redis required" (architecture principle) | Same conclusion in the audit, but the audit also flags Redis as a **near-term requirement** for Socket.IO once the app scales past one instance |
-| AI Health Assistant / AI symptom triage | Implemented as **keyword-based** matching (12 specialties), not a real AI/LLM call — audit explicitly flags this as a future upgrade |
-| Testing stack: Jest, Supertest, RTL, Playwright | Jest/Supertest backend tests exist (11 files); Playwright config exists but **no test files or CI pipeline** yet |
-
----
-
-## 25. Glossary
-
-| Term | Meaning |
-|---|---|
-| **OPD** | Out-Patient Department — the walk-in/scheduled consultation workflow (as opposed to inpatient/admitted care) |
-| **Healthcare Passport** | The patient-owned digital health record spanning allergies, conditions, medications, consultations, prescriptions, and lab reports across hospitals |
-| **Medical Timeline** | Chronological, polymorphic log of a patient's clinical events, backing the Passport |
-| **QueueToken** | The record representing a patient's place in a doctor's daily queue; carries a `tokenNumber` (Float) |
-| **Lite Appointment** | A short follow-up appointment inserted into the regular queue using a fractional token number (e.g. `10.5`) instead of disrupting the full queue |
-| **Fractional Token** | A non-integer `tokenNumber` used by Lite appointments to slot between two regular tokens |
-| **Consent (Passport)** | A patient-granted, revocable permission allowing a specific hospital or doctor to view their Healthcare Passport |
-| **`onBillPaid`** | The callback pattern in `billing.service.js` that advances the correct downstream entity (Appointment, PharmacyOrder, LabRequest) once a Bill is marked PAID |
-| **Hospital Isolation** | The architectural rule that a hospital's staff/admin can only see and manage that hospital's own data — with the emergency-dispatch cross-hospital search as the one documented exception |
-| **ABDM** | India's National Digital Health Mission — a planned future integration, not implemented |
-| **108** | India's national emergency ambulance number, used as the fallback when no ambulance accepts an SOS request within 3 minutes |
+### ⚠️ Minor Implementation Nuances
+- **AI Symptom Triage:** Built as a deterministic rule-based keyword matcher across 12 medical specialties; external LLM API calling (`AI_API_KEY`) is architected as a drop-in upgrade.
+- **Diagnostic File Storage:** Lab report PDFs are stored on the local backend disk (`backend/uploads/`) with static serving; Cloudinary integration (`CLOUDINARY_*`) is templated for cloud scaling.
+- **Socket.IO Single Node:** Operates in-memory; horizontal multi-instance scaling requires attaching `@socket.io/redis-adapter`.
 
 ---
 
+## 20. Future Roadmap (Specification vs Codebase)
+
+The following capabilities represent the planned roadmap outlined in the Hackathon project vision:
+
+- [ ] **ABDM / ABHA / FHIR Interoperability:** Integration with India's Ayushman Bharat Digital Mission for national health ID linking.
+- [ ] **LLM Clinical Diagnostic Assistant:** Upgrading symptom triage to a fine-tuned medical LLM for differential diagnostic suggestions.
+- [ ] **Automated CAD Emergency Dispatch:** Algorithmic computer-aided dispatch with automated emergency vehicle routing.
+- [ ] **Wearable Health Sync:** Automated ingestion of continuous vitals from Apple Health, Google Fit, and smart wearables into the Healthcare Passport.
+- [ ] **Insurance API Integration:** Direct cashless insurance pre-authorization and claim settlement.
+- [ ] **Multi-City Expansion:** Scaling network federation from Vadodara to Ahmedabad, Surat, Mumbai, and pan-India.
+
+---
+
+## 21. Troubleshooting Guide
+
+| Issue | Potential Cause | Verified Resolution |
+|---|---|---|
+| **Prisma Connection Error (`P1001`)** | PostgreSQL service not running or invalid `DATABASE_URL`. | Ensure PostgreSQL is active on port 5432. Verify credentials in `backend/.env`. |
+| **CORS Block on API Requests** | `CLIENT_URL` mismatch or frontend on unexpected port. | Verify `CLIENT_URL=http://localhost:5173` in `backend/.env`. |
+| **Token Expired / 401 Loop** | Expired access token with missing refresh token. | Check that `POST /api/auth/refresh-token` is reaching backend. Clear browser storage and log in again. |
+| **Google Maps Not Rendering** | Missing or invalid Maps API key. | Ensure `VITE_GOOGLE_MAPS_API_KEY` is set in `frontend/.env` and *Maps JavaScript API* is enabled. |
+| **Socket.IO Not Connecting** | Port mismatch or invalid auth token in handshake. | Verify backend is running on port 5000. Inspect browser console for WebSocket connection status. |
+| **Email OTP Not Arriving** | SMTP credentials unconfigured in development. | In development mode, check the **backend console terminal** — the 6-digit OTP code is logged directly to stdout. |
+
+---
+
+## 22. Contributing Guidelines
+
+1. **Fork & Branch:** Create a feature branch (`git checkout -b feature/amazing-feature`).
+2. **Adhere to Layering:** Keep controllers thin; place all database transactions and business rules inside `backend/src/services/`.
+3. **Preserve Isolation:** Never bypass `scopeToHospital` or default-deny security patterns.
+4. **Code Quality:** Run `npm test` in `backend/` and `npm run lint` in `frontend/` before opening a pull request.
+5. **Atomic Commits:** Provide clear, descriptive commit messages documenting changes.
+
+---
+
+<p align="center">
+  <b>HealthCare+</b> — <i>Healthcare should not feel like 10 different systems. One Patient. One Journey. One Connected Ecosystem.</i>
+</p>

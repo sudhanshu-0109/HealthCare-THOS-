@@ -1,21 +1,35 @@
 /**
- * pages/patient/DoctorBooking.jsx — Complete booking flow: Type → Slot → Summary → Payment → Confirmation
+ * pages/patient/DoctorBooking.jsx — Complete booking flow: Slot → Type → Summary → Payment → Confirmation
  *
- * Phase 16 extension: Added a consultation type step (OFFLINE | ONLINE) before slot selection.
- * Online appointments show a different confirmation screen with a "Join Waiting Room" CTA.
+ * Phase 16: Added TYPE_SELECTION step between SLOT and SUMMARY.
+ * Patient chooses OFFLINE (in-person, gets queue token) or ONLINE (video call, gets waiting room).
+ *
+ * Real flow:
+ *   Slot → Type → Summary → initiateBooking (creates Appointment PENDING_PAYMENT + Bill + Razorpay order)
+ *        → RazorpayCheckout → POST /payments/verify → Appointment CONFIRMED
+ *        → OFFLINE: fetch queue token → Confirmation with token
+ *        → ONLINE: navigate to Waiting Room
  */
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, CheckCircle2, Loader2, CreditCard, AlertCircle,
-  Monitor, MapPin, Video, Calendar,
+  ArrowLeft, CheckCircle2, ChevronRight, Loader2, CreditCard, AlertCircle,
+  MapPin, Video, Users, Clock,
 } from 'lucide-react';
 import * as appointmentsService from '../../services/appointments.service';
 import RazorpayCheckout from '../../components/booking/RazorpayCheckout';
 import api from '../../services/api';
 
-const STEPS = { TYPE: 'type', SLOT: 'slot', SUMMARY: 'summary', PAYMENT: 'payment', CONFIRMED: 'confirmed' };
+const STEPS = {
+  SLOT: 'slot',
+  TYPE: 'type',           // Phase 16: new type selection step
+  SUMMARY: 'summary',
+  PAYMENT: 'payment',
+  CONFIRMED: 'confirmed',
+};
+
+const STEP_ORDER = [STEPS.SLOT, STEPS.TYPE, STEPS.SUMMARY, STEPS.PAYMENT];
 
 // Generate next 7 days
 const getDates = () => {
@@ -44,10 +58,10 @@ const formatSlotLabel = (hhmm) => {
 
 export default function DoctorBooking({ doctor, hospital, onBack }) {
   const navigate = useNavigate();
-  const [step, setStep] = useState(STEPS.TYPE);
-  const [consultationType, setConsultationType] = useState('OFFLINE');
+  const [step, setStep] = useState(STEPS.SLOT);
   const [selectedDate, setSelectedDate] = useState(getDates()[0]);
   const [selectedTime, setSelectedTime] = useState(null);
+  const [consultationType, setConsultationType] = useState(null); // 'OFFLINE' | 'ONLINE'
   const [loading, setLoading] = useState(false);
   const [initiating, setInitiating] = useState(false);
   const [bookingError, setBookingError] = useState(null);
@@ -59,8 +73,6 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
   const dates = getDates();
 
   // Fetch REAL slots for the selected date from the availability service.
-  // `allSlots` carries every slot in the doctor's grid, each flagged booked or
-  // free, so booked ones render struck-through/disabled (not simply hidden).
   useEffect(() => {
     if (!doctor?.id || !selectedDate?.full) return;
     let cancelled = false;
@@ -70,7 +82,6 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
     api.get(`/availability/${doctor.id}/slots`, { params: { date: selectedDate.full } })
       .then((res) => {
         if (cancelled) return;
-        // Prefer the flagged grid; fall back to available-only strings mapped to objects.
         const all = res.data?.allSlots;
         if (Array.isArray(all)) {
           setAvailableSlots(all);
@@ -88,8 +99,13 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
     return () => { cancelled = true; };
   }, [doctor?.id, selectedDate?.full]);
 
-  const handleProceedToSummary = () => {
+  const handleProceedToType = () => {
     if (!selectedTime) return;
+    setStep(STEPS.TYPE);
+  };
+
+  const handleSelectType = (type) => {
+    setConsultationType(type);
     setStep(STEPS.SUMMARY);
   };
 
@@ -102,7 +118,7 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
         doctorId: doctor?.id,
         scheduledDate: selectedDate.full,
         scheduledTime: selectedTime,
-        consultationType,
+        consultationType: consultationType || 'OFFLINE',
       });
       setBooking(res.data);
       setStep(STEPS.PAYMENT);
@@ -113,20 +129,25 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
     }
   };
 
-  // Called by RazorpayCheckout AFTER the server verified the payment and marked
-  // the appointment CONFIRMED.
+  // Called by RazorpayCheckout AFTER the server verified the payment.
   const handlePaymentSuccess = async () => {
+    if (booking?.consultationType === 'ONLINE') {
+      // Online: go directly to waiting room
+      navigate(`/patient/waiting-room/${booking.appointmentId}`, { replace: true });
+      return;
+    }
+
+    // Offline: fetch queue token and show confirmation
     setLoading(true);
     let token = null;
-    let appointmentId = booking?.appointmentId;
     try {
-      const res = await appointmentsService.getAppointmentById(appointmentId);
+      const res = await appointmentsService.getAppointmentById(booking.appointmentId);
       const appt = res.data?.appointment || res.data;
       if (appt?.queueToken?.tokenNumber != null) token = `T-${appt.queueToken.tokenNumber}`;
     } catch {
       // Token will simply not be shown if the fetch fails.
     } finally {
-      setConfirmedData({ token, appointmentId });
+      setConfirmedData({ token });
       setLoading(false);
       setStep(STEPS.CONFIRMED);
     }
@@ -138,97 +159,25 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
     hospital: hospital?.name,
   };
 
-  // ── Step: TYPE selector ──────────────────────────────────────────────────────
-  if (step === STEPS.TYPE) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-900 flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-8 max-w-md w-full">
-          <button onClick={onBack || (() => navigate(-1))} className="flex items-center gap-2 text-white/60 hover:text-white mb-8 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
+  // ── CONFIRMED SCREEN ──────────────────────────────────────────────────────
 
-          <div className="mb-8">
-            <p className="text-cyan-400 text-sm font-semibold uppercase tracking-wider mb-1">Step 1 of 4</p>
-            <h2 className="text-2xl font-bold text-white">Choose Consultation Mode</h2>
-            <p className="text-white/50 text-sm mt-1">How would you like to meet Dr. {doctor?.user?.fullName}?</p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 mb-8">
-            {/* OFFLINE option */}
-            <button
-              onClick={() => setConsultationType('OFFLINE')}
-              className={`relative flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all ${
-                consultationType === 'OFFLINE'
-                  ? 'border-cyan-400 bg-cyan-400/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10'
-              }`}
-            >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                consultationType === 'OFFLINE' ? 'bg-cyan-400/20' : 'bg-white/10'
-              }`}>
-                <MapPin className={`w-6 h-6 ${consultationType === 'OFFLINE' ? 'text-cyan-400' : 'text-white/40'}`} />
-              </div>
-              <div>
-                <p className="font-semibold text-white">In-Person Visit</p>
-                <p className="text-white/50 text-sm mt-0.5">Visit the clinic. You'll get a queue token after booking.</p>
-              </div>
-              {consultationType === 'OFFLINE' && (
-                <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-cyan-400" />
-              )}
-            </button>
-
-            {/* ONLINE option */}
-            <button
-              onClick={() => setConsultationType('ONLINE')}
-              className={`relative flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all ${
-                consultationType === 'ONLINE'
-                  ? 'border-violet-400 bg-violet-400/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10'
-              }`}
-            >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                consultationType === 'ONLINE' ? 'bg-violet-400/20' : 'bg-white/10'
-              }`}>
-                <Video className={`w-6 h-6 ${consultationType === 'ONLINE' ? 'text-violet-400' : 'text-white/40'}`} />
-              </div>
-              <div>
-                <p className="font-semibold text-white">Video Consultation</p>
-                <p className="text-white/50 text-sm mt-0.5">Meet your doctor online from anywhere — no travel needed.</p>
-              </div>
-              {consultationType === 'ONLINE' && (
-                <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-violet-400" />
-              )}
-            </button>
-          </div>
-
-          <button
-            onClick={() => setStep(STEPS.SLOT)}
-            className="w-full py-3.5 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl font-semibold transition-colors"
-          >
-            Continue — Select Time Slot
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step: CONFIRMED ───────────────────────────────────────────────────────────
   if (step === STEPS.CONFIRMED) {
-    const isOnline = consultationType === 'ONLINE';
+    const isOnline = (booking?.consultationType || consultationType) === 'ONLINE';
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-cyan-50 flex items-center justify-center p-4">
+      <div className={`min-h-screen flex items-center justify-center p-4 ${isOnline ? 'bg-gradient-to-br from-violet-50 to-slate-50' : 'bg-gradient-to-br from-emerald-50 to-cyan-50'}`}>
         <div className="bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${
-            isOnline ? 'bg-violet-100' : 'bg-emerald-100'
-          }`}>
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${isOnline ? 'bg-violet-100' : 'bg-emerald-100'}`}>
             {isOnline
               ? <Video className="w-10 h-10 text-violet-500" />
-              : <CheckCircle2 className="w-10 h-10 text-emerald-500" />}
+              : <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            }
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">Appointment Confirmed!</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mb-1">
+            {isOnline ? 'Online Consultation Booked!' : 'Appointment Confirmed!'}
+          </h2>
           <p className="text-slate-500 text-sm mb-6">
             {isOnline
-              ? 'Your online consultation is scheduled. Join the waiting room at your appointment time.'
+              ? 'Your payment was verified. Join the waiting room when your appointment time approaches.'
               : 'Your payment was verified and your appointment is booked.'}
           </p>
 
@@ -237,10 +186,9 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
             <div className="flex justify-between text-sm"><span className="text-slate-500">Specialty</span><span className="font-medium text-slate-700">{doctor?.specialization}</span></div>
             <div className="flex justify-between text-sm"><span className="text-slate-500">Date</span><span className="font-medium text-slate-700">{selectedDate.full}</span></div>
             <div className="flex justify-between text-sm"><span className="text-slate-500">Time</span><span className="font-medium text-slate-700">{formatSlotLabel(selectedTime)}</span></div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Mode</span>
-              <span className={`font-semibold text-sm ${ isOnline ? 'text-violet-600' : 'text-emerald-600'}`}>
-                {isOnline ? '🎥 Video Consultation' : '🏥 In-Person'}
+            <div className="flex justify-between text-sm"><span className="text-slate-500">Mode</span>
+              <span className={`font-semibold text-xs px-2 py-0.5 rounded-full ${isOnline ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                {isOnline ? '🎥 Online' : '🏥 In-Person'}
               </span>
             </div>
             {!isOnline && confirmedData?.token && (
@@ -252,14 +200,14 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
           </div>
 
           <div className="space-y-2">
-            {isOnline && confirmedData?.appointmentId && (
+            {isOnline ? (
               <button
-                onClick={() => navigate(`/patient/waiting-room/${confirmedData.appointmentId}`)}
+                onClick={() => navigate(`/patient/waiting-room/${booking?.appointmentId}`)}
                 className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
               >
-                <Video className="w-4 h-4" /> Join Waiting Room
+                <Video className="w-4 h-4" /> Go to Waiting Room
               </button>
-            )}
+            ) : null}
             <button
               onClick={() => onBack ? onBack() : navigate('/patient/dashboard')}
               className="w-full py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-semibold transition-colors"
@@ -278,18 +226,19 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
     );
   }
 
+  // ── BOOKING FLOW ──────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="bg-white border-b border-slate-100 h-14 flex items-center px-4 gap-3 sticky top-0 z-10">
         <button
           onClick={
-            step === STEPS.TYPE
+            step === STEPS.SLOT
               ? (onBack || (() => navigate(-1)))
               : () => {
-                  if (step === STEPS.PAYMENT) setStep(STEPS.SUMMARY);
-                  else if (step === STEPS.SUMMARY) setStep(STEPS.SLOT);
-                  else if (step === STEPS.SLOT) setStep(STEPS.TYPE);
+                  const idx = STEP_ORDER.indexOf(step);
+                  setStep(STEP_ORDER[Math.max(0, idx - 1)]);
                 }
           }
           className="text-slate-400 hover:text-slate-700 transition-colors">
@@ -298,9 +247,9 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
         <h1 className="font-semibold text-slate-900">Book Appointment</h1>
         {/* Progress */}
         <div className="ml-auto flex items-center gap-1">
-          {[STEPS.TYPE, STEPS.SLOT, STEPS.SUMMARY, STEPS.PAYMENT].map((s) => (
+          {STEP_ORDER.map((s) => (
             <div key={s} className={`w-2 h-2 rounded-full transition-colors ${
-              step === s ? 'bg-cyan-600' : Object.values(STEPS).indexOf(step) > Object.values(STEPS).indexOf(s) ? 'bg-cyan-300' : 'bg-slate-200'
+              step === s ? 'bg-cyan-600' : STEP_ORDER.indexOf(step) > STEP_ORDER.indexOf(s) ? 'bg-cyan-300' : 'bg-slate-200'
             }`} />
           ))}
         </div>
@@ -379,16 +328,74 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
             </div>
 
             <button
-              onClick={handleProceedToSummary}
+              onClick={handleProceedToType}
               disabled={!selectedTime}
               className="w-full py-3.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
             >
-              Continue to Summary <ChevronRight className="w-4 h-4" />
+              Continue <ChevronRight className="w-4 h-4" />
             </button>
           </>
         )}
 
-        {/* STEP 2: Summary */}
+        {/* STEP 2: Type Selection (Phase 16) */}
+        {step === STEPS.TYPE && (
+          <>
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 mb-5">
+              <h2 className="font-semibold text-slate-900 mb-1">Choose Consultation Mode</h2>
+              <p className="text-xs text-slate-400 mb-5">
+                {formatSlotLabel(selectedTime)} · {selectedDate.full}
+              </p>
+
+              <div className="space-y-3">
+                {/* In-Person Option */}
+                <button
+                  onClick={() => handleSelectType('OFFLINE')}
+                  className="w-full flex items-start gap-4 p-4 rounded-2xl border-2 border-slate-100 hover:border-cyan-300 hover:bg-cyan-50 transition-all text-left group"
+                >
+                  <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-200 transition-colors">
+                    <MapPin className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-semibold text-slate-900">In-Person Visit</p>
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Classic</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Visit the clinic physically. You'll receive a queue token and wait to be called.</p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Physical presence</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Queue-based</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-cyan-500 mt-1 flex-shrink-0 transition-colors" />
+                </button>
+
+                {/* Online Option */}
+                <button
+                  onClick={() => handleSelectType('ONLINE')}
+                  className="w-full flex items-start gap-4 p-4 rounded-2xl border-2 border-slate-100 hover:border-violet-300 hover:bg-violet-50 transition-all text-left group"
+                >
+                  <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-violet-200 transition-colors">
+                    <Video className="w-5 h-5 text-violet-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-semibold text-slate-900">Video Consultation</p>
+                      <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">Online</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Consult from home via secure video call. No waiting room needed.</p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                      <span className="flex items-center gap-1"><Video className="w-3 h-3" /> HD video call</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Scheduled time</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-violet-500 mt-1 flex-shrink-0 transition-colors" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* STEP 3: Summary */}
         {step === STEPS.SUMMARY && (
           <>
             <div className="bg-white rounded-2xl border border-slate-100 p-5 mb-5">
@@ -407,6 +414,17 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
                     <span className="font-medium text-slate-900">{value}</span>
                   </div>
                 ))}
+                {/* Mode badge */}
+                <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
+                  <span className="text-slate-500">Mode</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                    consultationType === 'ONLINE'
+                      ? 'bg-violet-100 text-violet-700'
+                      : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {consultationType === 'ONLINE' ? '🎥 Online Video' : '🏥 In-Person'}
+                  </span>
+                </div>
                 <div className="flex justify-between items-center text-sm bg-cyan-50 rounded-xl p-3 mt-2">
                   <span className="font-semibold text-slate-700">Consultation Fee</span>
                   <span className="font-bold text-cyan-700 text-lg">₹{doctor?.consultationFee}</span>
@@ -432,7 +450,7 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
           </>
         )}
 
-        {/* STEP 3: Payment */}
+        {/* STEP 4: Payment */}
         {step === STEPS.PAYMENT && booking && (
           <div className="bg-white rounded-2xl border border-slate-100 p-5">
             <h2 className="font-semibold text-slate-900 mb-4">Complete Payment</h2>

@@ -458,41 +458,45 @@ async function main() {
   };
 
   // [email, completedCount, inProgressIdx (0-based), totalTokens]
+  // NOTE: First 3 slots (09:00, 09:15, 09:30) are intentionally left free for booking.
+  // Each config is shifted: completedCount -= 3, inProgressIdx -= 3, totalTokens -= 3.
+  // Queue always starts at T-1 (09:45 slot) each day.
   const doctorQueueConfigs = [
-    ['dr.anil.shah@sterling.dev',        6,  6, 20],
-    ['dr.meena.patel@sterling.dev',      6,  6, 14],
-    ['dr.karan.desai@sterling.dev',      4,  4, 12],
-    ['dr.sanjay.verma@sterling.dev',     10, 10, 20],
-    ['dr.neha.joshi@sunshine.dev',       5,  5, 13],
-    ['dr.priya.sharma@sunshine.dev',     7,  7, 16],
-    ['dr.vikram.singh@sunshine.dev',     3,  3, 10],
-    ['dr.rahul.mehta@sunshine.dev',      9,  9, 18],
-    ['dr.amit.trivedi@bhailal.dev',      10, 10, 22],
-    ['dr.pooja.bhatt@bhailal.dev',       4,  4, 11],
-    ['dr.manish.parikh@bhailal.dev',     6,  6, 15],
-    ['dr.suresh.rao@bhailal.dev',        8,  8, 17],
-    ['dr.raj.shah@tricolour.dev',        5,  5, 14],
-    ['dr.smita.deshmukh@tricolour.dev',  7,  7, 16],
-    ['dr.arjun.nair@tricolour.dev',      3,  3, 10],
-    ['dr.divya.menon@tricolour.dev',     6,  6, 13],
-    ['dr.harish.amin@rhythm.dev',        9,  9, 20],
-    ['dr.vijay.patel@rhythm.dev',        4,  4, 11],
-    ['dr.swami.das@baps.dev',            7,  7, 15],
-    ['dr.kavita.shukla@baps.dev',        5,  5, 12],
-    ['dr.ashok.vyas@baps.dev',           10, 10, 22],
-    ['dr.reena.jain@baps.dev',           3,  3, 9],
-    ['dr.nisha.shah@welcare.dev',        5,  5, 13],
-    ['dr.sameer.khan@welcare.dev',       2,  2, 8],
-    ['dr.deepak.rao@welcare.dev',        6,  6, 14],
-    ['dr.isha.patel@isha.dev',           8,  8, 18],
-    ['dr.sonali.raval@isha.dev',         4,  4, 11],
-    ['dr.mira.desai@isha.dev',           3,  3, 9],
+    ['dr.anil.shah@sterling.dev',        3,  3, 17],
+    ['dr.meena.patel@sterling.dev',      3,  3, 11],
+    ['dr.karan.desai@sterling.dev',      1,  1,  9],
+    ['dr.sanjay.verma@sterling.dev',     7,  7, 17],
+    ['dr.neha.joshi@sunshine.dev',       2,  2, 10],
+    ['dr.priya.sharma@sunshine.dev',     4,  4, 13],
+    ['dr.vikram.singh@sunshine.dev',     0,  0,  7],
+    ['dr.rahul.mehta@sunshine.dev',      6,  6, 15],
+    ['dr.amit.trivedi@bhailal.dev',      7,  7, 19],
+    ['dr.pooja.bhatt@bhailal.dev',       1,  1,  8],
+    ['dr.manish.parikh@bhailal.dev',     3,  3, 12],
+    ['dr.suresh.rao@bhailal.dev',        5,  5, 14],
+    ['dr.raj.shah@tricolour.dev',        2,  2, 11],
+    ['dr.smita.deshmukh@tricolour.dev',  4,  4, 13],
+    ['dr.arjun.nair@tricolour.dev',      0,  0,  7],
+    ['dr.divya.menon@tricolour.dev',     3,  3, 10],
+    ['dr.harish.amin@rhythm.dev',        6,  6, 17],
+    ['dr.vijay.patel@rhythm.dev',        1,  1,  8],
+    ['dr.swami.das@baps.dev',            4,  4, 12],
+    ['dr.kavita.shukla@baps.dev',        2,  2,  9],
+    ['dr.ashok.vyas@baps.dev',           7,  7, 19],
+    ['dr.reena.jain@baps.dev',           0,  0,  6],
+    ['dr.nisha.shah@welcare.dev',        2,  2, 10],
+    ['dr.sameer.khan@welcare.dev',       0,  0,  5],
+    ['dr.deepak.rao@welcare.dev',        3,  3, 11],
+    ['dr.isha.patel@isha.dev',           5,  5, 15],
+    ['dr.sonali.raval@isha.dev',         1,  1,  8],
+    ['dr.mira.desai@isha.dev',           0,  0,  6],
   ];
 
   for (const [email, completedCount, inProgressIdx, totalTokens] of doctorQueueConfigs) {
     const { docId, hosp, dept, fee } = doctorMap[email];
     const slotTime = new Date(todayObj);
-    slotTime.setUTCHours(9, 0, 0, 0);
+    // Start at 09:45 — first 3 slots (09:00/09:15/09:30) are kept free for booking
+    slotTime.setUTCHours(9, 45, 0, 0);
 
     for (let i = 0; i < totalTokens; i++) {
       const patId = nextPatient();
@@ -611,7 +615,90 @@ async function main() {
     },
   });
 
-  // â”€â”€ PAST APPOINTMENT (Cardiology, 14 days ago) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── PHASE 16: ONLINE CONSULTATION APPOINTMENTS (Demo Patient) ─────────────────
+  // 3 online appointments today — one per hospital — so both the patient dashboard
+  // and each doctor's "Online Appointments" panel have data to display.
+  const onlineSeeds = [
+    {
+      doctorEmail: 'dr.sanjay.verma@sterling.dev',
+      hospitalId: 'hosp-sterling',
+      dept: 'General Medicine',
+      scheduledTime: '15:00',
+      fee: 500,
+      desc: 'Online Consultation — Dr. Sanjay Verma (General Medicine)',
+    },
+    {
+      doctorEmail: 'dr.rahul.mehta@sunshine.dev',
+      hospitalId: 'hosp-sunshine',
+      dept: 'General Medicine',
+      scheduledTime: '15:30',
+      fee: 400,
+      desc: 'Online Consultation — Dr. Rahul Mehta (General Medicine)',
+    },
+    {
+      doctorEmail: 'dr.suresh.rao@bhailal.dev',
+      hospitalId: 'hosp-bhailal',
+      dept: 'General Medicine',
+      scheduledTime: '16:00',
+      fee: 450,
+      desc: 'Online Consultation — Dr. Suresh Rao (General Medicine)',
+    },
+  ];
+
+  for (const os of onlineSeeds) {
+    const { docId } = doctorMap[os.doctorEmail];
+    const onlineAppt = await prisma.appointment.create({
+      data: {
+        patientId: demoPatientUser.id,
+        doctorId: docId,
+        hospitalId: os.hospitalId,
+        departmentId: hospitalDepts[os.hospitalId][os.dept],
+        scheduledDate: todayObj,
+        scheduledTime: os.scheduledTime,
+        fee: os.fee,
+        status: 'CONFIRMED',
+        consultationType: 'ONLINE',
+      },
+    });
+    const onlineBill = await prisma.bill.create({
+      data: {
+        patientId: demoPatientUser.id,
+        hospitalId: os.hospitalId,
+        sourceType: 'APPOINTMENT',
+        sourceId: onlineAppt.id,
+        subtotal: os.fee,
+        total: os.fee,
+        status: 'PAID',
+        items: {
+          create: [{ description: os.desc, quantity: 1, unitPrice: os.fee, subtotal: os.fee }],
+        },
+      },
+    });
+    await prisma.payment.create({
+      data: {
+        billId: onlineBill.id,
+        amount: os.fee,
+        currency: 'INR',
+        razorpayOrderId: `mock_online_order_${docId.slice(-6)}`,
+        razorpayPaymentId: `mock_online_pay_${docId.slice(-6)}`,
+        status: 'SUCCESS',
+      },
+    });
+    // Create OnlineSession so the doctor's panel can see it
+    const [startHour, startMin] = os.scheduledTime.split(':').map(Number);
+    const scheduledStart = new Date(todayObj);
+    scheduledStart.setUTCHours(startHour, startMin, 0, 0);
+    await prisma.onlineSession.create({
+      data: {
+        appointmentId: onlineAppt.id,
+        status: 'SCHEDULED',
+        scheduledStart,
+      },
+    });
+  }
+  console.log('✅ Created 3 ONLINE consultation appointments for demo patient (Phase 16)');
+
+  // ── PAST APPOINTMENT (Cardiology, 14 days ago) ────────────────────────────────
   const pastDate = new Date();
   pastDate.setDate(pastDate.getDate() - 14);
   pastDate.setUTCHours(0, 0, 0, 0);

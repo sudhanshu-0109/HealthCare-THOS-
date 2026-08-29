@@ -159,7 +159,7 @@ function UploadReportModal({ request, onClose, onSuccess }) {
       
       if (state.selectedFile) {
         const uploadRes = await uploadService.uploadFile(state.selectedFile);
-        finalUrl = `http://localhost:5000${uploadRes.url}`;
+        finalUrl = uploadRes.url; // relative path e.g. /uploads/file-xxx.pdf
       }
 
       await labFulfillmentService.uploadLabReport(request.id, {

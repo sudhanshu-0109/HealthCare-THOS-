@@ -26,12 +26,13 @@ export const checkAndRollDemoAppointments = async () => {
   console.log(`[DEMO MODE] Checking rolling appointments for ${todayStr}...`);
   const today = toMidnightUTC(todayStr);
 
-  try {
+    try {
     // Find all active appointments from previous days
     const unresolvedAppointments = await prisma.appointment.findMany({
       where: {
         scheduledDate: { lt: today },
-        status: { not: 'CANCELLED' }
+        status: 'CONFIRMED', // ONLY roll unresolved (CONFIRMED) appointments
+        consultationType: 'OFFLINE', // Phase 16: never roll ONLINE appointments
       },
       select: { id: true, doctorId: true, scheduledDate: true }
     });
@@ -48,25 +49,16 @@ export const checkAndRollDemoAppointments = async () => {
 
     // Update all unresolved appointments to Today
     await prisma.$transaction(async (tx) => {
-      // 1. Update Appointment scheduledDate and reset to CONFIRMED
+      // 1. Update Appointment scheduledDate
       await tx.appointment.updateMany({
         where: { id: { in: unresolvedAppointments.map(a => a.id) } },
-        data: { scheduledDate: today, status: 'CONFIRMED', updatedAt: new Date() }
+        data: { scheduledDate: today, updatedAt: new Date() }
       });
 
-      // 2. Update QueueToken queueDate and reset to WAITING
+      // 2. Update QueueToken queueDate
       await tx.queueToken.updateMany({
         where: { appointmentId: { in: unresolvedAppointments.map(a => a.id) } },
-        data: { queueDate: today, status: 'WAITING', updatedAt: new Date() }
-      });
-      
-      // 3. Mark any leftover processing consultations as COMPLETED to clean up history
-      await tx.consultation.updateMany({
-        where: { 
-          appointmentId: { in: unresolvedAppointments.map(a => a.id) },
-          status: 'IN_PROGRESS'
-        },
-        data: { status: 'COMPLETED', completedAt: new Date() }
+        data: { queueDate: today, updatedAt: new Date() }
       });
       
       // Note: We don't change the actual tokenNumber here, the recalculateQueueTokens will handle sequence if needed

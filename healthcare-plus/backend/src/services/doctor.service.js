@@ -3,7 +3,11 @@ import { createStaffUser } from './auth.service.js';
 
 export const getDoctors = async (filters) => {
   return prisma.doctor.findMany({
-    where: { isActive: true, ...filters },
+    where: { 
+      isActive: true, 
+      hospital: { isActive: true },
+      ...filters 
+    },
     include: {
       user: { select: { fullName: true, email: true } },
       department: { select: { name: true } },

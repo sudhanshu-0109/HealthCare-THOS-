@@ -2,6 +2,12 @@ import prisma from '../prisma/client.js';
 import { searchHospitals } from './hospitalSearch.service.js';
 import { dispatchRequest } from './emergencyDispatch.service.js';
 
+// emit helper — re-uses the Socket.IO instance registered by sockets/index.js
+let _io = null;
+export const setEmergencyIo = (io) => { _io = io; };
+const _emit = (room, event, data) => { if (_io) _io.to(room).emit(event, data); };
+
+
 export const createEmergencyRequest = async (patientId, data) => {
   const { latitude, longitude, hospitalId } = data;
   
@@ -68,6 +74,37 @@ export const getActiveEmergency = async (patientId) => {
     },
   });
 };
+
+/**
+ * cancelEmergencyRequest — patient cancels their own active emergency.
+ * Only allowed in pre-terminal statuses. Emits socket event to tracking room.
+ * @param {string} requestId
+ * @param {string} patientId — the authenticated patient's User id.
+ */
+export const cancelEmergencyRequest = async (requestId, patientId) => {
+  const CANCELLABLE = ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE'];
+  const request = await prisma.emergencyRequest.findUnique({ where: { id: requestId } });
+  if (!request) throw new Error('Emergency request not found.');
+  if (request.patientId !== patientId) throw new Error('Not your emergency request.');
+  if (!CANCELLABLE.includes(request.status)) {
+    throw new Error(`Cannot cancel a request in status: ${request.status}`);
+  }
+
+  const updated = await prisma.emergencyRequest.update({
+    where: { id: requestId },
+    data: { status: 'CANCELLED' },
+  });
+
+  _emit(`emergency:${requestId}`, 'emergency:status-update', {
+    requestId,
+    status: 'CANCELLED',
+    message: 'Emergency cancelled by patient.',
+    timestamp: new Date().toISOString(),
+  });
+
+  return updated;
+};
+
 
 export const getMyEmergencies = async (patientId) => {
   return prisma.emergencyRequest.findMany({

@@ -7,7 +7,7 @@
  *      server events — emergency:accepted, emergency:location-update,
  *      emergency:status-update — using the real EmergencyRequest status enum.
  *   3. Renders a REAL Google Map (LiveTrackingMap) with live patient + ambulance
- *      markers, and a distance-based ETA recomputed from live coordinates.
+ *      markers, and a real-road ETA recomputed by Google Directions API.
  *
  * There is NO simulated stage progression, no setTimeout stage chain, and no
  * decrementing-timer ETA. Every state change comes from the server.
@@ -17,11 +17,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Phone, AlertTriangle, CheckCircle2, ArrowLeft, User, Truck,
-  Heart, Loader2, PhoneCall,
+  Heart, Loader2, PhoneCall, X,
 } from 'lucide-react';
 import * as dispatchService from '../../services/emergencyDispatch.service';
+import * as patientService from '../../services/patient.service';
 import { joinEmergencyRoom, leaveEmergencyRoom, onSocketEvent, getSocket } from '../../services/socket';
-import { haversineKm, estimateEtaMin } from '../../utils/distance';
 import LiveTrackingMap from '../../components/emergency/LiveTrackingMap';
 
 // Real EmergencyRequest status → tracking stage (index into STAGES below).
@@ -49,7 +49,7 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
   const params = useParams();
   const requestId = propRequestId || params.requestId;
   const navigate = useNavigate();
-  
+
   const handleClose = () => {
     const terminal = ['ARRIVED', 'CANCELLED', 'NO_DRIVER_FALLBACK'];
     const isTerminal = terminal.includes(status);
@@ -70,6 +70,8 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
   const [routeDist, setRouteDist] = useState(null);
   const [routeEta, setRouteEta] = useState(null);
   const [socketConnected, setSocketConnected] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
 
   // Keep a ref to the latest status so the poll can decide when to stop.
   const statusRef = useRef(status);
@@ -178,13 +180,29 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
     return () => clearInterval(interval);
   }, [requestId, applyRequest]);
 
-  // Distance and ETA are now provided by LiveTrackingMap (OSRM API)
+  // Patient cancels their active emergency.
+  const handleCancel = async () => {
+    if (!requestId || cancelling) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      await patientService.cancelEmergencyRequest(requestId);
+      setStatus('CANCELLED');
+    } catch (err) {
+      setCancelError(err?.response?.data?.message || err.message || 'Could not cancel the request.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  // Distance and ETA come from LiveTrackingMap via Google Directions API.
   const distanceKm = routeDist;
   const etaMin = routeEta;
 
   const isFallback = status === 'NO_DRIVER_FALLBACK';
   const isCancelled = status === 'CANCELLED';
   const isArrived = status === 'ARRIVED';
+  const isTerminalForCancel = isArrived || isFallback || isCancelled || status === 'PICKED_UP';
   const stageIndex = STATUS_STAGE[status] ?? 0;
   const stage = STAGES[Math.min(stageIndex, STAGES.length - 1)];
   const StageIcon = stage.icon;
@@ -224,7 +242,13 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
         </div>
       )}
 
-      {/* Real map */}
+      {cancelError && (
+        <div className="mx-4 mb-3 bg-orange-500/15 border border-orange-500/30 rounded-xl px-4 py-2.5 text-sm text-orange-200 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {cancelError}
+        </div>
+      )}
+
+      {/* Real Google Map */}
       <div className="mx-4 mb-4">
         <LiveTrackingMap
           patientLat={patientLoc?.lat}
@@ -325,6 +349,22 @@ export default function EmergencyTracking({ requestId: propRequestId, onClose })
                   Back to Dashboard
                 </button>
               </div>
+            )}
+
+            {/* Cancel Emergency — only for pre-terminal states */}
+            {!isTerminalForCancel && (
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                {cancelling ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <X className="w-4 h-4" />
+                )}
+                Cancel Emergency
+              </button>
             )}
           </>
         )}

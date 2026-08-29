@@ -11,7 +11,13 @@
 import { io } from 'socket.io-client';
 import useAuthStore from '../store/authStore';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+// Prefer explicit VITE_SOCKET_URL → strip /api from VITE_API_URL → empty string.
+// An empty string tells Socket.IO to connect to the *same origin* as the page,
+// which works both locally (Vite proxy) and over any Cloudflare Tunnel URL.
+const BACKEND_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_URL?.replace('/api', '') ||
+  '';
 
 let socket = null;
 
@@ -163,22 +169,26 @@ export const onSocketEvent = (event, handler) => {
   return () => s.off(event, handler);
 };
 
-// ─── Phase 16: Online Consultation Signaling ────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 16: Online Consultation WebRTC Signaling Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Join the WebRTC signaling room for an online consultation.
- * The room is tracked and re-joined automatically on reconnect.
+ * Join a consultation signaling room.
+ * Tracked so it's automatically re-joined after reconnect.
  */
 export const joinConsultationRoom = (appointmentId) => {
   const s = getSocket();
   if (!appointmentId) return;
-  const key = `consultation:${appointmentId}`;
-  joinIntents.set(key, { event: 'consultation:join', payload: { appointmentId } });
+  joinIntents.set(`consultation:${appointmentId}`, {
+    event: 'consultation:join',
+    payload: { appointmentId },
+  });
   if (s) s.emit('consultation:join', { appointmentId });
 };
 
 /**
- * Leave the WebRTC signaling room.
+ * Leave a consultation signaling room.
  */
 export const leaveConsultationRoom = (appointmentId) => {
   joinIntents.delete(`consultation:${appointmentId}`);
@@ -186,21 +196,21 @@ export const leaveConsultationRoom = (appointmentId) => {
 };
 
 /**
- * Send a WebRTC SDP offer to the other participant.
+ * Send a WebRTC SDP offer to the other participant (doctor → patient relay).
  */
 export const sendOffer = (appointmentId, sdp) => {
   if (socket) socket.emit('consultation:offer', { appointmentId, sdp });
 };
 
 /**
- * Send a WebRTC SDP answer to the other participant.
+ * Send a WebRTC SDP answer to the other participant (patient → doctor relay).
  */
 export const sendAnswer = (appointmentId, sdp) => {
   if (socket) socket.emit('consultation:answer', { appointmentId, sdp });
 };
 
 /**
- * Send an ICE candidate to the other participant.
+ * Send a WebRTC ICE candidate to the other participant.
  */
 export const sendIceCandidate = (appointmentId, candidate) => {
   if (socket) socket.emit('consultation:ice-candidate', { appointmentId, candidate });

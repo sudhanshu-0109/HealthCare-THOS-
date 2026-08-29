@@ -14,7 +14,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "axios": "^1.19.0",
     "lucide-react": "^1.30.0",
-    "maplibre-gl": "^6.2.0",
+    "@googlemaps/js-api-loader": "^1.16.8",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",

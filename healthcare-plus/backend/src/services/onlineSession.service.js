@@ -4,15 +4,13 @@
  * Responsibilities:
  *  - getSession:   return session + appointment details (patient & doctor access gated separately)
  *  - joinSession:  patient or doctor signals readiness; updates status accordingly
- *  - startSession: doctor starts the call (moves status to IN_PROGRESS)
- *  - endSession:   doctor ends the call; triggers completeConsultation
+ *  - startSession: doctor starts the call (moves status to IN_PROGRESS + creates Consultation)
+ *  - endSession:   doctor ends the call; fires consultation:session-ended socket event
  *  - getDoctorOnlineStats: dashboard stats for doctor online appointments
  */
 
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
-import { getIO } from '../sockets/index.js';
-import { emitSessionStarted, emitSessionEnded } from '../sockets/consultationHandlers.js';
 
 const SESSION_SELECT = {
   id: true,
@@ -141,7 +139,7 @@ export const startSession = async (appointmentId, doctorUserId) => {
     throw ApiError.forbidden('This session does not belong to you.');
   }
 
-  const STARTABLE = ['SCHEDULED', 'PATIENT_JOINED', 'DOCTOR_JOINED', 'WAITING_FOR_PARTICIPANTS'];
+  const STARTABLE = ['SCHEDULED', 'PATIENT_JOINED', 'DOCTOR_JOINED', 'WAITING_FOR_PARTICIPANTS', 'IN_PROGRESS'];
   if (!STARTABLE.includes(session.status)) {
     throw ApiError.badRequest(`Cannot start session with status: ${session.status}.`);
   }
@@ -158,6 +156,7 @@ export const startSession = async (appointmentId, doctorUserId) => {
       },
       select: SESSION_SELECT,
     }),
+    // Phase 16: Consultation linked via onlineSessionId, NOT queueTokenId
     prisma.consultation.upsert({
       where: { appointmentId },
       update: { status: 'IN_PROGRESS' },
@@ -173,8 +172,14 @@ export const startSession = async (appointmentId, doctorUserId) => {
     }),
   ]);
 
-  // Notify both participants in real-time
-  try { emitSessionStarted(getIO(), appointmentId); } catch {}
+  // Emit real-time event to consultation room
+  try {
+    const { getIO } = await import('../sockets/index.js');
+    const { emitSessionStarted } = await import('../sockets/consultationHandlers.js');
+    emitSessionStarted(getIO(), appointmentId);
+  } catch (emitErr) {
+    console.warn('[OnlineSession] Failed to emit session-started:', emitErr.message);
+  }
 
   return updatedSession;
 };
@@ -205,8 +210,14 @@ export const endSession = async (appointmentId, doctorUserId, reason = null) => 
     select: SESSION_SELECT,
   });
 
-  // Notify both participants in real-time
-  try { emitSessionEnded(getIO(), appointmentId, reason); } catch {}
+  // Emit real-time session-ended event
+  try {
+    const { getIO } = await import('../sockets/index.js');
+    const { emitSessionEnded } = await import('../sockets/consultationHandlers.js');
+    emitSessionEnded(getIO(), appointmentId, reason);
+  } catch (emitErr) {
+    console.warn('[OnlineSession] Failed to emit session-ended:', emitErr.message);
+  }
 
   return updated;
 };

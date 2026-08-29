@@ -21,6 +21,7 @@ const QUEUE_TOKEN_SELECT = {
     select: {
       id: true,
       appointmentType: true,
+      consultationType: true,   // Phase 16: online vs offline badge
       scheduledTime: true,
       patient: { select: { id: true, fullName: true, email: true } },
     },

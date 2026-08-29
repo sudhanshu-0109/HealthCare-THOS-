@@ -3,7 +3,7 @@
  */
 
 // API base URL — always use services/api.js instance, not this directly
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // User roles — mirrors backend Role enum
 export const ROLES = {

@@ -11,7 +11,6 @@ router.use(requireAuth);
 router.post('/start', requireRole('DOCTOR'), controller.startConsultation);
 router.get('/recent', requireRole('DOCTOR'), controller.getRecentConsultations);
 router.get('/history/:patientId', requireRole('DOCTOR'), controller.getConsultationHistory);
-// Phase 16: look up consultation by appointmentId (online clinical notes)
 router.get('/by-appointment/:appointmentId', requireRole('DOCTOR'), controller.getConsultationByAppointment);
 
 router.patch('/:id', requireRole('DOCTOR'), controller.updateConsultation);

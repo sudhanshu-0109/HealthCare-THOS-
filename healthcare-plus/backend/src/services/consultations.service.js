@@ -127,7 +127,7 @@ export const updateConsultation = async (consultationId, { symptoms, diagnosis, 
 
 /**
  * Complete a consultation — wraps queue completeConsultation + Consultation.status update + timeline event.
- * Phase 16: queueTokenId may be null for ONLINE consultations.
+ * Phase 16: queueToken update is skipped for online consultations (queueTokenId is null).
  */
 export const completeConsultation = async (consultationId, doctorId) => {
   const consultation = await prisma.consultation.findUnique({
@@ -139,14 +139,13 @@ export const completeConsultation = async (consultationId, doctorId) => {
   if (consultation.status === 'COMPLETED') throw ApiError.badRequest('Consultation is already completed.');
 
   // Atomically: mark Consultation COMPLETED + Appointment COMPLETED
-  // Also mark QueueToken COMPLETED if this is an OFFLINE consultation
+  // + QueueToken COMPLETED only if one exists (offline consultations)
   const updated = await prisma.$transaction(async (tx) => {
     const c = await tx.consultation.update({
       where: { id: consultationId },
       data: { status: 'COMPLETED', completedAt: new Date() },
       select: CONSULTATION_SELECT,
     });
-    // Only update queue token for OFFLINE appointments
     if (consultation.queueTokenId) {
       await tx.queueToken.update({
         where: { id: consultation.queueTokenId },
@@ -173,7 +172,7 @@ export const completeConsultation = async (consultationId, doctorId) => {
     console.warn('[ConsultationService] Failed to write CONSULTATION timeline event:', err.message);
   }
 
-  // Emit queue update only for OFFLINE (token exists)
+  // Emit queue update (only for offline consultations with a queue token)
   try {
     if (consultation.queueTokenId) {
       const token = await prisma.queueToken.findUnique({ where: { id: consultation.queueTokenId } });
@@ -181,7 +180,7 @@ export const completeConsultation = async (consultationId, doctorId) => {
     }
   } catch (_) {}
 
-  // Notify patient consultation is done
+  // Phase 15: Notify patient consultation is done
   try {
     await notifyConsultationCompleted(consultation.patientId, updated);
   } catch (notifErr) {
@@ -228,15 +227,30 @@ export const getConsultationHistory = async (patientId, { doctorId, hospitalId }
 };
 
 /**
- * Phase 16: Get a consultation by appointmentId.
- * Used by the ConsultationScreen for ONLINE appointments (no queue token path).
+ * Get a single consultation by appointment ID with passport summary (Phase 16 - online).
  */
 export const getConsultationByAppointment = async (appointmentId, doctorId) => {
   const consultation = await prisma.consultation.findUnique({
     where: { appointmentId },
     select: CONSULTATION_SELECT,
   });
-  if (!consultation) throw ApiError.notFound('No consultation found for this appointment.');
-  if (consultation.doctorId !== doctorId) throw ApiError.forbidden('Not your consultation.');
-  return consultation;
+  if (!consultation) throw ApiError.notFound('Consultation not found.');
+  if (consultation.doctorId !== doctorId) throw ApiError.forbidden('This consultation does not belong to you.');
+
+  const hasConsent = await checkDoctorConsent(consultation.patientId, doctorId);
+  if (!hasConsent) {
+    return { consultation, passportAccessDenied: true };
+  }
+
+  const passport = await prisma.healthcarePassport.findUnique({
+    where: { patientId: consultation.patientId },
+    include: {
+      allergies: true,
+      chronicConditions: true,
+      immunizations: true,
+    },
+  });
+
+  return { consultation, passportSummary: passport };
 };
+

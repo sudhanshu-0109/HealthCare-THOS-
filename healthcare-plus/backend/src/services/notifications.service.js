@@ -187,11 +187,12 @@ export const notifyConsultationCompleted = async (patientId, consultation) => {
 
 export const notifyPharmacyStatusChanged = async (patientId, order) => {
   const statusMessages = {
-    CONFIRMED: 'Your pharmacy order has been confirmed. Payment is required to begin preparation.',
-    PREPARING: 'Payment received! Your medicines are being prepared.',
-    PACKED: 'Your medicines are packed and ready for collection shortly.',
-    READY: 'Your medicines are ready for pickup at the pharmacy counter.',
-    COMPLETED: 'Your pharmacy order has been completed. Thank you!',
+    CONFIRMED: 'Your pharmacy order has been confirmed by the pharmacist. Payment is required to begin preparation.',
+    PREPARING: 'Payment received! Your medicines are now being prepared by the pharmacist.',
+    PACKED: 'Your medicines are packed and will be ready for collection shortly.',
+    READY: '✅ Your medicines are ready for pickup at the pharmacy counter. Please collect at your earliest convenience.',
+    COMPLETED: 'Your pharmacy order is complete. Thank you! Stay healthy 💊',
+    CANCELLED: 'Your pharmacy order has been cancelled. Please contact the pharmacy for assistance.',
   };
   return notify(patientId, {
     type: 'PHARMACY_ORDER_UPDATE',
@@ -233,6 +234,93 @@ export const notifyPassportAccessChanged = async (patientId, doctorOrHospitalNam
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PHASE 17: Lab + Pharmacy Granular Notification Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Notify patient when a doctor orders lab tests during consultation.
+ * Triggered immediately after LabRequest creation in labRequests.service.js.
+ */
+export const notifyLabRequestCreated = async (patientId, { labRequest, doctorName }) => {
+  const testNames = labRequest?.items?.map(i => i.testName).join(', ') || 'lab tests';
+  const count = labRequest?.items?.length || 0;
+  return notify(patientId, {
+    type: 'LAB_REQUEST_CREATED',
+    title: '🔬 Lab Tests Ordered',
+    message: `Dr. ${doctorName} has ordered ${count} lab test${count !== 1 ? 's' : ''}: ${testNames}. Please visit the hospital lab / billing section to proceed.`,
+    relatedId: labRequest?.id || null,
+  });
+};
+
+/**
+ * Notify patient when lab staff confirms the test panel and creates a bill.
+ * Triggered after confirmLabRequest in labFulfillment.service.js.
+ */
+export const notifyLabBillGenerated = async (patientId, { labRequest, totalAmount }) => {
+  return notify(patientId, {
+    type: 'LAB_BILL_GENERATED',
+    title: '💳 Lab Test Bill Ready',
+    message: `Your lab test${(labRequest?.items?.length || 0) !== 1 ? 's have' : ' has'} been confirmed by the lab. A bill of ₹${Number(totalAmount || 0).toFixed(2)} is ready. Please complete payment in Billing & Payments to proceed.`,
+    relatedId: labRequest?.id || null,
+  });
+};
+
+/**
+ * Notify patient to submit their sample after payment is confirmed.
+ * Triggered after onBillPaid in labFulfillment.service.js.
+ */
+export const notifyLabSampleRequested = async (patientId, labRequest) => {
+  const testNames = labRequest?.items?.map(i => i.testName).join(', ') || 'lab tests';
+  return notify(patientId, {
+    type: 'LAB_SAMPLE_REQUESTED',
+    title: '🧪 Please Submit Your Sample',
+    message: `Payment confirmed! Please visit the hospital laboratory now to submit your sample for: ${testNames}.`,
+    relatedId: labRequest?.id || null,
+  });
+};
+
+/**
+ * Notify patient that their lab sample is being processed.
+ * Triggered when lab staff advances status to PROCESSING in labFulfillment.service.js.
+ */
+export const notifyLabProcessing = async (patientId, labRequest) => {
+  const testNames = labRequest?.items?.map(i => i.testName).join(', ') || 'lab tests';
+  return notify(patientId, {
+    type: 'LAB_PROCESSING',
+    title: '⚗️ Sample Being Processed',
+    message: `Your sample for ${testNames} is now being processed in the laboratory. Results will be uploaded shortly.`,
+    relatedId: labRequest?.id || null,
+  });
+};
+
+/**
+ * Notify patient when the doctor creates a prescription during consultation.
+ * Triggered after createPrescription in prescriptions.service.js.
+ */
+export const notifyPrescriptionCreated = async (patientId, { prescription, doctorName }) => {
+  const count = prescription?.items?.length || 0;
+  return notify(patientId, {
+    type: 'PRESCRIPTION_CREATED',
+    title: '💊 Prescription Ready',
+    message: `Dr. ${doctorName} has prescribed ${count} medication${count !== 1 ? 's' : ''} for you. Check your Prescriptions tab and visit the pharmacy to order your medicines.`,
+    relatedId: prescription?.id || null,
+  });
+};
+
+/**
+ * Notify patient when pharmacist confirms the order and creates a billing request.
+ * Triggered after pharmacistMatchAndConfirm in pharmacyOrders.service.js.
+ */
+export const notifyPharmacyBillGenerated = async (patientId, { order, totalAmount }) => {
+  return notify(patientId, {
+    type: 'PHARMACY_BILL_GENERATED',
+    title: '💳 Pharmacy Bill Ready',
+    message: `Your pharmacy order has been confirmed. A bill of ₹${Number(totalAmount || 0).toFixed(2)} is ready. Please complete payment in Billing & Payments to begin preparation of your medicines.`,
+    relatedId: order?.id || null,
+  });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RETRIEVAL HELPERS — used by controllers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -268,16 +356,58 @@ export const markAllNotificationsRead = async (userId) => {
   });
 };
 
-export const notifyOnlineAppointmentConfirmed = async (patientId, doctorId, appointment) => {
-  // Notify doctor that they have a new online appointment booked
-  const patientName = appointment.patient?.fullName || 'A patient';
-  const timeStr = `${appointment.scheduledDate.toISOString().split('T')[0]} at ${appointment.scheduledTime}`;
-  
-  await notify(doctorId, {
-    type: 'APPOINTMENT_CONFIRMED',
-    title: 'New Online Consultation Booked',
-    message: `${patientName} has booked an online video consultation with you for ${timeStr}.`,
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 16: Online Consultation Notification Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Notify patient that their online consultation appointment is confirmed.
+ * Uses ONLINE_CONSULTATION_CONFIRMED type — included in email subset.
+ */
+export const notifyOnlineConsultationConfirmed = async (patientId, appointment) => {
+  const date = appointment.scheduledDate instanceof Date
+    ? appointment.scheduledDate.toISOString().split('T')[0]
+    : appointment.scheduledDate;
+  return notify(patientId, {
+    type: 'ONLINE_CONSULTATION_CONFIRMED',
+    title: 'Online Consultation Confirmed',
+    message: `Your online consultation is confirmed for ${date} at ${appointment.scheduledTime}.`,
     relatedId: appointment.id,
   });
 };
 
+/**
+ * Notify that a session is about to start (can be called from a scheduler or REST trigger).
+ */
+export const notifyOnlineSessionStarting = async (patientId, appointment) => {
+  return notify(patientId, {
+    type: 'ONLINE_SESSION_STARTING',
+    title: 'Your Consultation is Starting',
+    message: 'Your doctor is ready. Please join the video consultation now.',
+    relatedId: appointment.id,
+  });
+};
+
+/**
+ * Notify patient that the doctor has started the video session.
+ */
+export const notifyOnlineSessionStarted = async (patientId, appointment) => {
+  return notify(patientId, {
+    type: 'ONLINE_SESSION_STARTED',
+    title: 'Video Consultation Started',
+    message: 'Your video consultation has started. Join now.',
+    relatedId: appointment.id,
+  });
+};
+
+/**
+ * Notify patient that the online consultation is complete.
+ */
+export const notifyOnlineSessionCompleted = async (patientId, consultationId) => {
+  return notify(patientId, {
+    type: 'ONLINE_SESSION_COMPLETED',
+    title: 'Consultation Completed',
+    message: 'Your online consultation is complete. Your prescription will be available shortly.',
+    relatedId: consultationId,
+  });
+};

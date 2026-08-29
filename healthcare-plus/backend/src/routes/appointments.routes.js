@@ -16,6 +16,10 @@ router.use(authenticate);
 // Patient routes
 router.post('/', checkRole('PATIENT'), ctrl.initiateBooking);
 router.get('/my', checkRole('PATIENT'), ctrl.getMyAppointments);
+
+// Doctor routes (Phase 16: doctor-scoped appointment list for online panel)
+router.get('/doctor/mine', checkRole('DOCTOR'), ctrl.getDoctorAppointments);
+
 router.get('/:id', ctrl.getAppointmentById); // own-check done in service
 router.patch('/:id/cancel', checkRole('PATIENT'), ctrl.cancelAppointment);
 

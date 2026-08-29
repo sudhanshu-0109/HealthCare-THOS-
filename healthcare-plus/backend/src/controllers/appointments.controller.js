@@ -6,20 +6,22 @@ import * as appointmentsService from '../services/appointments.service.js';
 import prisma from '../prisma/client.js';
 
 export const initiateBooking = async (req, res) => {
-  const { doctorId, scheduledDate, scheduledTime } = req.body;
+  const { doctorId, scheduledDate, scheduledTime, consultationType } = req.body;
   const data = await appointmentsService.initiateBooking({
     patientId: req.user.id,
     doctorId,
     scheduledDate,
     scheduledTime,
+    consultationType,
   });
   res.status(201).json({ success: true, data });
 };
 
 export const getMyAppointments = async (req, res) => {
-  const { status, page, limit } = req.query;
+  const { status, consultationType, page, limit } = req.query;
   const data = await appointmentsService.getMyAppointments(req.user.id, {
     status,
+    consultationType,
     page: parseInt(page) || 1,
     limit: parseInt(limit) || 10,
   });
@@ -86,4 +88,19 @@ export const getHospitalAppointments = async (req, res) => {
   ]);
 
   res.json({ success: true, data: { appointments, total, page: parseInt(page), limit: parseInt(limit) } });
+};
+
+/**
+ * GET /appointments/doctor/mine — Doctor's own appointments (doctor-scoped).
+ * Phase 16: Used by the doctor dashboard to list today's ONLINE appointments.
+ */
+export const getDoctorAppointments = async (req, res) => {
+  const { consultationType, status, date, limit } = req.query;
+  const data = await appointmentsService.getDoctorAppointments(req.user.id, {
+    consultationType,
+    status,
+    date,
+    limit: parseInt(limit) || 20,
+  });
+  res.json({ success: true, data });
 };

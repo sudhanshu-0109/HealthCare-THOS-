@@ -34,30 +34,12 @@ export default function ConsultationScreen() {
   const [lastSaved, setLastSaved] = useState(null);
 
   useEffect(() => {
-    // ONLINE consultations: no queueTokenId — consultation was already started via onlineSession.startSession
-    // Just fetch the existing consultation for this appointment.
-    if (!appointmentId) {
-      setError('Missing appointment ID.');
+    if (!appointmentId || !queueTokenId) {
+      setError('Missing appointment or token ID.');
       setLoading(false);
       return;
     }
 
-    if (!queueTokenId) {
-      // Online flow: look up existing consultation by appointmentId
-      import('../../services/api').then(({ default: api }) => {
-        return api.get(`/consultations/by-appointment/${appointmentId}`);
-      }).then(res => {
-        const cData = res.data?.data || res.data || res;
-        setConsultation(cData);
-        setLoading(false);
-      }).catch(() => {
-        // Consultation may not exist yet if doctor navigated here early; show empty
-        setLoading(false);
-      });
-      return;
-    }
-
-    // OFFLINE flow: start consultation via queue token
     consultationsService.startConsultation(appointmentId, queueTokenId)
       .then(res => {
         const cData = res.data || res;

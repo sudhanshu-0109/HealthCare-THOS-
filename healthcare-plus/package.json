@@ -1,0 +1,12 @@
+{
+  "name": "healthcare-plus",
+  "version": "1.0.0",
+  "description": "Healthcare+ monorepo root — local dev scripts",
+  "type": "module",
+  "scripts": {
+    "dev:tunnel": "node scripts/dev-tunnel.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

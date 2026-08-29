@@ -1,10 +1,9 @@
 /**
  * components/emergency/LiveTrackingMap.jsx — Uber/Ola-style ambulance live tracker.
  *
- * Map:      MapLibre GL JS  (maplibre-gl)
- * Tiles:    OpenFreeMap     (tiles.openfreemap.org) — free, keyless
- * Routing:  OSRM            (router.project-osrm.org) — free, keyless
- * Location: Props from EmergencyTracking.jsx, driven by Socket.IO
+ * Map:      Google Maps JavaScript API  (@googlemaps/js-api-loader)
+ * Routing:  Google Maps Directions API  (real road routes, distance, ETA)
+ * Location: Props from EmergencyTracking.jsx, driven by real Socket.IO updates
  *
  * Props:
  *   patientLat, patientLng   — real patient GPS
@@ -12,22 +11,19 @@
  *   status                   — EmergencyStatus string
  *   driverName, vehicleNumber
  *   distanceKm, etaMin       — passed down; updated by onRouteUpdate callback
- *   onRouteUpdate({ distanceKm, etaMin }) — called after each OSRM fetch
+ *   onRouteUpdate({ distanceKm, etaMin }) — called after each Directions fetch
  *   socketConnected          — boolean from parent (shows reconnecting banner)
+ *
+ * Required Google Cloud APIs:
+ *   - Maps JavaScript API
+ *   - Directions API
+ *
+ * API Key: VITE_GOOGLE_MAPS_API_KEY in frontend/.env (git-ignored, never hardcoded)
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Map as MapLibreMap, Marker, NavigationControl, LngLatBounds } from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import { loadGoogleMaps } from '../../utils/googleMapsLoader';
 import { MapPin, Ambulance, Navigation, AlertTriangle, RefreshCw, WifiOff } from 'lucide-react';
-
-// ── Map style ─────────────────────────────────────────────────────────────────
-// IMPORTANT: Must use OpenFreeMap. The previous CartoDB URL
-// (basemaps.cartocdn.com/gl/voyager-gl-style/style.json) has CORS/auth issues
-// and was the direct root cause of the map never reaching the 'load' event.
-const MAP_STYLE =
-  import.meta.env.VITE_MAP_STYLE_URL ||
-  'https://tiles.openfreemap.org/styles/liberty';
 
 // ── Coordinate validation ─────────────────────────────────────────────────────
 const isValidCoord = (lat, lng) =>
@@ -36,12 +32,42 @@ const isValidCoord = (lat, lng) =>
   lat >= -90 && lat <= 90 &&
   lng >= -180 && lng <= 180;
 
-// ── Patient marker — pulsing red dot ─────────────────────────────────────────
+// ── Haversine distance (metres) ───────────────────────────────────────────────
+const haversineM = (lat1, lng1, lat2, lng2) => {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+// ── Smooth marker movement via requestAnimationFrame ─────────────────────────
+// Interpolates a google.maps.marker.AdvancedMarkerElement between two positions.
+const animateMarker = (marker, fromLat, fromLng, toLat, toLng, durationMs = 800) => {
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min((now - start) / durationMs, 1);
+    // cubic ease-in-out
+    const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const lat = fromLat + (toLat - fromLat) * ease;
+    const lng = fromLng + (toLng - fromLng) * ease;
+    marker.position = { lat, lng };
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+};
+
+// ── Create patient marker element — pulsing red dot ───────────────────────────
 const makePatientEl = () => {
+  // Inject pulse keyframe once
   if (!document.getElementById('hc-map-pulse-style')) {
     const s = document.createElement('style');
     s.id = 'hc-map-pulse-style';
-    s.textContent = '@keyframes hc-ping{75%,100%{transform:scale(2.2);opacity:0}}';
+    s.textContent = '@keyframes hc-ping{75%,100%{transform:scale(2.4);opacity:0}}';
     document.head.appendChild(s);
   }
   const wrap = document.createElement('div');
@@ -71,7 +97,7 @@ const makePatientEl = () => {
   return wrap;
 };
 
-// ── Ambulance marker — SVG icon ───────────────────────────────────────────────
+// ── Create ambulance marker element — SVG icon ────────────────────────────────
 const makeAmbulanceEl = () => {
   const wrap = document.createElement('div');
   wrap.style.cssText =
@@ -97,7 +123,7 @@ const makeAmbulanceEl = () => {
     '<rect x="19" y="4" width="6" height="3" rx="1" fill="#3b82f6"/>';
 
   const label = document.createElement('div');
-  label.textContent = '\uD83D\uDE91 Ambulance';
+  label.textContent = '🚑 Ambulance';
   label.style.cssText =
     'margin-top:2px;white-space:nowrap;font-size:10px;font-weight:700;' +
     'color:#0891b2;text-shadow:0 1px 3px rgba(0,0,0,0.8);';
@@ -105,39 +131,6 @@ const makeAmbulanceEl = () => {
   wrap.appendChild(svg);
   wrap.appendChild(label);
   return wrap;
-};
-
-// ── Haversine distance (metres) ───────────────────────────────────────────────
-const haversineM = (lat1, lng1, lat2, lng2) => {
-  const R = 6371000;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-// ── Smooth marker movement via requestAnimationFrame ─────────────────────────
-const animateMarker = (marker, fromLngLat, toLngLat, durationMs) => {
-  const dur = durationMs || 800;
-  const start = performance.now();
-  const [fromLng, fromLat] = fromLngLat;
-  const [toLng, toLat] = toLngLat;
-
-  const step = (now) => {
-    const t = Math.min((now - start) / dur, 1);
-    const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    marker.setLngLat([
-      fromLng + (toLng - fromLng) * ease,
-      fromLat + (toLat - fromLat) * ease,
-    ]);
-    if (t < 1) requestAnimationFrame(step);
-  };
-
-  requestAnimationFrame(step);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,26 +152,24 @@ export default function LiveTrackingMap({
   const _socketConnected = socketConnected !== false; // default true
 
   const mapContainerRef = useRef(null);
-  const mapRef = useRef(null);
-  const patientMarkerRef = useRef(null);
-  const driverMarkerRef = useRef(null);
-  const driverPosRef = useRef(null);    // last rendered driver [lng, lat]
-  const mapReadyRef = useRef(false);    // ref for stale-closure safety inside map event handlers
+  const mapRef = useRef(null);               // google.maps.Map instance
+  const mapsApiRef = useRef(null);           // google.maps namespace
+  const patientMarkerRef = useRef(null);     // AdvancedMarkerElement for patient
+  const driverMarkerRef = useRef(null);      // AdvancedMarkerElement for driver
+  const driverPosRef = useRef(null);         // { lat, lng } last rendered driver position
+  const directionsRendererRef = useRef(null);
+  const initialFitDoneRef = useRef(false);
+  const lastRouteFetchRef = useRef(0);
+  const lastRoutePosRef = useRef(null);
+  const isFollowingRef = useRef(true);
 
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [mapErrorMsg, setMapErrorMsg] = useState('');
   const [retryKey, setRetryKey] = useState(0);
-
   const [isFollowing, setIsFollowing] = useState(true);
-  const isFollowingRef = useRef(true);
-
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState(false);
-
-  const lastRouteFetchRef = useRef(0);      // ms timestamp of last OSRM fetch
-  const lastRoutePosRef = useRef(null);     // [lat, lng] at last fetch
-  const initialFitDoneRef = useRef(false);  // fit-bounds only once
 
   const hasPatient = isValidCoord(patientLat, patientLng);
   const hasDriver = isValidCoord(driverLat, driverLng);
@@ -187,15 +178,24 @@ export default function LiveTrackingMap({
   // ── Map initialisation — once per mount (or retry) ────────────────────────
   useEffect(() => {
     if (!mapContainerRef.current) return undefined;
+    let cancelled = false;
 
     // Destroy stale instance on retry
     if (mapRef.current) {
-      if (mapRef.current._roCleanup) mapRef.current._roCleanup();
-      mapRef.current.remove();
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null);
+        directionsRendererRef.current = null;
+      }
+      if (patientMarkerRef.current) {
+        patientMarkerRef.current.map = null;
+        patientMarkerRef.current = null;
+      }
+      if (driverMarkerRef.current) {
+        driverMarkerRef.current.map = null;
+        driverMarkerRef.current = null;
+      }
       mapRef.current = null;
-      patientMarkerRef.current = null;
-      driverMarkerRef.current = null;
-      mapReadyRef.current = false;
+      mapsApiRef.current = null;
       initialFitDoneRef.current = false;
       setMapReady(false);
     }
@@ -203,291 +203,223 @@ export default function LiveTrackingMap({
     setMapError(false);
     setMapErrorMsg('');
 
-    let cancelled = false;
+    loadGoogleMaps()
+      .then((maps) => {
+        if (cancelled || !mapContainerRef.current) return;
+        mapsApiRef.current = maps;
 
-    try {
-      const initialCenter = hasPatient
-        ? [patientLng, patientLat]
-        : hasDriver
-          ? [driverLng, driverLat]
-          : [73.1812, 22.3072]; // Vadodara fallback
+        const initialCenter = hasPatient
+          ? { lat: patientLat, lng: patientLng }
+          : hasDriver
+            ? { lat: driverLat, lng: driverLng }
+            : { lat: 22.3072, lng: 73.1812 }; // Vadodara fallback
 
-      const map = new MapLibreMap({
-        container: mapContainerRef.current,
-        style: MAP_STYLE,
-        center: initialCenter,
-        zoom: (hasPatient || hasDriver) ? 14 : 5,
-        failIfMajorPerformanceCaveat: false,
-        attributionControl: false,
-      });
-
-      map.addControl(
-        new NavigationControl({ showCompass: false }),
-        'top-right'
-      );
-
-      // Disable auto-follow on user map interaction
-      const stopFollowing = () => {
-        if (isFollowingRef.current) {
-          isFollowingRef.current = false;
-          setIsFollowing(false);
-        }
-      };
-      map.on('dragstart', stopFollowing);
-      map.on('zoomstart', (e) => { if (e.originalEvent) stopFollowing(); });
-
-      // Log all MapLibre events — visible in browser DevTools console
-      map.on('style.load', () => {
-        console.log('[LiveTrackingMap] style.load OK — style URL:', MAP_STYLE);
-      });
-
-      map.on('load', () => {
-        console.log('[LiveTrackingMap] map.load OK — map fully ready');
-        if (cancelled) return;
-        try {
-          map.addSource('emergency-route', {
-            type: 'geojson',
-            data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } },
-          });
-          map.addLayer({
-            id: 'emergency-route-line',
-            type: 'line',
-            source: 'emergency-route',
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: {
-              'line-color': '#0891b2',
-              'line-width': 4,
-              'line-dasharray': [2, 1.2],
-              'line-opacity': 0.85,
-            },
-          });
-          mapReadyRef.current = true;
-          setMapReady(true);
-        } catch (err) {
-          console.error('[LiveTrackingMap] Error in load handler:', err);
-          if (!cancelled) {
-            setMapErrorMsg('Layer setup failed: ' + err.message);
-            setMapError(true);
-          }
-        }
-      });
-
-      map.on('error', (e) => {
-        // Log ALL map errors visibly in DevTools — check Network tab if this fires.
-        const err = (e && e.error) ? e.error : e;
-        console.warn('[LiveTrackingMap] MapLibre error event (non-fatal, logged only):', err);
-        //
-        // IMPORTANT: Do NOT set mapError here for pre-load 404 errors.
-        //
-        // MapLibre fires 'error' for individual tile/glyph/sprite 404s — these are
-        // non-fatal. If we set mapError = true and hide the container, MapLibre's
-        // canvas loses its dimensions and the 'load' event can never fire, which
-        // is exactly what caused the 15-second timeout loop.
-        //
-        // The 15-second timeout below is the real safety net for a truly broken map.
-        // Only post-load tile blips are explicitly ignored.
-        if (cancelled || mapReadyRef.current) {
-          // Tile blip after map.load — definitely non-fatal, ignore.
-          return;
-        }
-        // Pre-load errors: log with full context so the developer can investigate,
-        // but do NOT trigger the error UI — let the map keep trying to load.
-        console.warn(
-          '[LiveTrackingMap] Pre-load error (map still initializing — will wait for 15s timeout):',
-          typeof err === 'object' ? JSON.stringify(err) : String(err)
-        );
-      });
-
-      mapRef.current = map;
-
-      // Resize map when container dimensions change
-      if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
-        const ro = new ResizeObserver(() => {
-          if (mapRef.current) mapRef.current.resize();
+        const map = new maps.Map(mapContainerRef.current, {
+          center: initialCenter,
+          zoom: (hasPatient || hasDriver) ? 14 : 5,
+          mapId: 'healthcare_emergency_map',
+          disableDefaultUI: true,   // we supply our own controls
+          gestureHandling: 'greedy',
+          clickableIcons: false,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
         });
-        ro.observe(mapContainerRef.current);
-        map._roCleanup = () => ro.disconnect();
-      }
 
-      // 15-second fallback timeout — only fires if map never reaches 'load'.
-      // Logs the exact style URL so the developer can check what failed in DevTools.
-      const timeoutId = setTimeout(() => {
-        if (!mapReadyRef.current && !cancelled) {
-          console.warn(
-            '[LiveTrackingMap] 15s timeout: map still not ready.',
-            'Style URL:', MAP_STYLE,
-            '— Open DevTools → Network tab and filter for the style URL to see the error.'
-          );
-          setMapErrorMsg(
-            'Map tiles timed out after 15s. Check network access to: ' +
-            MAP_STYLE.slice(0, 60) + '…'
-          );
-          setMapError(true);
-        }
-      }, 15000);
-      map._timeoutCleanup = () => clearTimeout(timeoutId);
+        // Stop auto-follow when user manually interacts with the map
+        const stopFollowing = () => {
+          if (isFollowingRef.current) {
+            isFollowingRef.current = false;
+            setIsFollowing(false);
+          }
+        };
+        map.addListener('dragstart', stopFollowing);
+        map.addListener('zoom_changed', () => {
+          // Only stop following on programmatic zoom changes triggered by user
+          // We can't tell the difference easily, so we check a flag
+          if (!isFollowingRef._programmatic) stopFollowing();
+        });
 
-    } catch (err) {
-      console.error('[LiveTrackingMap] MapLibre constructor threw:', err);
-      if (!cancelled) {
-        setMapErrorMsg(err.message || 'MapLibre failed to initialize');
+        // Directions renderer — draws real road route
+        const renderer = new maps.DirectionsRenderer({
+          map,
+          suppressMarkers: true, // we draw our own markers
+          polylineOptions: {
+            strokeColor: '#0891b2',
+            strokeWeight: 4,
+            strokeOpacity: 0.85,
+          },
+        });
+        directionsRendererRef.current = renderer;
+
+        mapRef.current = map;
+        if (!cancelled) setMapReady(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[LiveTrackingMap] Google Maps load error:', err.message);
+        setMapErrorMsg(err.message || 'Google Maps could not be loaded.');
         setMapError(true);
-      }
-    }
+      });
 
     return () => {
       cancelled = true;
-      if (mapRef.current) {
-        if (mapRef.current._roCleanup) mapRef.current._roCleanup();
-        if (mapRef.current._timeoutCleanup) mapRef.current._timeoutCleanup();
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-      patientMarkerRef.current = null;
-      driverMarkerRef.current = null;
-      mapReadyRef.current = false;
-      initialFitDoneRef.current = false;
+      // Markers and renderer are cleaned up inside the effect when retryKey changes
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryKey]);
 
-  // ── OSRM route fetch — throttled (15s elapsed AND 150m moved) ────────────
-  const fetchRoute = useCallback(async () => {
-    if (!mapRef.current || !mapReadyRef.current) return;
+  // ── Fetch real road route via Google Directions Service ───────────────────
+  const fetchRoute = useCallback(() => {
+    const maps = mapsApiRef.current;
+    const map = mapRef.current;
+    if (!maps || !map || !mapReady) return;
     if (!hasPatient || !hasDriver) return;
 
     const now = Date.now();
     const THROTTLE_MS = 15000; // 15 seconds minimum between fetches
-    const MIN_MOVE_M = 150;    // 150 metres minimum movement
+    const MIN_MOVE_M = 150;    // 150 metres minimum driver movement
 
     const elapsed = now - lastRouteFetchRef.current;
     const movedEnough = !lastRoutePosRef.current ||
       haversineM(
-        lastRoutePosRef.current[0], lastRoutePosRef.current[1],
+        lastRoutePosRef.current.lat, lastRoutePosRef.current.lng,
         driverLat, driverLng
       ) >= MIN_MOVE_M;
 
     if (elapsed < THROTTLE_MS && !movedEnough) return;
 
     lastRouteFetchRef.current = now;
-    lastRoutePosRef.current = [driverLat, driverLng];
+    lastRoutePosRef.current = { lat: driverLat, lng: driverLng };
 
     setRouteLoading(true);
     setRouteError(false);
 
-    try {
-      // OSRM coordinate order: longitude,latitude (NOT lat,lng — this is critical)
-      const url =
-        'https://router.project-osrm.org/route/v1/driving/' +
-        driverLng + ',' + driverLat + ';' +
-        patientLng + ',' + patientLat +
-        '?overview=full&geometries=geojson';
+    const directionsService = new maps.DirectionsService();
+    directionsService.route(
+      {
+        origin: { lat: driverLat, lng: driverLng },
+        destination: { lat: patientLat, lng: patientLng },
+        travelMode: maps.TravelMode.DRIVING,
+        drivingOptions: {
+          departureTime: new Date(),
+          trafficModel: maps.TrafficModel.BEST_GUESS,
+        },
+      },
+      (result, dirStatus) => {
+        setRouteLoading(false);
+        if (dirStatus === maps.DirectionsStatus.OK && result.routes[0]) {
+          directionsRendererRef.current?.setDirections(result);
 
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
-      const data = await res.json();
+          const leg = result.routes[0].legs[0];
+          const calcDistKm = leg.distance.value / 1000;
+          const calcEtaMin = Math.ceil(
+            (leg.duration_in_traffic?.value ?? leg.duration.value) / 60
+          );
+          if (onRouteUpdate) onRouteUpdate({ distanceKm: calcDistKm, etaMin: calcEtaMin });
 
-      if (data.code === 'Ok' && data.routes && data.routes[0]) {
-        const route = data.routes[0];
-        const map = mapRef.current;
-        if (!map) return;
+          // Fit bounds on very first successful route (uses route bounding box)
+          if (!initialFitDoneRef.current && isFollowingRef.current) {
+            map.fitBounds(result.routes[0].bounds, 80);
+            initialFitDoneRef.current = true;
+          }
+        } else {
+          console.warn('[LiveTrackingMap] Google Directions failed:', dirStatus, '— straight-line fallback');
+          setRouteError(true);
+          // Clear stale route
+          directionsRendererRef.current?.setDirections({ routes: [] });
 
-        const src = map.getSource('emergency-route');
-        if (src) src.setData({ type: 'Feature', geometry: route.geometry });
-
-        const calcDistKm = route.distance / 1000;
-        const calcEtaMin = Math.ceil(route.duration / 60);
-        if (onRouteUpdate) onRouteUpdate({ distanceKm: calcDistKm, etaMin: calcEtaMin });
-
-        // Fit bounds only on the very first successful route fetch
-        if (!initialFitDoneRef.current && isFollowingRef.current) {
-          const bounds = new LngLatBounds();
-          route.geometry.coordinates.forEach((c) => bounds.extend(c));
-          map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 700 });
-          initialFitDoneRef.current = true;
-        }
-      } else {
-        throw new Error((data && data.code) ? data.code : 'No route found');
-      }
-    } catch (err) {
-      console.warn('[LiveTrackingMap] OSRM routing failed — straight-line fallback:', err.message);
-      setRouteError(true);
-
-      // Render a straight line between ambulance and patient as fallback
-      const map = mapRef.current;
-      if (map) {
-        const src = map.getSource('emergency-route');
-        if (src) {
-          src.setData({
-            type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates: [[driverLng, driverLat], [patientLng, patientLat]],
-            },
+          // Fallback: draw a straight-line polyline
+          new maps.Polyline({
+            path: [
+              { lat: driverLat, lng: driverLng },
+              { lat: patientLat, lng: patientLng },
+            ],
+            geodesic: true,
+            strokeColor: '#f59e0b',
+            strokeWeight: 3,
+            strokeOpacity: 0.8,
+            map,
           });
+
+          // Fallback distance/ETA via Haversine
+          const fallbackKm = haversineM(driverLat, driverLng, patientLat, patientLng) / 1000;
+          const fallbackEta = Math.max(1, Math.round((fallbackKm / 40) * 60));
+          if (onRouteUpdate) onRouteUpdate({ distanceKm: fallbackKm, etaMin: fallbackEta });
         }
       }
-    } finally {
-      setRouteLoading(false);
-    }
-  }, [driverLat, driverLng, patientLat, patientLng, hasPatient, hasDriver, onRouteUpdate]);
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverLat, driverLng, patientLat, patientLng, hasPatient, hasDriver, onRouteUpdate, mapReady]);
 
   // ── Sync markers and viewport whenever coords change ──────────────────────
   useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
+    const maps = mapsApiRef.current;
     const map = mapRef.current;
+    if (!mapReady || !maps || !map) return;
 
     // Patient marker — created once, position updated thereafter
     if (hasPatient) {
-      const pos = [patientLng, patientLat];
+      const pos = { lat: patientLat, lng: patientLng };
       if (!patientMarkerRef.current) {
-        patientMarkerRef.current = new Marker({
-          element: makePatientEl(),
-          anchor: 'bottom',
-        })
-          .setLngLat(pos)
-          .addTo(map);
+        patientMarkerRef.current = new maps.marker.AdvancedMarkerElement({
+          map,
+          position: pos,
+          content: makePatientEl(),
+          zIndex: 10,
+        });
       } else {
-        patientMarkerRef.current.setLngLat(pos);
+        patientMarkerRef.current.position = pos;
       }
     }
 
     // Ambulance marker — smooth animation to new position
     if (hasDriver) {
-      const pos = [driverLng, driverLat];
+      const pos = { lat: driverLat, lng: driverLng };
       if (!driverMarkerRef.current) {
-        driverMarkerRef.current = new Marker({
-          element: makeAmbulanceEl(),
-          anchor: 'bottom',
-        })
-          .setLngLat(pos)
-          .addTo(map);
+        driverMarkerRef.current = new maps.marker.AdvancedMarkerElement({
+          map,
+          position: pos,
+          content: makeAmbulanceEl(),
+          zIndex: 20,
+        });
         driverPosRef.current = pos;
       } else {
         const from = driverPosRef.current || pos;
-        animateMarker(driverMarkerRef.current, from, pos, 800);
+        animateMarker(
+          driverMarkerRef.current,
+          from.lat, from.lng,
+          driverLat, driverLng,
+          800
+        );
         driverPosRef.current = pos;
       }
 
       // Pan to follow ambulance if follow mode is active
       if (isFollowingRef.current) {
-        map.easeTo({ center: pos, duration: 500 });
+        map.panTo(pos);
       }
     }
 
     // Initial fit-bounds when both markers first appear (before first route fetch)
     if (hasPatient && hasDriver && !initialFitDoneRef.current) {
-      const bounds = new LngLatBounds();
-      bounds.extend([patientLng, patientLat]);
-      bounds.extend([driverLng, driverLat]);
-      map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 700 });
+      const bounds = new maps.LatLngBounds();
+      bounds.extend({ lat: patientLat, lng: patientLng });
+      bounds.extend({ lat: driverLat, lng: driverLng });
+      isFollowingRef._programmatic = true;
+      map.fitBounds(bounds, 80);
+      isFollowingRef._programmatic = false;
+      // fitBounds fires zoom_changed; mark initial fit
       initialFitDoneRef.current = true;
     } else if (hasPatient && !hasDriver && !initialFitDoneRef.current) {
-      map.easeTo({ center: [patientLng, patientLat], zoom: 14, duration: 500 });
+      isFollowingRef._programmatic = true;
+      map.panTo({ lat: patientLat, lng: patientLng });
+      map.setZoom(14);
+      isFollowingRef._programmatic = false;
       initialFitDoneRef.current = true;
     }
 
-    // Throttled OSRM route fetch
+    // Throttled Google Directions route fetch
     fetchRoute();
   }, [mapReady, patientLat, patientLng, driverLat, driverLng, hasPatient, hasDriver, fetchRoute]);
 
@@ -495,19 +427,24 @@ export default function LiveTrackingMap({
   const handleRecenter = () => {
     isFollowingRef.current = true;
     setIsFollowing(true);
+    const maps = mapsApiRef.current;
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !maps) return;
 
+    isFollowingRef._programmatic = true;
     if (hasPatient && hasDriver) {
-      const bounds = new LngLatBounds();
-      bounds.extend([patientLng, patientLat]);
-      bounds.extend([driverLng, driverLat]);
-      map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 700 });
+      const bounds = new maps.LatLngBounds();
+      bounds.extend({ lat: patientLat, lng: patientLng });
+      bounds.extend({ lat: driverLat, lng: driverLng });
+      map.fitBounds(bounds, 80);
     } else if (hasDriver) {
-      map.easeTo({ center: [driverLng, driverLat], zoom: 15, duration: 500 });
+      map.panTo({ lat: driverLat, lng: driverLng });
+      map.setZoom(15);
     } else if (hasPatient) {
-      map.easeTo({ center: [patientLng, patientLat], zoom: 14, duration: 500 });
+      map.panTo({ lat: patientLat, lng: patientLng });
+      map.setZoom(14);
     }
+    isFollowingRef._programmatic = false;
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -518,10 +455,9 @@ export default function LiveTrackingMap({
       <div className="relative bg-slate-100" style={{ height: '320px' }}>
 
         {/*
-         * MapLibre canvas container.
+         * Google Maps canvas container.
          * CRITICAL: Must always be in the DOM (not conditional) so the ref
-         * is always valid during useEffect. Hidden via display:none when
-         * showing the error fallback instead.
+         * is always valid during useEffect. Error overlay uses z-index.
          */}
         <div
           ref={mapContainerRef}
@@ -530,13 +466,10 @@ export default function LiveTrackingMap({
             inset: 0,
             width: '100%',
             height: '100%',
-            // NEVER use display:none — MapLibre needs the canvas to have real dimensions
-            // at all times. If the container is hidden before load, the 'load' event
-            // never fires. The error overlay (below) sits on top with z-index instead.
           }}
         />
 
-        {/* ── Error fallback — sits ON TOP of map (z-index), never hides canvas ── */}
+        {/* ── Error fallback — sits ON TOP of map (z-index) ──────────────── */}
         {mapError && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 p-6 text-center bg-slate-50/98">
             <div className="w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center">
@@ -544,8 +477,8 @@ export default function LiveTrackingMap({
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-700">Live map unavailable</p>
-              <p className="text-xs text-slate-400 mt-0.5 max-w-xs">
-                {mapErrorMsg || 'Map tiles could not be loaded. Check your network connection.'}
+              <p className="text-xs text-slate-400 mt-0.5 max-w-xs leading-relaxed">
+                {mapErrorMsg || 'Google Maps could not be loaded. Check your network or API key configuration.'}
               </p>
             </div>
             {/* Coordinate fallback — always shows real GPS data */}
@@ -585,7 +518,7 @@ export default function LiveTrackingMap({
           </div>
         )}
 
-        {/* ── Loading skeleton ────────────────────────────────────────── */}
+        {/* ── Loading skeleton ─────────────────────────────────────────── */}
         {!mapError && !mapReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-100/80 pointer-events-none">
             <div className="flex items-center gap-2 text-slate-500 text-sm bg-white px-4 py-2 rounded-full shadow-sm">
@@ -595,7 +528,7 @@ export default function LiveTrackingMap({
           </div>
         )}
 
-        {/* ── Socket disconnected banner ──────────────────────────────── */}
+        {/* ── Socket disconnected banner ────────────────────────────────── */}
         {!_socketConnected && mapReady && (
           <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-center gap-2 px-3 py-1.5 bg-amber-500/95 text-white text-xs font-semibold pointer-events-none">
             <WifiOff className="w-3.5 h-3.5" />
@@ -603,7 +536,7 @@ export default function LiveTrackingMap({
           </div>
         )}
 
-        {/* ── Status pill ─────────────────────────────────────────────── */}
+        {/* ── Status pill ──────────────────────────────────────────────── */}
         <div className="absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 border border-slate-200 shadow-sm pointer-events-none">
           <span
             className={
@@ -621,7 +554,7 @@ export default function LiveTrackingMap({
           </div>
         )}
 
-        {/* ── Route-error badge ────────────────────────────────────────── */}
+        {/* ── Route-error badge (straight-line fallback notice) ────────── */}
         {routeError && !routeLoading && mapReady && (
           <div className="absolute top-3 right-12 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 border border-amber-300 shadow-sm pointer-events-none">
             <AlertTriangle className="w-3 h-3 text-amber-600" />
@@ -629,7 +562,7 @@ export default function LiveTrackingMap({
           </div>
         )}
 
-        {/* ── Map legend ──────────────────────────────────────────────── */}
+        {/* ── Map legend ───────────────────────────────────────────────── */}
         {mapReady && (
           <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
             <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/95 border border-slate-200 shadow-sm text-xs text-slate-600">
@@ -645,7 +578,7 @@ export default function LiveTrackingMap({
           </div>
         )}
 
-        {/* ── Follow / Re-center button ────────────────────────────────── */}
+        {/* ── Follow / Re-center button ─────────────────────────────────── */}
         {mapReady && (
           <div className="absolute bottom-3 right-3 z-10">
             <button

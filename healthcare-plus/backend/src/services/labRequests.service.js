@@ -6,6 +6,7 @@ import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { addTimelineEvent } from './passport.service.js';
 import { createBillAndInitiatePayment } from './billing.service.js';
+import { notifyLabRequestCreated } from './notifications.service.js';
 
 const LAB_REQUEST_SELECT = {
   id: true,
@@ -76,6 +77,14 @@ export const createLabRequest = async (consultationId, { priority, notes, items 
     });
   } catch (err) {
     console.warn('[LabRequestsService] Failed to write LAB_REQUEST timeline event:', err.message);
+  }
+
+  // Notify patient — doctor has ordered lab tests
+  try {
+    const doctorName = consultation.doctor?.user?.fullName || 'Doctor';
+    await notifyLabRequestCreated(consultation.patientId, { labRequest, doctorName });
+  } catch (notifErr) {
+    console.warn('[LabRequestsService] Failed to send lab-request-created notification:', notifErr.message);
   }
 
   return labRequest;

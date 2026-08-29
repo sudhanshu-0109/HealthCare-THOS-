@@ -6,6 +6,7 @@ import { scopeToHospital } from '../middleware/scopeToHospital.js';
 import * as emergencyController from '../controllers/emergency.controller.js';
 import { getRequestStatus } from '../controllers/emergencyDispatch.controller.js';
 
+
 const router = Router();
 
 router.use(authenticate);
@@ -38,6 +39,14 @@ router.get(
   checkRole('PATIENT'),
   getRequestStatus
 );
+
+// Patient cancels their own active emergency
+router.post(
+  '/:id/cancel',
+  checkRole('PATIENT'),
+  emergencyController.cancelEmergencyRequest
+);
+
 
 // Hospital Staff views and updates requests
 router.get(

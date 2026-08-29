@@ -34,3 +34,10 @@ backend/logs/
 # Prisma generated
 backend/node_modules/
 frontend/node_modules/
+
+# Local development tools (binaries — not source)
+tools/cloudflared.exe
+tools/*.exe
+
+# Tunnel session logs
+tunnel-*.log

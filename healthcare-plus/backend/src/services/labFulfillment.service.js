@@ -11,7 +11,12 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { createBillAndInitiatePayment } from './billing.service.js';
-import { notify } from './notifications.service.js';
+import {
+  notify,
+  notifyLabBillGenerated,
+  notifyLabSampleRequested,
+  notifyLabProcessing,
+} from './notifications.service.js';
 import { emitQueueUpdateById } from './queue.service.js';
 
 /**
@@ -59,6 +64,13 @@ export const confirmLabRequest = async (labRequestId, staffUserId, { finalItems 
     })),
   });
 
+  // Notify patient: bill is ready for payment
+  try {
+    await notifyLabBillGenerated(labRequest.patientId, { labRequest, totalAmount });
+  } catch (notifErr) {
+    console.warn('[LabFulfillment] Failed to send lab-bill-generated notification:', notifErr.message);
+  }
+
   return { labRequestId, totalAmount, ...billingResult };
 };
 
@@ -67,7 +79,10 @@ export const confirmLabRequest = async (labRequestId, staffUserId, { finalItems 
  * Advances LabRequest from CONFIRMED → SAMPLE_COLLECTED.
  */
 export const onBillPaid = async (labRequestId) => {
-  const labRequest = await prisma.labRequest.findUnique({ where: { id: labRequestId } });
+  const labRequest = await prisma.labRequest.findUnique({
+    where: { id: labRequestId },
+    include: { items: true },
+  });
   if (!labRequest) {
     console.warn(`[LabFulfillment] onBillPaid: labRequest ${labRequestId} not found`);
     return;
@@ -78,6 +93,13 @@ export const onBillPaid = async (labRequestId) => {
     where: { id: labRequestId },
     data: { status: 'SAMPLE_COLLECTED' },
   });
+
+  // Notify patient to go submit their sample
+  try {
+    await notifyLabSampleRequested(labRequest.patientId, labRequest);
+  } catch (notifErr) {
+    console.warn('[LabFulfillment] Failed to send sample-requested notification:', notifErr.message);
+  }
 };
 
 /**
@@ -98,7 +120,10 @@ export const advanceLabStatus = async (labRequestId, status, staffUserId, hospit
     SAMPLE_COLLECTED: 'PROCESSING',
   };
 
-  const labRequest = await prisma.labRequest.findUnique({ where: { id: labRequestId } });
+  const labRequest = await prisma.labRequest.findUnique({
+    where: { id: labRequestId },
+    include: { items: true },
+  });
   if (!labRequest) throw ApiError.notFound('Lab request not found.');
   if (labRequest.hospitalId !== hospitalId) throw ApiError.forbidden('Lab request does not belong to your hospital.');
 
@@ -107,10 +132,21 @@ export const advanceLabStatus = async (labRequestId, status, staffUserId, hospit
     throw ApiError.badRequest(`Cannot transition lab request from ${labRequest.status} to ${status}.`);
   }
 
-  return prisma.labRequest.update({
+  const updated = await prisma.labRequest.update({
     where: { id: labRequestId },
     data: { status },
   });
+
+  // Notify patient that their sample is now being processed
+  if (status === 'PROCESSING') {
+    try {
+      await notifyLabProcessing(labRequest.patientId, labRequest);
+    } catch (notifErr) {
+      console.warn('[LabFulfillment] Failed to send lab-processing notification:', notifErr.message);
+    }
+  }
+
+  return updated;
 };
 
 /**

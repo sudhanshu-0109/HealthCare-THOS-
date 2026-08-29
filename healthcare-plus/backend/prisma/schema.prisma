@@ -158,13 +158,12 @@ enum AppointmentType {
   LITE
 }
 
-// Phase 16: Online Consultation mode — OFFLINE keeps all existing records valid
+// Phase 16: Online Consultation
 enum ConsultationType {
   OFFLINE
   ONLINE
 }
 
-// Phase 16: Online session lifecycle
 enum OnlineSessionStatus {
   SCHEDULED
   WAITING_FOR_PARTICIPANTS
@@ -567,15 +566,16 @@ model Appointment {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  appointmentType  AppointmentType   @default(REGULAR)
-  // Phase 16: Consultation mode — OFFLINE is the safe default for all existing records
-  consultationType ConsultationType  @default(OFFLINE)
+  appointmentType  AppointmentType  @default(REGULAR)
+
+  // Phase 16: Online Consultation
+  consultationType ConsultationType @default(OFFLINE)
 
   // Phase 12: payments now go through Bill; direct Payment relation removed
   queueToken    QueueToken?
   consultation  Consultation?
 
-  // Phase 16: Only populated for ONLINE appointments
+  // Phase 16: online-only — null for every offline/seeded appointment
   onlineSession OnlineSession?
 
   // DB-level double-booking prevention (LITE appointments use null scheduledTime)
@@ -585,35 +585,6 @@ model Appointment {
   @@index([status])
   @@index([consultationType])
   @@map("appointments")
-}
-
-// ─────────────────────────────────────────────
-// PHASE 16: ONLINE SESSION
-// ─────────────────────────────────────────────
-
-model OnlineSession {
-  id              String              @id @default(uuid())
-  appointmentId   String              @unique
-  appointment     Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  // Server-generated UUID — never exposed directly as a predictable join code.
-  // Client access is gated by JWT authentication + appointment ownership check.
-  roomId          String              @unique @default(uuid())
-  status          OnlineSessionStatus @default(SCHEDULED)
-  scheduledStart  DateTime?           // Mirrors appointment scheduledDate + scheduledTime
-  scheduledEnd    DateTime?           // scheduledStart + doctor.slotMinutes
-  startedAt       DateTime?
-  endedAt         DateTime?
-  patientJoinedAt DateTime?
-  doctorJoinedAt  DateTime?
-  endedReason     String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-
-  consultation    Consultation?
-
-  @@index([roomId])
-  @@index([status])
-  @@map("online_sessions")
 }
 
 // ─────────────────────────────────────────────
@@ -767,12 +738,16 @@ model Consultation {
   id            String             @id @default(uuid())
   appointmentId String             @unique
   appointment   Appointment        @relation(fields: [appointmentId], references: [id])
-  // Phase 16: queueTokenId is now optional — ONLINE consultations don't use a queue token
+
+  // Phase 16: queueTokenId is OPTIONAL — online consultations have no queue token.
+  // All existing offline consultations retain their queueTokenId values unchanged.
   queueTokenId  String?            @unique
   queueToken    QueueToken?        @relation(fields: [queueTokenId], references: [id])
-  // Phase 16: link to OnlineSession for ONLINE consultations
+
+  // Phase 16: link back to OnlineSession (null for all offline consultations)
   onlineSessionId String?          @unique
   onlineSession   OnlineSession?   @relation(fields: [onlineSessionId], references: [id])
+
   doctorId      String
   doctor        Doctor             @relation(fields: [doctorId], references: [id])
   patientId     String
@@ -795,6 +770,39 @@ model Consultation {
   @@index([patientId])
   @@index([hospitalId])
   @@map("consultations")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 16: ONLINE SESSION
+// ─────────────────────────────────────────────
+
+model OnlineSession {
+  id              String              @id @default(uuid())
+  appointmentId   String              @unique
+  appointment     Appointment         @relation(fields: [appointmentId], references: [id])
+
+  // Secure, server-generated room identifier — never exposed directly in URLs
+  roomId          String              @unique @default(uuid())
+
+  status          OnlineSessionStatus @default(SCHEDULED)
+  scheduledStart  DateTime
+  scheduledEnd    DateTime?
+
+  startedAt       DateTime?
+  endedAt         DateTime?
+  patientJoinedAt DateTime?
+  doctorJoinedAt  DateTime?
+  endedReason     String?
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  // Clinical record created when doctor starts the call
+  consultation    Consultation?
+
+  @@index([status])
+  @@index([scheduledStart])
+  @@map("online_sessions")
 }
 
 model Prescription {
@@ -1010,13 +1018,18 @@ enum NotificationType {
   BILL_GENERATED
   PASSPORT_ACCESS_CHANGED
   // Phase 16: Online Consultation
-  ONLINE_APPOINTMENT_CONFIRMED
-  ONLINE_CONSULTATION_STARTING
-  ONLINE_CONSULTATION_COMPLETED
-  ONLINE_PATIENT_JOINED_WAITING
-  ONLINE_DOCTOR_JOINED
-  ONLINE_PATIENT_DISCONNECTED
-  ONLINE_DOCTOR_DISCONNECTED
+  ONLINE_CONSULTATION_CONFIRMED
+  ONLINE_CONSULTATION_REMINDER
+  ONLINE_SESSION_STARTING
+  ONLINE_SESSION_STARTED
+  ONLINE_SESSION_COMPLETED
+  // Phase 17: Lab + Pharmacy granular notifications
+  LAB_REQUEST_CREATED
+  LAB_BILL_GENERATED
+  LAB_SAMPLE_REQUESTED
+  LAB_PROCESSING
+  PRESCRIPTION_CREATED
+  PHARMACY_BILL_GENERATED
 }
 
 model MasterLabCategory {

@@ -13,7 +13,6 @@
  *   hospital:{hospitalId}:queue   — hospital-wide monitoring (Phase 14)
  *   emergency:{requestId}         — patient emergency tracking room
  *   driver:{userId}               — ambulance driver personal room (auto-joined)
- *   consultation:{appointmentId}  — WebRTC signaling room (Phase 16)
  *
  * Events emitted by server:
  *   queue:updated             → doctor room + individual patient rooms
@@ -28,8 +27,10 @@ import { Server } from 'socket.io';
 import { verifyAccessToken } from '../utils/jwt.js';
 import { env } from '../config/env.js';
 import { registerEmergencyHandlers } from './emergencyHandlers.js';
-import { setIo as setDispatchIo } from '../services/emergencyDispatch.service.js';
 import { registerConsultationHandlers } from './consultationHandlers.js';
+import { setIo as setDispatchIo } from '../services/emergencyDispatch.service.js';
+import { setEmergencyIo } from '../services/emergency.service.js';
+
 
 let io = null;
 
@@ -48,12 +49,21 @@ export const initializeSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        // Allow any localhost port in dev, or configured CLIENT_URL in prod
-        if (!origin || /^https?:\/\/localhost:\d+$/.test(origin) || origin === env.CLIENT_URL) {
-          callback(null, true);
-        } else {
-          callback(new Error('Socket.IO CORS: origin not allowed'));
+        // Allow no-origin requests (curl, mobile native)
+        if (!origin) return callback(null, true);
+        // Allow any localhost port or LAN IP in dev
+        if (env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin)) {
+          return callback(null, true);
         }
+        // Allow Cloudflare Quick Tunnel hostnames in dev (*.trycloudflare.com)
+        if (env.NODE_ENV !== 'production' && /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin)) {
+          return callback(null, true);
+        }
+        // Allow configured CLIENT_URL in all environments
+        if (origin === env.CLIENT_URL) {
+          return callback(null, true);
+        }
+        callback(new Error('Socket.IO CORS: origin not allowed'));
       },
       credentials: true,
     },
@@ -130,10 +140,13 @@ export const initializeSocket = (httpServer) => {
 
     // Phase 13: Emergency dispatch handlers
     registerEmergencyHandlers(io, socket, socket.user);
-    // Phase 16: Online consultation signaling handlers
+
+    // Phase 16: Online consultation WebRTC signaling handlers
     registerConsultationHandlers(io, socket, socket.user);
   });
 
   console.log('[Socket.IO] Server initialized with JWT auth');
+  setEmergencyIo(io); // Allow emergency.service.js to emit cancel events
   return io;
 };
+

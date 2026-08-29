@@ -14,3 +14,7 @@ export const getRecentConsultations = (limit = 20) =>
 
 export const getConsultationHistory = (patientId) =>
   api.get(`/consultations/history/${patientId}`);
+
+export const getConsultationByAppointment = (appointmentId) =>
+  api.get("/consultations/by-appointment/");
+

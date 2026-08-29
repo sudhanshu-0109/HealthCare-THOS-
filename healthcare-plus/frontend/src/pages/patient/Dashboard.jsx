@@ -2,7 +2,7 @@
  * pages/patient/Dashboard.jsx — Complete Patient Dashboard with all nav tabs
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { haversineKm } from '../../utils/distance';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -10,8 +10,7 @@ import {
   Bell, AlertTriangle, Heart, Search, Star, MapPin, Clock, Stethoscope,
   Brain, Phone, X, CheckCircle2, Navigation, ChevronRight, Activity,
   FileText, Loader2, Filter, RefreshCw, Building2, Users,
-  TrendingUp, Download, Eye, ChevronDown, Shield, Zap, AlertCircle, Package,
-  Video
+  TrendingUp, Download, Eye, ChevronDown, Shield, Zap, AlertCircle, Package, Video, Wifi
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
@@ -28,6 +27,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import PaymentModal from '../../components/common/PaymentModal';
 import EmptyState from '../../components/common/EmptyState';
 import EmergencyTracking from './EmergencyTracking';
+import { getSocket } from '../../services/socket';
 
 // Mock data removed — all data now comes from the real backend API.
 
@@ -506,12 +506,48 @@ function HomeTab({ user, navigate, onSOSSent }) {
 
 // ── Appointments Tab ───────────────────────────────────────────────────────────
 
+/**
+ * Phase 16: Global call-started banner.
+ * Appears at the top of the screen when the doctor starts a video call.
+ * The patient can dismiss it or jump directly to the call.
+ */
+function CallStartedBanner({ appointmentId, onDismiss }) {
+  const navigate = useNavigate();
+  if (!appointmentId) return null;
+  return (
+    <div className="fixed top-4 left-4 right-4 z-50 animate-in slide-in-from-top duration-300">
+      <div className="bg-violet-700 rounded-2xl p-4 shadow-2xl shadow-violet-900/50 border border-violet-500 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+          <Video className="w-5 h-5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-sm">Doctor has started the call!</p>
+          <p className="text-violet-200 text-xs">Your online consultation is ready</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => navigate(`/patient/video-consultation/${appointmentId}`)}
+            className="px-3 py-1.5 bg-white text-violet-700 rounded-xl text-xs font-bold hover:bg-violet-50 transition-colors"
+          >
+            Join Now
+          </button>
+          <button onClick={onDismiss} className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppointmentsTab() {
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
+  // Phase 16: tracks which appointmentId the doctor has started — triggers banner
+  const [activeCallId, setActiveCallId] = useState(null);
 
   useEffect(() => {
     appointmentsService.getMyAppointments({ limit: 50 })
@@ -520,18 +556,48 @@ function AppointmentsTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = appointments.filter((a) => filter === 'all' || a.status === filter);
+  // Phase 16: listen globally for doctor starting a call — show banner
+  useEffect(() => {
+    const s = getSocket();
+    if (!s) return;
+    const onStarted = ({ appointmentId }) => {
+      setActiveCallId(appointmentId);
+    };
+    s.on('consultation:session-started', onStarted);
+    return () => s.off('consultation:session-started', onStarted);
+  }, []);
+
+  // Phase 16: filter includes ONLINE mode filter
+  const filtered = appointments.filter((a) => {
+    if (filter === 'all') return true;
+    if (filter === 'ONLINE') return a.consultationType === 'ONLINE';
+    return a.status === filter;
+  });
+
+  const today = new Date().toISOString().split('T')[0];
 
   return (
     <div className="p-4 sm:p-6 pb-24 lg:pb-6">
+      {/* Phase 16: Call started popup banner */}
+      <CallStartedBanner
+        appointmentId={activeCallId}
+        onDismiss={() => setActiveCallId(null)}
+      />
+
       <h2 className="font-bold text-slate-900 mb-4">My Appointments</h2>
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-        {['all', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'CONFIRMED', label: 'Confirmed' },
+          { key: 'ONLINE', label: '🎥 Online' },
+          { key: 'COMPLETED', label: 'Completed' },
+          { key: 'CANCELLED', label: 'Cancelled' },
+        ].map(({ key, label }) => (
+          <button key={key} onClick={() => setFilter(key)}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
-              filter === f ? 'bg-cyan-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-cyan-300'
+              filter === key ? 'bg-cyan-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-cyan-300'
             }`}>
-            {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+            {label}
           </button>
         ))}
       </div>
@@ -546,52 +612,94 @@ function AppointmentsTab() {
         <EmptyState icon={Calendar} title="No appointments" description="Book your first appointment from the Home tab." />
       ) : (
         <div className="space-y-3">
-          {filtered.map((apt) => (
-            <div key={apt.id} className="bg-white rounded-2xl border border-slate-100 p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-semibold text-slate-900 text-sm">
-                    {apt.doctor?.user?.fullName ? `Dr. ${apt.doctor.user.fullName}` : apt.doctorName || 'Doctor'}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {apt.doctor?.specialization || apt.specialty} • {apt.doctor?.hospital?.name || apt.hospital || apt.hospitalName}
-                  </p>
+          {filtered.map((apt) => {
+            const isOnline = apt.consultationType === 'ONLINE';
+            const isToday = apt.scheduledDate?.slice(0, 10) === today;
+            const isConfirmedOnlineToday = isOnline && isToday && apt.status === 'CONFIRMED';
+            // Doctor has already started this specific call
+            const callIsLive = activeCallId === apt.id;
+            return (
+              <div key={apt.id} className={`bg-white rounded-2xl border p-4 transition-all ${
+                callIsLive ? 'border-violet-400 ring-2 ring-violet-200' :
+                isOnline ? 'border-violet-200' : 'border-slate-100'
+              }`}>
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-slate-900 text-sm">
+                        {apt.doctor?.user?.fullName ? `Dr. ${apt.doctor.user.fullName}` : apt.doctorName || 'Doctor'}
+                      </p>
+                      {isOnline && (
+                        <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                          <Video className="w-3 h-3" /> Online
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {apt.doctor?.specialization || apt.specialty} • {apt.doctor?.hospital?.name || apt.hospital || apt.hospitalName}
+                    </p>
+                  </div>
+                  <StatusBadge status={apt.status} />
                 </div>
-                <StatusBadge status={apt.status} />
-              </div>
-              <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
-                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {apt.scheduledDate ? new Date(apt.scheduledDate).toLocaleDateString('en-IN') : apt.date}</span>
-                <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {apt.scheduledTime || apt.time}</span>
-                {apt.consultationType === 'ONLINE' ? (
-                  <span className="bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                    <Video className="w-3 h-3" /> Online
-                  </span>
-                ) : (
-                  apt.queueToken && <span className="bg-slate-100 px-2 py-0.5 rounded-full font-mono">T-{apt.queueToken.tokenNumber}</span>
-                )}
-              </div>
-              {apt.status === 'CONFIRMED' && (
-                <div className="flex gap-2">
-                  {apt.consultationType === 'ONLINE' ? (
-                    <button
-                      onClick={() => navigate(`/patient/waiting-room/${apt.id}`)}
-                      className="flex-1 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1">
-                      <Video className="w-3.5 h-3.5" /> Join Waiting Room
+                <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
+                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {apt.scheduledDate ? new Date(apt.scheduledDate).toLocaleDateString('en-IN') : apt.date}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {apt.scheduledTime || apt.time}</span>
+                  {!isOnline && apt.queueToken && (
+                    <span className="bg-slate-100 px-2 py-0.5 rounded-full font-mono">T-{apt.queueToken.tokenNumber}</span>
+                  )}
+                </div>
+
+                {/* Phase 16: ONLINE appointment actions */}
+                {isConfirmedOnlineToday && (
+                  <div className="flex gap-2">
+                    {callIsLive ? (
+                      /* Doctor has started — show prominent Join Now button */
+                      <button
+                        onClick={() => navigate(`/patient/video-consultation/${apt.id}`)}
+                        className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 animate-pulse"
+                      >
+                        <Video className="w-3.5 h-3.5" /> Join Now — Doctor is Ready!
+                      </button>
+                    ) : (
+                      /* Doctor hasn't started yet — waiting state + waiting room entry */
+                      <button
+                        onClick={() => navigate(`/patient/waiting-room/${apt.id}`)}
+                        className="flex-1 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Wifi className="w-3.5 h-3.5" /> Enter Waiting Room
+                      </button>
+                    )}
+                    <button className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors">
+                      Cancel
                     </button>
-                  ) : (
+                  </div>
+                )}
+
+                {/* Offline appointment action */}
+                {!isOnline && apt.status === 'CONFIRMED' && (
+                  <div className="flex gap-2">
                     <button
                       onClick={() => navigate(`/appointments/${apt.id}/queue`, { state: { appointment: apt } })}
-                      className="flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1">
+                      className="flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                    >
                       <Activity className="w-3.5 h-3.5" /> View Queue
                     </button>
-                  )}
-                  <button className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors">
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                    <button className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-xs font-semibold hover:bg-red-50 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Online appointment outside of today — just show info */}
+                {isOnline && !isToday && apt.status === 'CONFIRMED' && (
+                  <div className="flex items-center gap-2 py-2 px-3 bg-violet-50 rounded-xl">
+                    <Wifi className="w-3.5 h-3.5 text-violet-400" />
+                    <p className="text-xs text-violet-600 font-medium">Online consultation — join on the day of your appointment</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -971,17 +1079,48 @@ function BillingTab() {
 
 // ── Notifications Tab ─────────────────────────────────────────────────────────
 
-function NotificationsTab() {
+function NotificationsTab({ onNavigate }) {
   // Shared store keeps this tab, the header bell, and the sidebar badge in sync.
   const { notifications, loading, error, markRead, markAllRead, refresh } = useNotifications();
 
-  const iconMap = {
-    APPOINTMENT_CONFIRMED: <Calendar className="w-4 h-4 text-blue-500" />,
-    APPOINTMENT_CANCELLED: <Calendar className="w-4 h-4 text-red-500" />,
-    LAB_REPORT_READY: <FlaskConical className="w-4 h-4 text-violet-500" />,
-    PRESCRIPTION_CREATED: <Pill className="w-4 h-4 text-emerald-500" />,
-    PAYMENT_CONFIRMED: <CreditCard className="w-4 h-4 text-amber-500" />,
-    EMERGENCY: <AlertTriangle className="w-4 h-4 text-red-500" />,
+  // Map each notification type to an icon element + colour + which tab to navigate to
+  const TYPE_CONFIG = {
+    // Lab workflow
+    LAB_REQUEST_CREATED:   { icon: <FlaskConical className="w-4 h-4" />, color: 'text-violet-500 bg-violet-50', tab: 'lab',           label: 'Lab Order' },
+    LAB_BILL_GENERATED:    { icon: <CreditCard   className="w-4 h-4" />, color: 'text-amber-500 bg-amber-50',   tab: 'billing',        label: 'Lab Bill' },
+    LAB_SAMPLE_REQUESTED:  { icon: <FlaskConical className="w-4 h-4" />, color: 'text-indigo-500 bg-indigo-50', tab: 'lab',           label: 'Sample' },
+    LAB_PROCESSING:        { icon: <FlaskConical className="w-4 h-4" />, color: 'text-blue-500 bg-blue-50',     tab: 'lab',           label: 'Processing' },
+    LAB_REPORT_READY:      { icon: <FlaskConical className="w-4 h-4" />, color: 'text-emerald-500 bg-emerald-50', tab: 'lab',         label: 'Report Ready' },
+    // Pharmacy & Prescription workflow
+    PRESCRIPTION_CREATED:  { icon: <Pill         className="w-4 h-4" />, color: 'text-pink-500 bg-pink-50',     tab: 'prescriptions',  label: 'Prescription' },
+    PHARMACY_BILL_GENERATED:{ icon: <CreditCard  className="w-4 h-4" />, color: 'text-orange-500 bg-orange-50', tab: 'billing',        label: 'Pharmacy Bill' },
+    PHARMACY_ORDER_UPDATE: { icon: <Package      className="w-4 h-4" />, color: 'text-teal-500 bg-teal-50',     tab: 'prescriptions',  label: 'Pharmacy' },
+    // Billing & Payment
+    BILL_GENERATED:        { icon: <CreditCard   className="w-4 h-4" />, color: 'text-amber-500 bg-amber-50',   tab: 'billing',        label: 'Bill' },
+    PAYMENT_RESULT:        { icon: <CreditCard   className="w-4 h-4" />, color: 'text-green-500 bg-green-50',   tab: 'billing',        label: 'Payment' },
+    // Appointments & Queue
+    APPOINTMENT_CONFIRMED: { icon: <Calendar     className="w-4 h-4" />, color: 'text-blue-500 bg-blue-50',     tab: 'appointments',   label: 'Appointment' },
+    APPOINTMENT_CANCELLED: { icon: <Calendar     className="w-4 h-4" />, color: 'text-red-500 bg-red-50',       tab: 'appointments',   label: 'Cancelled' },
+    APPOINTMENT_REMINDER:  { icon: <Calendar     className="w-4 h-4" />, color: 'text-blue-400 bg-blue-50',     tab: 'appointments',   label: 'Reminder' },
+    QUEUE_YOUR_TURN:       { icon: <Users        className="w-4 h-4" />, color: 'text-cyan-500 bg-cyan-50',     tab: 'appointments',   label: 'Queue' },
+    QUEUE_YOUR_TURN_APPROACHING: { icon: <Clock  className="w-4 h-4" />, color: 'text-yellow-500 bg-yellow-50', tab: 'appointments',  label: 'Queue' },
+    // Consultation
+    CONSULTATION_COMPLETED:{ icon: <Stethoscope  className="w-4 h-4" />, color: 'text-emerald-500 bg-emerald-50', tab: null,           label: 'Consultation' },
+    // Online consultation
+    ONLINE_CONSULTATION_CONFIRMED: { icon: <Video className="w-4 h-4" />, color: 'text-purple-500 bg-purple-50', tab: 'appointments', label: 'Online Appt' },
+    ONLINE_SESSION_STARTING: { icon: <Video      className="w-4 h-4" />, color: 'text-purple-500 bg-purple-50', tab: null,            label: 'Video' },
+    ONLINE_SESSION_STARTED:  { icon: <Video      className="w-4 h-4" />, color: 'text-green-500 bg-green-50',   tab: null,            label: 'Video' },
+    ONLINE_SESSION_COMPLETED:{ icon: <Video      className="w-4 h-4" />, color: 'text-slate-500 bg-slate-50',   tab: null,            label: 'Video' },
+    // Passport & General
+    PASSPORT_ACCESS_CHANGED: { icon: <Shield     className="w-4 h-4" />, color: 'text-indigo-500 bg-indigo-50', tab: 'passport',      label: 'Passport' },
+    EMERGENCY_NOTIFICATION:  { icon: <AlertTriangle className="w-4 h-4" />, color: 'text-red-500 bg-red-50',   tab: 'emergency',      label: 'Emergency' },
+    GENERAL:               { icon: <Bell         className="w-4 h-4" />, color: 'text-slate-400 bg-slate-50',   tab: null,            label: '' },
+  };
+
+  const handleNotificationClick = (n) => {
+    markRead(n.id);
+    const cfg = TYPE_CONFIG[n.type];
+    if (cfg?.tab && onNavigate) onNavigate(cfg.tab);
   };
 
   if (loading) return (
@@ -1006,24 +1145,42 @@ function NotificationsTab() {
         <EmptyState icon={Bell} title="No notifications" description="You're all caught up!" />
       )}
       <div className="space-y-2">
-        {notifications.map((n) => (
-          <div key={n.id} onClick={() => markRead(n.id)}
-            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-              n.isRead ? 'bg-white border-slate-100' : 'bg-cyan-50 border-cyan-100'
-            }`}
-          >
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${n.isRead ? 'bg-slate-100' : 'bg-white'}`}>
-              {iconMap[n.type] || <Bell className="w-4 h-4 text-slate-400" />}
+        {notifications.map((n) => {
+          const cfg = TYPE_CONFIG[n.type] || TYPE_CONFIG.GENERAL;
+          const isClickable = !!cfg?.tab;
+          return (
+            <div key={n.id}
+              onClick={() => handleNotificationClick(n)}
+              className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
+                isClickable ? 'cursor-pointer hover:shadow-sm active:scale-[0.99]' : 'cursor-default'
+              } ${n.isRead ? 'bg-white border-slate-100' : 'bg-cyan-50 border-cyan-100'}`}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.color}`}>
+                {cfg.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                {n.title && (
+                  <p className={`text-sm font-semibold leading-snug mb-0.5 ${n.isRead ? 'text-slate-600' : 'text-slate-900'}`}>
+                    {n.title}
+                  </p>
+                )}
+                <p className={`text-sm leading-snug ${n.isRead ? 'text-slate-500' : 'text-slate-700'}`}>{n.message}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs text-slate-400">
+                    {n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </p>
+                  {cfg.label && (
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
+                  )}
+                  {isClickable && !n.isRead && (
+                    <span className="text-[10px] text-cyan-600 font-medium">Tap to view →</span>
+                  )}
+                </div>
+              </div>
+              {!n.isRead && <div className="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0 mt-1.5" />}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm ${n.isRead ? 'text-slate-600' : 'text-slate-900 font-medium'}`}>{n.message}</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
-              </p>
-            </div>
-            {!n.isRead && <div className="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0 mt-1.5" />}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1249,7 +1406,7 @@ export default function PatientDashboard() {
       case 'prescriptions': return <PrescriptionsTab />;
       case 'lab': return <LabReportsTab />;
       case 'billing': return <BillingTab />;
-      case 'notifications': return <NotificationsTab />;
+      case 'notifications': return <NotificationsTab onNavigate={(tab) => setActiveItem(tab)} />;
       case 'passport': return <PassportTab user={user} />;
       case 'emergency': 
         return activeEmergencyId ? (

@@ -5,6 +5,7 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { addTimelineEvent } from './passport.service.js';
+import { notifyPrescriptionCreated } from './notifications.service.js';
 
 const PRESCRIPTION_SELECT = {
   id: true,
@@ -79,6 +80,14 @@ export const createPrescription = async (consultationId, { generalInstructions, 
     });
   } catch (err) {
     console.warn('[PrescriptionsService] Failed to write PRESCRIPTION timeline event:', err.message);
+  }
+
+  // Notify patient — doctor has written a prescription
+  try {
+    const doctorName = consultation.doctor?.user?.fullName || 'Doctor';
+    await notifyPrescriptionCreated(consultation.patientId, { prescription, doctorName });
+  } catch (notifErr) {
+    console.warn('[PrescriptionsService] Failed to send prescription-created notification:', notifErr.message);
   }
 
   return prescription;

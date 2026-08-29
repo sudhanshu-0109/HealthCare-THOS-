@@ -11,7 +11,7 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { createBillAndInitiatePayment } from './billing.service.js';
-import { notifyPharmacyStatusChanged } from './notifications.service.js';
+import { notifyPharmacyStatusChanged, notifyPharmacyBillGenerated } from './notifications.service.js';
 
 /**
  * Create a pharmacy order from a prescription (triggered after prescription is written).
@@ -102,6 +102,13 @@ export const pharmacistMatchAndConfirm = async (orderId, pharmacistUserId, items
       unitPrice: Number(item.unitPrice),
     })),
   });
+
+  // Notify patient: bill is ready for payment
+  try {
+    await notifyPharmacyBillGenerated(order.patientId, { order: { ...order, id: orderId }, totalAmount });
+  } catch (notifErr) {
+    console.warn('[PharmacyOrders] Failed to send pharmacy-bill-generated notification:', notifErr.message);
+  }
 
   return { orderId, totalAmount, ...billingResult };
 };

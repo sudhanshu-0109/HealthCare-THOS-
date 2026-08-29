@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import * as emergencyService from '../services/emergency.service.js';
+import { ApiError } from '../utils/ApiError.js';
+
 
 export const createEmergencySchema = z.object({
   latitude: z.coerce.number(),
@@ -36,3 +38,16 @@ export const updateEmergencyStatus = asyncHandler(async (req, res) => {
   const request = await emergencyService.updateEmergencyStatus(req.params.id, req.body.status);
   res.status(200).json({ success: true, data: request });
 });
+
+export const cancelEmergencyRequest = asyncHandler(async (req, res) => {
+  try {
+    const request = await emergencyService.cancelEmergencyRequest(req.params.id, req.user.id);
+    res.status(200).json({ success: true, data: request });
+  } catch (err) {
+    const status = err.message.includes('Not your') ? 403
+      : err.message.includes('not found') ? 404
+      : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+});
+

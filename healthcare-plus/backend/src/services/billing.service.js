@@ -12,7 +12,7 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { createOrder, verifyPaymentSignature } from './razorpay.service.js';
-import { notifyPaymentResult } from './notifications.service.js';
+import { notifyPaymentResult, notifyBillGenerated } from './notifications.service.js';
 
 // Lazy-load source callbacks to avoid circular imports
 const getSourceCallbacks = async () => {
@@ -114,6 +114,10 @@ export const createBillAndInitiatePayment = async ({
     isMock,
   };
 };
+
+// NOTE: Source-specific services (labFulfillment, pharmacyOrders) fire their
+// own richer notifications AFTER this function returns. The notifyBillGenerated
+// call here acts as a guaranteed baseline for all bill types.
 
 /**
  * Step 2: Verify payment signature and mark Bill PAID.
