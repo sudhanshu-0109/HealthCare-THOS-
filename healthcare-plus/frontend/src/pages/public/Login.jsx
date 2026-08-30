@@ -1,12 +1,15 @@
 /**
- * pages/public/Login.jsx — New AuthPage UI design + full backend auth logic (Phase 0-2 preserved)
+ * Login.jsx — Split-panel, 100dvh, NO SCROLL on mobile or desktop.
+ * Left: branding panel with hero image fills full viewport height.
+ * Right: compact form card — role grid (4+3) + fields — all fits in viewport.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Heart, Users, Activity, Building2, FlaskConical, Pill, Truck, Shield,
-  Eye, EyeOff, ArrowLeft, CheckCircle2, Lock, Mail, ChevronRight, ChevronDown
+  Heart, Shield, Building2, Brain, Dumbbell,
+  Eye, EyeOff, Mail, Lock, Users, Activity, FlaskConical,
+  Pill, Truck, LogIn, ChevronRight
 } from 'lucide-react';
 import * as authService from '../../services/auth.service';
 import useAuthStore from '../../store/authStore';
@@ -14,13 +17,13 @@ import { ROLE_HOME_ROUTE } from '../../utils/roleRedirect';
 import GoogleLoginButton from '../../components/auth/GoogleLoginButton';
 
 const ROLES = [
-  { id: 'PATIENT', icon: Users, label: 'Patient', desc: 'Book appointments, track health' },
-  { id: 'DOCTOR', icon: Activity, label: 'Doctor', desc: 'Manage patients & consultations' },
-  { id: 'HOSPITAL_ADMIN', icon: Building2, label: 'Hospital Admin', desc: 'Oversee hospital operations' },
-  { id: 'LAB_STAFF', icon: FlaskConical, label: 'Lab Technician', desc: 'Process tests & upload reports' },
-  { id: 'PHARMACIST', icon: Pill, label: 'Pharmacist', desc: 'Manage prescriptions & orders' },
-  { id: 'AMBULANCE_DRIVER', icon: Truck, label: 'Ambulance Driver', desc: 'Handle emergency dispatch' },
-  { id: 'SUPER_ADMIN', icon: Shield, label: 'Super Admin', desc: 'Platform-wide control' },
+  { id: 'PATIENT',          icon: Users,         label: 'Patient' },
+  { id: 'DOCTOR',           icon: Activity,      label: 'Doctor' },
+  { id: 'HOSPITAL_ADMIN',   icon: Building2,     label: 'Admin' },
+  { id: 'LAB_STAFF',        icon: FlaskConical,  label: 'Lab' },
+  { id: 'PHARMACIST',       icon: Pill,          label: 'Pharmacist' },
+  { id: 'AMBULANCE_DRIVER', icon: Truck,         label: 'Driver' },
+  { id: 'SUPER_ADMIN',      icon: Shield,        label: 'Super Admin' },
 ];
 
 export default function Login() {
@@ -28,38 +31,20 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const { user, token, setAuth } = useAuthStore();
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (token && user) {
       const redirectUrl = searchParams.get('redirect');
-      const targetRoute = redirectUrl || ROLE_HOME_ROUTE[user.role] || '/dashboard';
-      navigate(targetRoute, { replace: true });
+      navigate(redirectUrl || ROLE_HOME_ROUTE[user.role] || '/dashboard', { replace: true });
     }
   }, [token, user, navigate, searchParams]);
 
   const [selectedRole, setSelectedRole] = useState('PATIENT');
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
-  const roleMenuRef = useRef(null);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [accountNotFound, setAccountNotFound] = useState(false);
-
-  // Close the role dropdown when clicking outside it.
-  // Declared AFTER the state/ref above so roleMenuOpen is initialized before the
-  // dependency array is evaluated during render (avoids a TDZ ReferenceError).
-  useEffect(() => {
-    if (!roleMenuOpen) return;
-    const handleClickOutside = (e) => {
-      if (roleMenuRef.current && !roleMenuRef.current.contains(e.target)) {
-        setRoleMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [roleMenuOpen]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -71,15 +56,14 @@ export default function Login() {
       const { user: verifiedUser, accessToken } = response.data;
       setAuth({ user: verifiedUser, accessToken });
       const redirectUrl = searchParams.get('redirect');
-      const targetRoute = redirectUrl || ROLE_HOME_ROUTE[verifiedUser.role] || '/dashboard';
-      navigate(targetRoute, { replace: true });
+      navigate(redirectUrl || ROLE_HOME_ROUTE[verifiedUser.role] || '/dashboard', { replace: true });
     } catch (err) {
       setAccountNotFound(false);
       if (err.errors?.code === 'ROLE_MISMATCH') {
-        setError('Role mismatch — please select the role associated with this account.');
+        setError('Role mismatch — please select the correct role for this account.');
       } else if (err.errors?.accountExists === false) {
         setAccountNotFound(true);
-        setError('No account found with this email. Please create an account first.');
+        setError('No account found. Please create an account first.');
       } else {
         setError(err.message || 'Invalid email or password.');
       }
@@ -88,176 +72,200 @@ export default function Login() {
     }
   };
 
-  const selectedRoleObj = ROLES.find((r) => r.id === selectedRole);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-teal-50/20 flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-100/40 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-100/40 rounded-full blur-3xl" />
-      </div>
+    /* Full viewport, no overflow */
+    <div className="h-dvh overflow-hidden flex flex-col bg-white">
 
-      <div className="w-full max-w-2xl relative">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 group mb-6">
-            <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
-            <span className="text-sm text-slate-400 group-hover:text-slate-600 transition-colors">Back to home</span>
-          </Link>
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Heart className="w-5 h-5 text-white" />
+      {/* ── COMPACT HEADER ──────────────────────────────────────────────────── */}
+      <header className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-100 bg-white z-10">
+        <Link to="/" className="flex items-center gap-2 no-underline">
+          <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center">
+            <Heart className="w-4 h-4 text-white fill-white" />
+          </div>
+          <span className="text-base font-bold text-slate-900">
+            Healthcare<span className="text-teal-600">+</span>
+          </span>
+        </Link>
+        <Link
+          to="/register"
+          className="inline-flex items-center gap-1 px-3 py-1.5 border border-teal-600 text-teal-600 rounded-lg font-semibold text-xs hover:bg-teal-50 transition-colors no-underline"
+        >
+          Create Account <ChevronRight className="w-3 h-3" />
+        </Link>
+      </header>
+
+      {/* ── BODY: two panels ────────────────────────────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden">
+
+        {/* LEFT PANEL — hero image + branding (desktop only) */}
+        <div className="hidden lg:flex flex-col relative overflow-hidden flex-1">
+          {/* Full-bleed hero image */}
+          <img
+            src="/hero.png"
+            alt="Healthcare+"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+          {/* Dark gradient overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-teal-900/80 via-teal-800/60 to-transparent" />
+
+          {/* Content over image */}
+          <div className="relative z-10 flex flex-col justify-center h-full px-10 xl:px-14">
+            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm border border-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-5 w-fit">
+              <Shield className="w-3 h-3" /> Secure • Private • Trusted
             </div>
-            <span className="text-2xl font-bold text-slate-900">healthcare<span className="text-cyan-600">+</span></span>
+            <h1 className="text-3xl xl:text-4xl font-extrabold text-white leading-tight mb-3">
+              Complete<br />Healthcare<br />
+              <span className="text-teal-300">Operating System</span>
+            </h1>
+            <p className="text-white/80 text-sm leading-relaxed mb-6 max-w-xs">
+              Hospital care, mental wellness &amp; physical health — all in one intelligent platform.
+            </p>
+
+            {/* Three module pills */}
+            <div className="flex flex-col gap-2">
+              {[
+                { icon: Building2, label: 'Hospital Care',   color: 'bg-teal-500/30' },
+                { icon: Brain,     label: 'Mental Wellness', color: 'bg-purple-500/30' },
+                { icon: Dumbbell,  label: 'Physical Health', color: 'bg-orange-500/30' },
+              ].map((m) => (
+                <div key={m.label} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl backdrop-blur-sm ${m.color} border border-white/20`}>
+                  <m.icon className="w-4 h-4 text-white flex-shrink-0" />
+                  <span className="text-white text-xs font-semibold">{m.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-          {/* Tabs */}
-          <div className="flex border-b border-slate-100">
-            <div className="flex-1 py-4 text-sm font-semibold capitalize text-center text-cyan-600 border-b-2 border-cyan-600 bg-cyan-50/30">
-              Sign In
-            </div>
-            <Link to="/register" className="flex-1 py-4 text-sm font-semibold capitalize text-center text-slate-500 hover:text-slate-700 no-underline">
-              Create Account
-            </Link>
-          </div>
+        {/* RIGHT PANEL — form (full width mobile, fixed width desktop) */}
+        <div className="flex-1 lg:flex-none lg:w-[460px] xl:w-[500px] flex flex-col overflow-y-auto bg-white">
+          <div className="flex-1 flex items-center justify-center px-5 sm:px-8 py-4">
+            <div className="w-full max-w-sm">
 
-          <div className="p-6 sm:p-8">
-            <div className="mb-6">
-              <h2 className="font-bold text-slate-900 mb-1">Welcome back</h2>
-              <p className="text-sm text-slate-500">Select your role and sign in to your dashboard</p>
-            </div>
-
-            {/* Role selection — dropdown (R21). Purely a UI affordance: the selected
-                role is never sent to the backend; the server derives role from the
-                account. It only labels the submit button and gates the Patient-only
-                Google button. */}
-            <div className="mb-6">
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">I am a</label>
-              <div className="relative" ref={roleMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setRoleMenuOpen((o) => !o)}
-                  aria-haspopup="listbox"
-                  aria-expanded={roleMenuOpen}
-                  className="w-full flex items-center gap-3 p-3.5 rounded-xl border-2 border-slate-200 bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 transition-all text-left"
-                >
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white border border-slate-100">
-                    <selectedRoleObj.icon className="w-4 h-4 text-slate-600" />
+              {/* Mobile hero strip */}
+              <div className="lg:hidden mb-4 rounded-2xl overflow-hidden h-28 relative">
+                <img src="/hero.png" alt="" className="w-full h-full object-cover object-top" />
+                <div className="absolute inset-0 bg-gradient-to-r from-teal-800/70 to-teal-600/40 flex items-center px-4">
+                  <div>
+                    <p className="text-white font-extrabold text-lg leading-tight">Welcome Back!</p>
+                    <p className="text-teal-100 text-xs">Sign in to Healthcare+</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-800">{selectedRoleObj.label}</div>
-                    <div className="text-xs text-slate-400 leading-tight mt-0.5 truncate">{selectedRoleObj.desc}</div>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${roleMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {roleMenuOpen && (
-                  <div
-                    role="listbox"
-                    className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-72 overflow-y-auto"
-                  >
-                    {ROLES.map((r) => (
-                      <button
-                        key={r.id}
-                        type="button"
-                        role="option"
-                        aria-selected={selectedRole === r.id}
-                        onClick={() => { setSelectedRole(r.id); setRoleMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
-                          selectedRole === r.id ? 'bg-cyan-50' : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-slate-50 border border-slate-100">
-                          <r.icon className="w-4 h-4 text-slate-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-slate-800">{r.label}</div>
-                          <div className="text-xs text-slate-400 leading-tight mt-0.5 truncate">{r.desc}</div>
-                        </div>
-                        {selectedRole === r.id && <CheckCircle2 className="w-4 h-4 text-cyan-600 flex-shrink-0" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
-            </div>
 
-            {error && (
-              <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-                {error}
-                {accountNotFound && (
-                  <div className="mt-3">
-                    <Link to="/register" className="inline-block px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">
+              {/* Form header */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center border border-teal-100 flex-shrink-0">
+                  <LogIn className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-900 leading-tight">Welcome Back!</h2>
+                  <p className="text-slate-500 text-xs">Sign in to continue to Healthcare+</p>
+                </div>
+              </div>
+
+              {/* Role selector */}
+              <div className="mb-3">
+                <p className="text-xs font-bold text-slate-700 mb-2">Select Your Role</p>
+                <div className="grid grid-cols-4 gap-1.5 mb-1.5">
+                  {ROLES.slice(0, 4).map((role) => (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => setSelectedRole(role.id)}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${
+                        selectedRole === role.id
+                          ? 'border-teal-500 bg-teal-50'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <role.icon className={`w-4 h-4 ${selectedRole === role.id ? 'text-teal-600' : 'text-slate-500'}`} />
+                      <span className={`text-[9px] font-semibold leading-tight text-center ${selectedRole === role.id ? 'text-teal-700' : 'text-slate-500'}`}>
+                        {role.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {ROLES.slice(4).map((role) => (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => setSelectedRole(role.id)}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${
+                        selectedRole === role.id
+                          ? 'border-teal-500 bg-teal-50'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <role.icon className={`w-4 h-4 ${selectedRole === role.id ? 'text-teal-600' : 'text-slate-500'}`} />
+                      <span className={`text-[9px] font-semibold leading-tight text-center ${selectedRole === role.id ? 'text-teal-700' : 'text-slate-500'}`}>
+                        {role.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="mb-3 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+                  {error}
+                  {accountNotFound && (
+                    <Link to="/register" className="inline-block mt-1.5 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg no-underline">
                       Create Account
                     </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Google OAuth (only for Patient self-registration) */}
-            {selectedRole === 'PATIENT' && (
-              <>
-                <GoogleLoginButton role={selectedRole} onError={(msg) => setError(msg)} />
-                <div className="relative my-5">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
-                  <div className="relative flex justify-center text-xs text-slate-400"><span className="bg-white px-2">or</span></div>
+                  )}
                 </div>
-              </>
-            )}
+              )}
 
-            {/* Login form */}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label>
+              {/* Form */}
+              <form onSubmit={handleLogin} className="space-y-2.5">
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type="email"
-                    placeholder="you@example.com"
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 transition-all"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="email" placeholder="Email Address" required
+                    className="hc-input py-2.5 text-sm"
+                    value={email} onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    required
-                    className="w-full pl-10 pr-10 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 transition-all"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    type={showPassword ? 'text' : 'password'} placeholder="Password" required
+                    className="hc-input py-2.5 pr-10 text-sm"
+                    value={password} onChange={(e) => setPassword(e.target.value)}
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <div className="flex justify-end">
+                  <Link to="/forgot-password" className="text-xs font-semibold text-teal-600 hover:underline no-underline">
+                    Forgot Password?
+                  </Link>
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-colors">
+                  {loading ? 'Signing In…' : 'Sign In'}
+                </button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative my-3">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+                <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-400">or</span></div>
               </div>
-              <div className="flex justify-end">
-                <Link to="/forgot-password" className="text-xs text-cyan-600 hover:underline no-underline">Forgot password?</Link>
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors shadow-sm flex items-center justify-center gap-2"
-              >
-                {loading ? 'Signing In…' : `Sign In as ${selectedRoleObj?.label}`} {!loading && <ChevronRight className="w-4 h-4" />}
-              </button>
-            </form>
+
+              <GoogleLoginButton role={selectedRole} onError={(msg) => setError(msg)} />
+
+              <p className="flex items-center justify-center gap-1 text-[11px] text-slate-400 mt-3">
+                <Shield className="w-3 h-3" /> Your data is encrypted and secure.
+              </p>
+            </div>
           </div>
         </div>
-
-        <p className="text-center text-xs text-slate-400 mt-4">
-          Don&apos;t have an account? <Link to="/register" className="text-cyan-600 hover:underline no-underline">Register</Link>
-        </p>
       </div>
     </div>
   );

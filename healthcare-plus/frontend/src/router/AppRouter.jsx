@@ -5,7 +5,7 @@
  * so they do NOT need a DashboardLayout wrapper.
  */
 
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
 import PublicLayout from '../layouts/PublicLayout';
@@ -37,6 +37,10 @@ import EmergencyTracking from '../pages/patient/EmergencyTracking';
 // Phase 16: Online Consultation
 import WaitingRoom from '../pages/patient/WaitingRoom';
 import VideoConsultation from '../pages/patient/VideoConsultation';
+// Health Hub + Wellness modules
+import HealthHub from '../pages/patient/HealthHub';
+import MentalWellness from '../pages/patient/MentalWellness';
+import PhysicalHealth from '../pages/patient/PhysicalHealth';
 
 // Admin pages
 import HospitalAdminDashboard from '../pages/admin/Dashboard';
@@ -82,6 +86,13 @@ const AppRouter = () => {
       {/* ── Patient routes (protected, role=PATIENT) ──────────────────── */}
       {/*   PatientDashboard is self-contained with DashboardShell          */}
       <Route element={<ProtectedRoute allowedRoles={['PATIENT']} />}>
+
+        {/* ── NEW: Patient Health Hub entry point ────────────────────── */}
+        <Route path="/health-hub" element={<HealthHub />} />
+        <Route path="/health-hub/hospital-care" element={<Navigate to="/patient/dashboard" replace />} />
+        <Route path="/health-hub/mental-wellness" element={<MentalWellness />} />
+        <Route path="/health-hub/physical-health" element={<PhysicalHealth />} />
+
         <Route path="/patient/dashboard" element={<PatientDashboard />} />
         <Route path="/hospitals" element={<PatientDashboard />} />
         

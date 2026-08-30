@@ -3,6 +3,42 @@
 
 :root {
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* ── Healthcare+ Design Tokens ───────────────────────────── */
+
+  /* Primary brand teal */
+  --hc-primary:        #0D9488;
+  --hc-primary-dark:   #0F766E;
+  --hc-primary-light:  #14B8A6;
+  --hc-primary-50:     #F0FDFA;
+  --hc-primary-100:    #CCFBF1;
+  --hc-primary-200:    #99F6E4;
+
+  /* Mental Wellness purple */
+  --hc-purple:         #7C3AED;
+  --hc-purple-light:   #A78BFA;
+  --hc-purple-50:      #F5F3FF;
+
+  /* Physical Health orange */
+  --hc-orange:         #EA580C;
+  --hc-orange-light:   #FB923C;
+  --hc-orange-50:      #FFF7ED;
+
+  /* Neutral surface */
+  --hc-bg:             #F8FFFE;
+  --hc-surface:        #FFFFFF;
+  --hc-border:         #E5E7EB;
+  --hc-border-light:   #F3F4F6;
+
+  /* Text */
+  --hc-text-primary:   #111827;
+  --hc-text-secondary: #6B7280;
+  --hc-text-muted:     #9CA3AF;
+
+  /* Shadows */
+  --hc-shadow-sm:      0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  --hc-shadow-md:      0 4px 16px 0 rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.05);
+  --hc-shadow-lg:      0 10px 30px 0 rgb(0 0 0 / 0.10), 0 4px 12px -4px rgb(0 0 0 / 0.06);
 }
 
 *, *::before, *::after {
@@ -12,13 +48,13 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--hc-bg);
+  color: var(--hc-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar utilities */
+/* ── Scrollbar utilities ───────────────────────────────────── */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -27,15 +63,94 @@ body {
   display: none;
 }
 
-/* Smooth transitions globally */
+/* ── Smooth transitions globally ───────────────────────────── */
 a, button {
   transition-property: color, background-color, border-color, box-shadow, opacity, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
 
-/* Focus ring reset */
+/* ── Focus ring ─────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid #06b6d4;
+  outline: 2px solid var(--hc-primary);
   outline-offset: 2px;
+}
+
+/* ── Healthcare+ shared component utilities ─────────────────── */
+
+.hc-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  background-color: var(--hc-primary);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.hc-btn-primary:hover {
+  background-color: var(--hc-primary-dark);
+  box-shadow: 0 4px 14px 0 rgb(13 148 136 / 0.35);
+}
+.hc-btn-primary:active { transform: scale(0.98); }
+
+.hc-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background-color: transparent;
+  color: var(--hc-primary);
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--hc-primary);
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.1s;
+}
+.hc-btn-outline:hover { background-color: var(--hc-primary-50); }
+.hc-btn-outline:active { transform: scale(0.98); }
+
+.hc-card {
+  background-color: var(--hc-surface);
+  border-radius: 1rem;
+  border: 1px solid var(--hc-border-light);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-badge-secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.875rem;
+  border: 1.5px solid var(--hc-primary);
+  border-radius: 9999px;
+  color: var(--hc-primary-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--hc-primary-50);
+}
+
+.hc-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  border: 1.5px solid var(--hc-border);
+  border-radius: 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--hc-text-primary);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.hc-input::placeholder { color: var(--hc-text-muted); }
+.hc-input:focus {
+  border-color: var(--hc-primary);
+  box-shadow: 0 0 0 3px rgb(13 148 136 / 0.12);
 }

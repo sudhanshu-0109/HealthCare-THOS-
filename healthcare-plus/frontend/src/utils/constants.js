@@ -19,7 +19,7 @@ export const ROLES = {
 
 // Role-to-home-route mapping (used in post-login redirect)
 export const ROLE_HOME_ROUTES = {
-  [ROLES.PATIENT]: '/dashboard',
+  [ROLES.PATIENT]: '/health-hub',
   [ROLES.DOCTOR]: '/doctor/dashboard',
   [ROLES.HOSPITAL_ADMIN]: '/admin/dashboard',
   [ROLES.RECEPTIONIST]: '/receptionist/dashboard',
