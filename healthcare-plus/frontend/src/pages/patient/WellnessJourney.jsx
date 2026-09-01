@@ -13,7 +13,7 @@
  *   - Trend chart → derived from API check-in history; shows real data or empty state
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as mhService from '../../services/mentalHealth.service';
 import ActivityPlayer from '../../components/mentalWellness/ActivityPlayer';
 import {
