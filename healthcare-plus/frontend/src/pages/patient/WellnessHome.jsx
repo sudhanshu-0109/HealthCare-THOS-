@@ -31,6 +31,8 @@ import {
   loadTodayCheckIn,
   saveProgressCache,
   loadProgressCache,
+  calculateStreak,
+  loadActivityLog,
 } from '../../data/wellnessMockData';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,8 +99,8 @@ export default function WellnessHome() {
   const [programs,        setPrograms]        = useState([]);
   const [programsLoading, setProgramsLoading] = useState(true);
 
-  // ── Streak — initialised from cache so it shows instantly on refresh ─────
-  const [streak, setStreak] = useState(() => loadProgressCache()?.currentStreak ?? null);
+  // ── Streak — initialised from calculateStreak and cache ─────────────────
+  const [streak, setStreak] = useState(() => calculateStreak() || loadProgressCache()?.currentStreak || 0);
 
   // ── Activity player ─────────────────────────────────────────────────────
   // `activeItem` is the object passed directly to ActivityPlayer as `item`
@@ -187,9 +189,9 @@ export default function WellnessHome() {
       motivation,
     };
 
-    // ① Persist locally FIRST — guarantees check-in survives refresh
-    //    even if the network request fails.
-    saveCheckIn(payload);
+    // ① Persist locally FIRST & update streak immediately — guarantees check-in survives refresh
+    const updatedStreak = saveCheckIn(payload);
+    setStreak(updatedStreak || 1);
     setCheckedIn(true);  // optimistic UI — don't wait for API
     setSubmitting(false);
 
@@ -584,16 +586,20 @@ export default function WellnessHome() {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <p className="font-display font-bold text-2xl text-[#171d1c] leading-none">
-                  {streak !== null ? streak : '–'}
+                  {streak !== null && streak > 0 ? streak : (checkedIn ? 1 : 0)}
                 </p>
                 <p className="text-xs text-[#3c4948] mt-1">day streak</p>
               </div>
               <div className="text-center">
-                <p className="font-display font-bold text-2xl text-[#171d1c] leading-none">–</p>
+                <p className="font-display font-bold text-2xl text-[#171d1c] leading-none">
+                  {loadActivityLog().length}
+                </p>
                 <p className="text-xs text-[#3c4948] mt-1">sessions</p>
               </div>
               <div className="text-center">
-                <p className="font-display font-bold text-2xl text-[#171d1c] leading-none">–</p>
+                <p className="font-display font-bold text-2xl text-[#171d1c] leading-none">
+                  {checkedIn && currentMood?.score ? Number(currentMood.score).toFixed(1) : (loadProgressCache()?.averageMoodScore ? Number(loadProgressCache().averageMoodScore).toFixed(1) : '–')}
+                </p>
                 <p className="text-xs text-[#3c4948] mt-1">avg mood</p>
               </div>
             </div>

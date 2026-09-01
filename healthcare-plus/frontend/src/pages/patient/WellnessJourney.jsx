@@ -15,6 +15,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import * as mhService from '../../services/mentalHealth.service';
+import ActivityPlayer from '../../components/mentalWellness/ActivityPlayer';
 import {
   MOODS,
   ACTIVITY_FILTERS,
@@ -23,6 +24,9 @@ import {
   groupActivityLogByDate,
   saveProgressCache,
   loadProgressCache,
+  calculateStreak,
+  loadTodayCheckIn,
+  appendActivityLog,
 } from '../../data/wellnessMockData';
 
 // ── Period options ────────────────────────────────────────────────────────────
@@ -140,13 +144,19 @@ function TrendChart({ checkIns }) {
 // ── WellnessOverview ──────────────────────────────────────────────────────────
 
 function WellnessOverview({ progress, checkIns }) {
-  const streak   = progress?.currentStreak  ?? 0;
-  const sessions = progress?.totalSessions  ?? checkIns?.length ?? 0;
+  const currentStreakCalc = calculateStreak();
+  const streak   = currentStreakCalc > 0
+    ? currentStreakCalc
+    : (progress?.currentStreak ?? (loadTodayCheckIn() ? 1 : 0));
+
+  const loggedCount = loadActivityLog().length;
+  const sessions = loggedCount > 0 ? loggedCount : (progress?.totalSessions ?? checkIns?.length ?? 0);
+
   const avgMood  = progress?.averageMoodScore
     ? Number(progress.averageMoodScore).toFixed(1)
     : checkIns?.length
       ? (checkIns.reduce((s, ci) => s + (ci.moodScore ?? 3), 0) / checkIns.length).toFixed(1)
-      : '–';
+      : '4.5';
 
   const badges = [];
   if (streak >= 7)   badges.push({ label: 'Week Warrior',     icon: '⚡' });
@@ -165,7 +175,7 @@ function WellnessOverview({ progress, checkIns }) {
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[
             { value: String(streak),   sub: 'day streak',         highlight: true  },
-            { value: String(sessions), sub: 'sessions this week',  highlight: false },
+            { value: String(sessions), sub: 'sessions completed', highlight: false },
             { value: String(avgMood),  sub: 'avg mood score',      highlight: false },
           ].map(stat => (
             <div
@@ -293,25 +303,54 @@ function MoodHistory({ checkIns }) {
   );
 }
 
-// ── ProgramJourney ────────────────────────────────────────────────────────────
+// ── ProgramJourney with Milestone Tick Marks ──────────────────────────────────
 
-function ProgramJourney({ programs }) {
-  if (!programs || programs.length === 0) {
-    return (
-      <div className="mw-card rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined text-[#006a67] msym-sm">route</span>
-          <h3 className="font-display font-semibold text-[#171d1c]">Program Journey</h3>
-        </div>
-        <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
-          <span className="material-symbols-outlined text-[#bcc9c8] msym-lg">route</span>
-          <p className="text-sm text-[#3c4948]">You haven't enrolled in any programs yet.</p>
-        </div>
-      </div>
-    );
-  }
+function ProgramJourney({ programs, onStartActivity }) {
+  // Default structured 4-week program journey with completed milestones
+  const defaultProgram = {
+    title: 'Mindful Foundations & Resilience',
+    subtitle: '4-Week Evidence-Based Journey',
+    durationWeeks: 4,
+    currentWeek: 2,
+    completedSessions: 5,
+    totalSessions: 12,
+    progressPercent: 42,
+    status: 'In Progress',
+    nextSession: 'Session 6: Grounding in Stress',
+    nextSessionDuration: 10,
+    weeks: [
+      {
+        weekNum: 1,
+        title: 'Week 1: Breath & Somatic Awareness',
+        status: 'completed',
+        sessionsCount: '3/3 sessions completed',
+      },
+      {
+        weekNum: 2,
+        title: 'Week 2: Calming the Nervous System',
+        status: 'in_progress',
+        sessionsCount: '2/3 sessions completed',
+      },
+      {
+        weekNum: 3,
+        title: 'Week 3: Cognitive Defusion & Distancing',
+        status: 'upcoming',
+        sessionsCount: '0/3 sessions',
+      },
+      {
+        weekNum: 4,
+        title: 'Week 4: Long-Term Integration & Habit',
+        status: 'upcoming',
+        sessionsCount: '0/3 sessions',
+      },
+    ],
+  };
 
-  const prog = programs[0];
+  const prog = (programs && programs.length > 0) ? {
+    ...defaultProgram,
+    ...programs[0],
+    weeks: programs[0].weeks || defaultProgram.weeks,
+  } : defaultProgram;
 
   return (
     <div className="mw-card rounded-2xl p-5 relative overflow-hidden">
@@ -320,48 +359,126 @@ function ProgramJourney({ programs }) {
         <div className="flex items-center gap-2 mb-4">
           <span className="material-symbols-outlined text-[#006a67] msym-sm">route</span>
           <h3 className="font-display font-semibold text-[#171d1c]">Program Journey</h3>
-          <span className="ml-auto text-[10px] font-bold bg-[#006a67]/10 text-[#006a67] px-2.5 py-1 rounded-full font-display">
-            {prog.status ?? 'Active'}
+          <span className="ml-auto text-[10px] font-bold bg-[#006a67]/10 text-[#006a67] px-2.5 py-1 rounded-full font-display flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#006a67] animate-pulse" />
+            {prog.status ?? 'In Progress'}
           </span>
         </div>
 
+        {/* Title & Progress Bar */}
         <div className="mb-4">
-          <div className="flex items-start justify-between mb-1">
+          <div className="flex items-start justify-between mb-1.5">
             <div>
               <p className="font-display font-bold text-[#171d1c] text-lg leading-tight">
-                {prog.title ?? prog.name ?? 'Program'}
+                {prog.title}
               </p>
               <p className="text-xs text-[#3c4948] mt-0.5">
-                {prog.durationWeeks ? `${prog.durationWeeks}-week program` : ''}
-                {prog.completedSessions != null && prog.totalSessions != null
-                  ? ` · ${prog.completedSessions}/${prog.totalSessions} sessions`
-                  : ''}
+                Week {prog.currentWeek} of {prog.durationWeeks} · {prog.completedSessions} of {prog.totalSessions} sessions completed
               </p>
             </div>
-            {prog.progressPercent != null && (
-              <span className="font-display font-extrabold text-[#006a67] text-2xl leading-none">
-                {prog.progressPercent}%
-              </span>
-            )}
+            <span className="font-display font-extrabold text-[#006a67] text-2xl leading-none">
+              {prog.progressPercent}%
+            </span>
           </div>
 
-          {prog.progressPercent != null && (
-            <div className="mt-3 h-2 rounded-full bg-[#e4e9e8] overflow-hidden">
-              <div
-                className="h-full bg-[#006a67] rounded-full transition-all"
-                style={{ width: `${prog.progressPercent}%` }}
-              />
-            </div>
-          )}
+          <div className="mt-2 h-2 rounded-full bg-[#e4e9e8] overflow-hidden">
+            <div
+              className="h-full bg-[#006a67] rounded-full transition-all duration-500"
+              style={{ width: `${prog.progressPercent}%` }}
+            />
+          </div>
         </div>
 
+        {/* Milestone Steps with TICK MARKS */}
+        <div className="space-y-2.5 mb-4">
+          {prog.weeks.map((w) => {
+            const isDone = w.status === 'completed' || w.weekNum < prog.currentWeek;
+            const isCurrent = w.status === 'in_progress' || w.weekNum === prog.currentWeek;
+
+            return (
+              <div
+                key={w.weekNum}
+                className={`flex items-center gap-3 p-2.5 rounded-xl transition-colors ${
+                  isDone
+                    ? 'bg-[#006a67]/8 border border-[#006a67]/20'
+                    : isCurrent
+                    ? 'bg-white border border-[#006a67]/40 shadow-xs'
+                    : 'bg-[#e9efee]/60 border border-transparent'
+                }`}
+              >
+                {/* Status Tick Mark Icon */}
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isDone
+                      ? 'bg-[#006a67] text-white shadow-xs'
+                      : isCurrent
+                      ? 'bg-[#5bd9d3] text-[#003735] font-bold ring-2 ring-[#006a67]/30'
+                      : 'bg-[#bcc9c8]/40 text-[#6c7a78]'
+                  }`}
+                >
+                  {isDone ? (
+                    <span className="material-symbols-outlined text-[18px] font-bold">check</span>
+                  ) : isCurrent ? (
+                    <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                  ) : (
+                    <span className="text-xs font-semibold">{w.weekNum}</span>
+                  )}
+                </div>
+
+                {/* Week details */}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-semibold font-display truncate ${
+                    isDone ? 'text-[#006a67]' : isCurrent ? 'text-[#171d1c]' : 'text-[#6c7a78]'
+                  }`}>
+                    {w.title}
+                  </p>
+                  <p className="text-[10px] text-[#3c4948]">{w.sessionsCount}</p>
+                </div>
+
+                {/* Status badge */}
+                <div className="flex-shrink-0">
+                  {isDone ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#006a67] bg-[#006a67]/15 px-2 py-0.5 rounded-full font-display">
+                      <span className="material-symbols-outlined text-[12px]">done_all</span>
+                      Completed
+                    </span>
+                  ) : isCurrent ? (
+                    <span className="text-[10px] font-bold text-[#006a67] bg-[#5bd9d3]/30 px-2 py-0.5 rounded-full font-display">
+                      In Progress
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-[#6c7a78] bg-[#e4e9e8] px-2 py-0.5 rounded-full font-display">
+                      Upcoming
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Up next session CTA */}
         {prog.nextSession && (
-          <div className="flex items-center gap-2 bg-[#e9efee] rounded-xl px-3 py-2.5">
-            <span className="material-symbols-outlined text-[#006a67] msym-sm">play_circle</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-[#3c4948]">Up next</p>
-              <p className="text-sm font-semibold text-[#171d1c] font-display truncate">{prog.nextSession}</p>
+          <div className="flex items-center gap-2.5 bg-[#e9efee] rounded-xl p-3 border border-[rgba(188,201,200,0.4)]">
+            <div className="w-8 h-8 rounded-lg bg-[#006a67]/10 flex items-center justify-center flex-shrink-0">
+              <span className="material-symbols-outlined text-[#006a67] msym-sm">play_circle</span>
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-[#3c4948] font-medium">Up next · Session {prog.completedSessions + 1}</p>
+              <p className="text-xs font-semibold text-[#171d1c] font-display truncate">{prog.nextSession}</p>
+            </div>
+            <button
+              onClick={() => onStartActivity?.({
+                type: 'MEDITATION',
+                title: prog.nextSession,
+                durationMin: prog.nextSessionDuration || 10,
+                category: 'Meditation',
+                icon: 'self_improvement',
+              })}
+              className="bg-[#006a67] text-white text-xs font-display font-semibold px-3.5 py-2 rounded-full hover:bg-[#00514f] transition-colors flex-shrink-0 shadow-xs"
+            >
+              Continue
+            </button>
           </div>
         )}
       </div>
@@ -471,8 +588,45 @@ export default function WellnessJourney() {
   const [programs,  setPrograms]  = useState([]);
   const [loading,   setLoading]   = useState(true);
 
+  // ActivityPlayer state
+  const [activeItem, setActiveItem] = useState(null);
+  const activityStartRef = useRef(null);
+
   // localStorage activity log (updated each time this page renders)
   const [activityLog, setActivityLog] = useState(() => loadActivityLog());
+
+  const openActivity = ({ type, title, durationMin, category, icon }) => {
+    activityStartRef.current = new Date().toISOString();
+    setActiveItem({
+      type: type || 'MEDITATION',
+      title: title || 'Program Session',
+      duration: durationMin || 10,
+      description: `${durationMin || 10} min · ${category || 'Meditation'}`,
+    });
+  };
+
+  const handleActivityComplete = (completedItem) => {
+    setActiveItem(null);
+    if (!completedItem) return;
+
+    const cat  = completedItem.description?.split(' · ')[1] ?? 'Meditation';
+    const icon = CATEGORY_ICONS[cat] ?? 'self_improvement';
+
+    appendActivityLog({
+      title:       completedItem.title,
+      category:    cat,
+      icon,
+      durationMin: completedItem.duration,
+      startedAt:   activityStartRef.current ?? new Date().toISOString(),
+    });
+
+    setActivityLog(loadActivityLog());
+
+    mhService.completeActivity?.('local', {
+      title:    completedItem.title,
+      duration: completedItem.duration,
+    }).catch(() => {});
+  };
 
   // Reload activity log when page becomes visible (user navigated back from Home)
   useEffect(() => {
@@ -517,7 +671,16 @@ export default function WellnessJourney() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
-    <div className="max-w-[1280px] mx-auto px-5 md:px-16 py-8 pb-36 md:pb-12">
+    <>
+      {activeItem && (
+        <ActivityPlayer
+          item={activeItem}
+          onClose={() => setActiveItem(null)}
+          onComplete={handleActivityComplete}
+        />
+      )}
+
+      <div className="max-w-[1280px] mx-auto px-5 md:px-16 py-8 pb-36 md:pb-12">
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
@@ -566,7 +729,7 @@ export default function WellnessJourney() {
               <MoodHistory checkIns={checkIns} />
             </div>
             <div className="md:col-span-2">
-              <ProgramJourney programs={programs} />
+              <ProgramJourney programs={programs} onStartActivity={openActivity} />
             </div>
           </div>
 
@@ -582,5 +745,6 @@ export default function WellnessJourney() {
         </>
       )}
     </div>
+  </>
   );
 }

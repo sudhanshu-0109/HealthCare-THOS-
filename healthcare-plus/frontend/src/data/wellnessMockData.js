@@ -98,23 +98,101 @@ export const MOOD_TO_REC = {
 // ── localStorage helpers ──────────────────────────────────────────────────────
 const LOG_KEY      = 'mw_activity_log';
 const CHECKIN_KEY  = 'mw_daily_checkin';
+const DATES_KEY    = 'mw_checkin_dates';
 const PROGRESS_KEY = 'mw_progress_cache';
 
-// ── Check-in persistence ──────────────────────────────────────────────────────
+// ── Check-in persistence & Streak Calculation ─────────────────────────────────
 
 /**
- * Save today's check-in to localStorage.
+ * Calculates the current consecutive streak (in days) ending today or yesterday.
+ * @returns {number}
+ */
+export function calculateStreak() {
+  try {
+    const rawDates = localStorage.getItem(DATES_KEY);
+    const dates = rawDates ? JSON.parse(rawDates) : [];
+    
+    // Also consider today's check-in if present
+    const todayCI = loadTodayCheckIn();
+    const todayIso = new Date().toISOString().slice(0, 10);
+    
+    let allDates = [...dates];
+    if (todayCI && !allDates.includes(todayIso)) {
+      allDates.push(todayIso);
+    }
+    
+    if (allDates.length === 0) {
+      return todayCI ? 1 : 0;
+    }
+
+    const uniqueSorted = Array.from(new Set(allDates)).sort().reverse();
+    const yesterdayDate = new Date(Date.now() - 86400000);
+    const yesterdayIso = yesterdayDate.toISOString().slice(0, 10);
+
+    const latest = uniqueSorted[0];
+    if (latest !== todayIso && latest !== yesterdayIso) {
+      return 0; // Streak broken
+    }
+
+    let streak = 1;
+    let expected = new Date(latest);
+
+    for (let i = 1; i < uniqueSorted.length; i++) {
+      expected.setDate(expected.getDate() - 1);
+      const expectedIso = expected.toISOString().slice(0, 10);
+      if (uniqueSorted[i] === expectedIso) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return Math.max(streak, todayCI ? 1 : 0);
+  } catch {
+    return loadTodayCheckIn() ? 1 : 0;
+  }
+}
+
+/**
+ * Save today's check-in to localStorage, updates check-in date history, and calculates streak.
  * The entry is automatically considered stale after midnight.
  * @param {{ mood: string, moodScore: number, energy: number, stressLevel: number, motivation: number }} data
+ * @returns {number} The updated streak count
  */
 export function saveCheckIn(data) {
   try {
+    const now = new Date();
+    const todayIso = now.toISOString().slice(0, 10);
+    const dateKey = now.toDateString();
+
     localStorage.setItem(CHECKIN_KEY, JSON.stringify({
       ...data,
-      savedAt: new Date().toISOString(),
-      dateKey: new Date().toDateString(), // e.g. "Mon Sep 01 2026"
+      savedAt: now.toISOString(),
+      dateKey, // e.g. "Mon Sep 01 2026"
     }));
-  } catch { /* storage full — ignore */ }
+
+    // Record today's date in streak date history
+    const rawDates = localStorage.getItem(DATES_KEY);
+    const dates = rawDates ? JSON.parse(rawDates) : [];
+    if (!dates.includes(todayIso)) {
+      dates.push(todayIso);
+      localStorage.setItem(DATES_KEY, JSON.stringify(dates));
+    }
+
+    const newStreak = calculateStreak();
+
+    // Immediately cache updated streak and progress
+    const existingCache = loadProgressCache() || {};
+    saveProgressCache({
+      ...existingCache,
+      currentStreak: newStreak,
+      totalSessions: (existingCache.totalSessions || 0) + 1,
+      averageMoodScore: data.moodScore || existingCache.averageMoodScore || 4,
+    });
+
+    return newStreak;
+  } catch {
+    return 1;
+  }
 }
 
 /**
@@ -162,12 +240,21 @@ export function saveProgressCache(data) {
 export function loadProgressCache() {
   try {
     const raw = localStorage.getItem(PROGRESS_KEY);
-    if (!raw) return null;
+    const streak = calculateStreak();
+    if (!raw) {
+      return streak > 0 ? { currentStreak: streak } : null;
+    }
     const { data, savedAt } = JSON.parse(raw);
-    if (Date.now() - savedAt > PROGRESS_TTL_MS) return null;
-    return data;
+    if (Date.now() - savedAt > PROGRESS_TTL_MS) {
+      return streak > 0 ? { currentStreak: streak } : null;
+    }
+    return {
+      ...data,
+      currentStreak: Math.max(data?.currentStreak || 0, streak),
+    };
   } catch {
-    return null;
+    const streak = calculateStreak();
+    return streak > 0 ? { currentStreak: streak } : null;
   }
 }
 
