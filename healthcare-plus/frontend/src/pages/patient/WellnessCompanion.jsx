@@ -270,13 +270,18 @@ export default function WellnessCompanion() {
   const [activeItem,    setActiveItem]    = useState(null);
   const activityStartRef = useRef(null);
 
-  const messagesEndRef = useRef(null);
-  const inputRef       = useRef(null);
-  const responseIdx    = useRef(0);
+  const chatContainerRef = useRef(null);
+  const inputRef         = useRef(null);
+  const responseIdx      = useRef(0);
 
-  // Scroll to bottom when messages update
+  // Scroll ONLY the inner chat messages container to the bottom; the main browser page remains static
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
   }, [messages, isTyping]);
 
   /**
@@ -500,8 +505,12 @@ export default function WellnessCompanion() {
               className="mw-card rounded-2xl flex flex-col overflow-hidden"
               style={{ height: 'calc(100vh - 220px)', minHeight: '400px' }}
             >
-              {/* Messages area */}
-              <div className="flex-1 overflow-y-auto mw-hide-scrollbar p-5 space-y-4" style={{ minHeight: 0 }}>
+              {/* Messages area — scroll is contained inside this element */}
+              <div
+                ref={chatContainerRef}
+                className="flex-1 overflow-y-auto mw-hide-scrollbar p-5 space-y-4"
+                style={{ minHeight: 0 }}
+              >
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] ${msg.role === 'user' ? 'order-last' : ''}`}>
@@ -599,7 +608,6 @@ export default function WellnessCompanion() {
                     </div>
                   </div>
                 )}
-                <div ref={messagesEndRef} />
               </div>
 
               {/* Suggestion chips */}
