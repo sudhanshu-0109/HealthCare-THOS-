@@ -146,55 +146,123 @@ function AppointmentsTab({ hospitalId, hospitalName }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    appointmentsService.getMyAppointments({ limit: 50 })
+  const fetchAppointments = () => {
+    setLoading(true);
+    appointmentsService.getMyAppointments({ limit: 100 })
       .then((res) => {
         const all = res.data?.appointments || [];
-        // Filter by hospital if possible
-        setAppointments(hospitalId ? all.filter((a) => a.doctor?.hospitalId === hospitalId || !hospitalId) : all);
+        // Filter by hospital if possible (support multiple schema mappings: a.hospitalId, a.doctor?.hospital?.id, a.doctor?.hospitalId)
+        const filteredByHospital = hospitalId
+          ? all.filter((a) => a.hospitalId === hospitalId || a.doctor?.hospital?.id === hospitalId || a.doctor?.hospitalId === hospitalId)
+          : all;
+        setAppointments(filteredByHospital);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchAppointments();
   }, [hospitalId]);
 
   const filtered = appointments.filter((a) => filter === 'all' || a.status === filter);
 
   return (
     <div className="p-4 sm:p-6">
-      <h2 className="font-bold text-slate-900 mb-4">My Appointments{hospitalName ? ` at ${hospitalName}` : ''}</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-900">My Appointments{hospitalName ? ` at ${hospitalName}` : ''}</h2>
+        <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+          {filtered.length} appointment{filtered.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-        {['all', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map((f) => (
+        {['all', 'CONFIRMED', 'PENDING_PAYMENT', 'COMPLETED', 'CANCELLED'].map((f) => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${filter === f ? 'bg-cyan-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>
-            {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${filter === f ? 'bg-cyan-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {f === 'all' ? 'All' : f === 'PENDING_PAYMENT' ? 'Pending Payment' : f.charAt(0) + f.slice(1).toLowerCase()}
           </button>
         ))}
       </div>
+
       {loading ? (
-        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-cyan-500" /></div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Calendar} title="No appointments" description="Your appointments will appear here." />
+        <EmptyState icon={Calendar} title="No appointments found" description="When you book an appointment with a doctor at this hospital, it will appear here." />
       ) : (
         <div className="space-y-3">
-          {filtered.map((apt) => (
-            <div key={apt.id} className="bg-white rounded-2xl border border-slate-100 p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-semibold text-slate-900 text-sm">
-                    {apt.doctor?.user?.fullName ? `Dr. ${apt.doctor.user.fullName}` : 'Doctor'}
-                  </p>
-                  <p className="text-xs text-slate-500">{apt.doctor?.specialization}</p>
+          {filtered.map((apt) => {
+            const isOnline = apt.consultationType === 'ONLINE';
+            const isConfirmed = apt.status === 'CONFIRMED';
+            const isPending = apt.status === 'PENDING_PAYMENT';
+
+            return (
+              <div key={apt.id} className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md transition-all">
+                <div className="flex items-start justify-between mb-2.5">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${isOnline ? 'bg-violet-50 text-violet-700 border border-violet-100' : 'bg-cyan-50 text-cyan-700 border border-cyan-100'}`}>
+                      {apt.doctor?.user?.fullName?.charAt(0) || 'D'}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900 text-sm">
+                        {apt.doctor?.user?.fullName ? `Dr. ${apt.doctor.user.fullName}` : (apt.doctor?.name ? `Dr. ${apt.doctor.name}` : 'Doctor')}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {apt.doctor?.specialization || apt.doctor?.department?.name || 'General Physician'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <StatusBadge status={apt.status} />
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isOnline ? 'bg-violet-50 text-violet-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {isOnline ? '🎥 Online' : '🏥 In-Person'}
+                    </span>
+                  </div>
                 </div>
-                <StatusBadge status={apt.status} />
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-50">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 font-medium text-slate-700">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      {apt.scheduledDate ? new Date(apt.scheduledDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                    </span>
+                    <span className="flex items-center gap-1 font-medium text-slate-700">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {apt.scheduledTime}
+                    </span>
+                    {apt.queueToken && (
+                      <span className="bg-cyan-50 text-cyan-700 border border-cyan-100 px-2 py-0.5 rounded-lg font-mono font-bold">
+                        T-{apt.queueToken.tokenNumber}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isConfirmed && !isOnline && (
+                      <button
+                        onClick={() => navigate(`/appointments/${apt.id}/queue`)}
+                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>Live Queue</span>
+                      </button>
+                    )}
+                    {isConfirmed && isOnline && (
+                      <button
+                        onClick={() => navigate(`/patient/waiting-room/${apt.id}`)}
+                        className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>Waiting Room</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-3 text-xs text-slate-400">
-                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{apt.scheduledDate ? new Date(apt.scheduledDate).toLocaleDateString('en-IN') : ''}</span>
-                <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{apt.scheduledTime}</span>
-                {apt.queueToken && <span className="bg-slate-100 px-2 py-0.5 rounded-full font-mono">T-{apt.queueToken.tokenNumber}</span>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -203,16 +271,22 @@ function AppointmentsTab({ hospitalId, hospitalName }) {
 
 // ── Queue Tab ─────────────────────────────────────────────────────────────────
 
-function QueueTab() {
+function QueueTab({ hospitalId }) {
   const [appts, setAppts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    appointmentsService.getMyAppointments({ status: 'CONFIRMED', limit: 5 })
-      .then((res) => setAppts(res.data?.appointments || []))
+    appointmentsService.getMyAppointments({ status: 'CONFIRMED', limit: 10 })
+      .then((res) => {
+        const all = res.data?.appointments || [];
+        const filtered = hospitalId
+          ? all.filter((a) => a.hospitalId === hospitalId || a.doctor?.hospital?.id === hospitalId || a.doctor?.hospitalId === hospitalId)
+          : all;
+        setAppts(filtered.length > 0 ? filtered : all);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [hospitalId]);
 
   const activeAppt = appts.find((a) => a.status === 'CONFIRMED');
 
@@ -633,14 +707,23 @@ export default function HospitalWorkspace() {
   }, [hospitalId]);
 
   if (selectedDoctor) {
-    return <DoctorBooking doctor={selectedDoctor} hospital={hospital} onBack={() => setSelectedDoctor(null)} />;
+    return (
+      <DoctorBooking
+        doctor={selectedDoctor}
+        hospital={hospital}
+        onBack={() => {
+          setSelectedDoctor(null);
+          setActiveNav('appointments');
+        }}
+      />
+    );
   }
 
   const renderTab = () => {
     switch (activeNav) {
       case 'doctors': return <DoctorsTab hospitalId={hospitalId} onBook={setSelectedDoctor} />;
       case 'appointments': return <AppointmentsTab hospitalId={hospitalId} hospitalName={hospital?.name} />;
-      case 'queue': return <QueueTab />;
+      case 'queue': return <QueueTab hospitalId={hospitalId} />;
       case 'pharmacy': return <PharmacyTab />;
       case 'lab': return <LabTab />;
       case 'billing': return <BillingTab />;

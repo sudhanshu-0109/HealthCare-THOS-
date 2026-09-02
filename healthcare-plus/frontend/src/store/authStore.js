@@ -28,6 +28,13 @@ const useAuthStore = create(
         set({ user: null, token: null, isLoading: false });
       },
 
+      // Alias for clearAuth — both patterns used across the codebase
+      logout: () => {
+        localStorage.removeItem('hc_token');
+        localStorage.removeItem('hc_user');
+        set({ user: null, token: null, isLoading: false });
+      },
+
       updateUser: (updates) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...updates } : null,

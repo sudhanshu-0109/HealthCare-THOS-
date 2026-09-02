@@ -57,4 +57,6 @@ export const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
   AI_API_KEY: process.env.AI_API_KEY || '',
+  // Phase 17: Mental Wellness
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
 };

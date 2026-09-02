@@ -27,16 +27,18 @@ export default function MedicalTimeline() {
         limit: 15,
       });
       const data = res.data || res;
+      const eventList = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : [];
       if (reset) {
-        setEvents(data.events);
+        setEvents(eventList);
         setPage(2);
       } else {
-        setEvents((prev) => [...prev, ...data.events]);
+        setEvents((prev) => [...(Array.isArray(prev) ? prev : []), ...eventList]);
         setPage((p) => p + 1);
       }
-      setTotal(data.total);
+      setTotal(typeof data?.total === 'number' ? data.total : eventList.length);
     } catch (err) {
       console.error('[MedicalTimeline]', err);
+      if (reset) setEvents([]);
     } finally {
       setLoading(false);
     }
@@ -46,7 +48,7 @@ export default function MedicalTimeline() {
     fetchTimeline(true);
   }, [filter]);
 
-  const hasMore = events.length < total;
+  const hasMore = (events?.length || 0) < (total || 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/20 to-teal-50/10">

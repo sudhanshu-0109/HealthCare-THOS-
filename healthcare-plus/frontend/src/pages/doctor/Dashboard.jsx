@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Users, Activity, Stethoscope, FlaskConical,
   Pill, CheckCircle2, Clock, Plus, Trash2, X,
   Loader2, Calendar, AlertCircle, RefreshCw, ChevronRight,
-  ArrowRight, User, ChevronDown, FileText, Video, Wifi, MapPin
+  ArrowRight, User, ChevronDown, FileText, Video, Wifi, MapPin, Building2
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
@@ -39,7 +39,7 @@ const today = new Date().toISOString().split('T')[0];
 function LoadingCard() {
   return (
     <div className="flex items-center justify-center py-12">
-      <Loader2 className="w-6 h-6 text-cyan-500 animate-spin" />
+      <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
     </div>
   );
 }
@@ -100,59 +100,59 @@ function PrescribeModal({ consultationId, patientName, onClose, onSuccess }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto border border-slate-100">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-bold text-slate-900">Write Prescription</h3>
-            {patientName && <p className="text-xs text-slate-400">{patientName}</p>}
+            <h3 className="font-extrabold text-slate-900 text-lg tracking-tight">Write Prescription</h3>
+            {patientName && <p className="text-xs font-medium text-slate-400">{patientName}</p>}
           </div>
-          <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
+          <button onClick={onClose}><X className="w-5 h-5 text-slate-400 hover:text-slate-600" /></button>
         </div>
         {!consultationId && (
-          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 text-xs text-amber-700">
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3 mb-4 text-xs font-semibold text-amber-800">
             Start the consultation first to enable prescriptions.
           </div>
         )}
-        {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+        {error && <p className="text-xs font-semibold text-red-500 mb-3">{error}</p>}
         <div className="space-y-4 mb-4">
           {items.map((item, i) => (
-            <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2 relative">
-              <button onClick={() => removeItem(i)} className="absolute top-2 right-2 text-slate-300 hover:text-red-400">
+            <div key={i} className="bg-slate-50/80 rounded-2xl p-3.5 space-y-2 relative border border-slate-100">
+              <button onClick={() => removeItem(i)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
               <input placeholder="Medicine name *" value={item.name}
                 onChange={(e) => updateItem(i, 'name', e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-200" />
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-200 font-medium" />
               <div className="grid grid-cols-3 gap-2">
                 <input placeholder="Dosage" value={item.dosage}
                   onChange={(e) => updateItem(i, 'dosage', e.target.value)}
-                  className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-200" />
+                  className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-200 font-medium" />
                 <input placeholder="Frequency" value={item.frequency}
                   onChange={(e) => updateItem(i, 'frequency', e.target.value)}
-                  className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-200" />
+                  className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-200 font-medium" />
                 <input placeholder="Days" type="number" value={item.duration}
                   onChange={(e) => updateItem(i, 'duration', e.target.value)}
-                  className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-200" />
+                  className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-200 font-medium" />
               </div>
               <input placeholder="Special instructions" value={item.instructions}
                 onChange={(e) => updateItem(i, 'instructions', e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-200" />
+                className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-200 font-medium" />
             </div>
           ))}
-          <button onClick={addItem} className="w-full py-2 border border-dashed border-cyan-300 text-cyan-600 text-sm rounded-xl hover:bg-cyan-50 flex items-center justify-center gap-1">
-            <Plus className="w-3.5 h-3.5" /> Add Medicine
+          <button onClick={addItem} className="w-full py-2.5 border border-dashed border-teal-300 text-teal-700 font-bold text-xs rounded-2xl hover:bg-teal-50 flex items-center justify-center gap-1.5 transition-colors">
+            <Plus className="w-4 h-4" /> Add Medicine
           </button>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">General Instructions</label>
+          <label className="block text-xs font-bold text-slate-700 mb-1">General Instructions</label>
           <textarea rows={2} value={instructions} onChange={(e) => setInstructions(e.target.value)}
             placeholder="Diet, follow-up notes…"
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-200 resize-none" />
+            className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-teal-200 resize-none font-medium" />
         </div>
-        <div className="flex gap-3 mt-4">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold">Cancel</button>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-2xl text-xs font-bold hover:bg-slate-50">Cancel</button>
           <button onClick={handleSubmit} disabled={loading || !consultationId}
-            className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:opacity-50 text-white rounded-2xl text-xs font-bold shadow-sm flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             {loading ? 'Saving…' : 'Save Prescription'}
           </button>
@@ -265,15 +265,15 @@ function LabRequestModal({ consultationId, patientName, hospitalId, onClose, onS
                       const sel = selected.some((s) => s.id === t.id);
                       return (
                         <button key={t.id} onClick={() => toggleTest(t)}
-                          className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors ${sel ? 'bg-cyan-50' : 'hover:bg-slate-50'}`}>
-                          <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${sel ? 'bg-cyan-500 border-cyan-500' : 'border-slate-300'}`}>
+                          className={`w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-colors ${sel ? 'bg-teal-50/80 border border-teal-200' : 'hover:bg-slate-50'}`}>
+                          <div className={`w-4 h-4 rounded-md flex-shrink-0 border-2 flex items-center justify-center ${sel ? 'bg-teal-600 border-teal-600' : 'border-slate-300'}`}>
                             {sel && <CheckCircle2 className="w-3 h-3 text-white" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900 truncate">{t.name}</p>
+                            <p className="text-sm font-bold text-slate-900 truncate">{t.name}</p>
                             {t.masterTest?.code && <p className="text-[10px] font-mono text-slate-400 truncate">{t.masterTest.code}</p>}
                           </div>
-                          <span className="text-xs font-bold text-cyan-700">₹{Number(t.price)}</span>
+                          <span className="text-xs font-bold text-teal-800">₹{Number(t.price)}</span>
                         </button>
                       );
                     })}
@@ -363,7 +363,6 @@ function OnlineAppointmentsPanel({ doctorProfile }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Guard: need doctorProfile before fetching
     if (!doctorProfile) return;
     api.get('/appointments/doctor/mine', {
       params: { consultationType: 'ONLINE', status: 'CONFIRMED', date: today, limit: 10 },
@@ -376,28 +375,28 @@ function OnlineAppointmentsPanel({ doctorProfile }) {
   if (loading || sessions.length === 0) return null;
 
   return (
-    <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-2xl p-4 text-white mb-4 shadow-lg shadow-violet-900/30">
+    <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-900 rounded-3xl p-5 text-white mb-4 shadow-xl border border-teal-600/30">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center">
-          <Video className="w-3.5 h-3.5 text-white" />
+        <div className="w-7 h-7 rounded-xl bg-white/15 flex items-center justify-center backdrop-blur-md">
+          <Video className="w-4 h-4 text-white" />
         </div>
-        <p className="text-white text-sm font-bold">Online Consultations Today</p>
-        <span className="ml-auto bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+        <p className="text-white text-sm font-extrabold tracking-tight">Online Consultations Today</p>
+        <span className="ml-auto bg-white/20 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
           {sessions.length}
         </span>
       </div>
       <div className="space-y-2">
         {sessions.map((apt) => (
-          <div key={apt.id} className="bg-white/10 hover:bg-white/20 transition-colors rounded-xl p-3 flex items-center justify-between gap-3">
+          <div key={apt.id} className="bg-white/10 hover:bg-white/20 transition-colors rounded-2xl p-3.5 flex items-center justify-between gap-3 backdrop-blur-xs border border-white/10">
             <div className="min-w-0">
-              <p className="font-semibold text-sm truncate">{apt.patient?.fullName || 'Patient'}</p>
-              <p className="text-violet-200 text-xs mt-0.5">{apt.scheduledTime} · {apt.doctor?.user?.fullName || apt.doctor?.specialization || ''}</p>
+              <p className="font-extrabold text-sm truncate">{apt.patient?.fullName || 'Patient'}</p>
+              <p className="text-teal-200 text-xs mt-0.5 font-medium">{apt.scheduledTime} · {apt.doctor?.user?.fullName || apt.doctor?.specialization || ''}</p>
             </div>
             <button
               onClick={() => navigate(`/doctor/video-consultation/${apt.id}`)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white text-violet-700 rounded-xl text-xs font-bold hover:bg-violet-50 transition-colors shadow-sm"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-white text-teal-900 rounded-xl text-xs font-extrabold hover:bg-teal-50 transition-all shadow-sm"
             >
-              <Video className="w-3.5 h-3.5" /> Start Call
+              <Video className="w-3.5 h-3.5 text-teal-600" /> Start Call
             </button>
           </div>
         ))}
@@ -545,7 +544,7 @@ function QueueTab({ doctorProfile }) {
         <button
           onClick={handleCallNext}
           disabled={actionLoading === 'call-next' || waiting.length === 0}
-          className="w-full py-3.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
+          className="w-full py-4 bg-gradient-to-r from-teal-600 via-teal-700 to-emerald-700 hover:from-teal-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-3xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-md transition-all"
         >
           {actionLoading === 'call-next' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
           {waiting.length === 0 ? 'No Patients Waiting' : `Call Next Patient (${waiting.length} waiting)`}
@@ -556,12 +555,12 @@ function QueueTab({ doctorProfile }) {
       {currentToken && (() => {
         const isOnline = currentToken.appointment?.consultationType === 'ONLINE';
         const cardGradient = isOnline
-          ? 'bg-gradient-to-br from-violet-600 to-purple-700'
-          : 'bg-gradient-to-br from-cyan-600 to-teal-700';
-        const mutedText = isOnline ? 'text-violet-200' : 'text-cyan-200';
-        const dividerBorder = isOnline ? 'border-violet-400/50' : 'border-cyan-400/50';
+          ? 'bg-gradient-to-br from-violet-700 to-purple-800'
+          : 'bg-gradient-to-br from-teal-700 via-teal-800 to-emerald-900';
+        const mutedText = isOnline ? 'text-violet-200' : 'text-teal-200';
+        const dividerBorder = isOnline ? 'border-violet-400/50' : 'border-teal-400/50';
         return (
-          <div className={`${cardGradient} rounded-2xl p-5 text-white`}>
+          <div className={`${cardGradient} rounded-3xl p-6 text-white shadow-xl border border-white/10`}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="flex items-center gap-2 mb-0.5">
@@ -743,55 +742,73 @@ function OverviewTab({ doctorProfile, queue }) {
   const total = queue.length;
 
   const stats = [
-    { label: "Today's Total", value: total, icon: Users, color: 'bg-cyan-50 text-cyan-600' },
-    { label: 'In Queue', value: waiting, icon: Clock, color: 'bg-amber-50 text-amber-600' },
-    { label: 'Completed', value: completed, icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-600' },
-    { label: 'In Progress', value: inProgress, icon: Activity, color: 'bg-violet-50 text-violet-600' },
+    { label: "Today's Total", value: total, icon: Users, color: 'bg-teal-50 text-teal-700 border border-teal-100' },
+    { label: 'In Queue', value: waiting, icon: Clock, color: 'bg-amber-50 text-amber-700 border border-amber-100' },
+    { label: 'Completed', value: completed, icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-700 border border-emerald-100' },
+    { label: 'In Progress', value: inProgress, icon: Activity, color: 'bg-purple-50 text-purple-700 border border-purple-100' },
   ];
 
   return (
-    <div className="p-4 sm:p-6 pb-24 lg:pb-6 space-y-5">
-      <div className="bg-gradient-to-r from-cyan-600 to-teal-700 rounded-2xl p-5 text-white">
-        <p className="text-cyan-100 text-sm">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'},</p>
-        <h1 className="text-2xl font-bold mt-0.5">
-          {doctorProfile?.user?.fullName ? `Dr. ${doctorProfile.user.fullName}` : 'Doctor'} 👨‍⚕️
-        </h1>
-        <p className="text-cyan-100 text-sm mt-1">
-          {doctorProfile?.specialization} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </p>
-        {doctorProfile?.hospital?.name && (
-          <p className="text-cyan-200 text-xs mt-0.5">{doctorProfile.hospital.name}</p>
-        )}
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
+      
+      {/* Premium Minimal Doctor Hero Banner */}
+      <div className="relative bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 rounded-3xl p-6 text-white shadow-xl overflow-hidden border border-slate-700/50">
+        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-300 text-xs font-extrabold mb-3">
+            <Stethoscope className="w-3.5 h-3.5" />
+            <span>Doctor Consultation OS</span>
+          </div>
+
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+            {doctorProfile?.user?.fullName ? `Dr. ${doctorProfile.user.fullName}` : 'Doctor Workspace'} 👨‍⚕️
+          </h1>
+
+          <p className="text-slate-300 text-xs sm:text-sm font-medium mt-1">
+            {doctorProfile?.specialization || 'Clinical Specialist'} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
+
+          {doctorProfile?.hospital?.name && (
+            <p className="text-teal-300 text-xs font-semibold mt-2 flex items-center gap-1">
+              <Building2 className="w-3.5 h-3.5 text-teal-400" /> {doctorProfile.hospital.name}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+
+      {/* 4 Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
-            <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-4">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2 ${s.color}`}>
-                <Icon className="w-4 h-4" />
+            <div key={s.label} className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-2xs hover:shadow-md transition-all">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-3 ${s.color}`}>
+                <Icon className="w-5 h-5 stroke-[2.2]" />
               </div>
-              <p className="text-2xl font-bold text-slate-900">{s.value}</p>
-              <p className="text-xs text-slate-500">{s.label}</p>
+              <p className="text-3xl font-black text-slate-900 tracking-tight">{s.value}</p>
+              <p className="text-xs font-bold text-slate-500 mt-0.5">{s.label}</p>
             </div>
           );
         })}
       </div>
+
+      {/* Profile Card */}
       {doctorProfile && (
-        <div className="bg-white rounded-2xl border border-slate-100 p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Profile</p>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Specialization</span>
-              <span className="font-medium text-slate-900">{doctorProfile.specialization}</span>
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-2xs">
+          <p className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-4">Doctor Profile Details</p>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between items-center py-1 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">Specialization</span>
+              <span className="font-extrabold text-slate-900">{doctorProfile.specialization}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Department</span>
-              <span className="font-medium text-slate-900">{doctorProfile.department?.name || '—'}</span>
+            <div className="flex justify-between items-center py-1 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">Department</span>
+              <span className="font-extrabold text-slate-900">{doctorProfile.department?.name || '—'}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Consultation Fee</span>
-              <span className="font-medium text-slate-900">₹{doctorProfile.consultationFee}</span>
+            <div className="flex justify-between items-center py-1">
+              <span className="text-slate-500 font-medium">Consultation Fee</span>
+              <span className="font-extrabold text-teal-700">₹{doctorProfile.consultationFee}</span>
             </div>
           </div>
         </div>
@@ -901,7 +918,7 @@ export default function DoctorDashboard() {
       activeItem={activeItem}
       setActiveItem={setActiveItem}
       roleLabel="Doctor"
-      roleColor="bg-gradient-to-r from-cyan-500 to-teal-600 text-white"
+      roleColor="bg-gradient-to-r from-teal-600 to-emerald-600 text-white"
     >
       {profileLoading ? (
         <div className="p-8"><LoadingCard /></div>

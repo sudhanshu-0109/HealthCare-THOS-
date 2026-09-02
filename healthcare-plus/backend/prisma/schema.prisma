@@ -10,6 +10,7 @@
 // Phase 12: Bill, BillItem, unified Payment path
 // Phase 13: Ambulance, extended EmergencyRequest dispatch fields
 // Phase 14: AuditLog
+// Phase 17: Mental Wellness Ecosystem (MentalHealthProfile, AI Companion, Safety Engine)
 // ============================================================
 
 generator client {
@@ -176,6 +177,84 @@ enum OnlineSessionStatus {
 }
 
 // ─────────────────────────────────────────────
+// PHASE 17: MENTAL WELLNESS ENUMS
+// ─────────────────────────────────────────────
+
+// Three-tier consent model (Section 16 of spec)
+enum MentalHealthConsentLevel {
+  NONE
+  LEVEL_1 // Wellness tracking: mood, stress, sleep, activities
+  LEVEL_2 // AI Companion: conversations, journal, insights
+  LEVEL_3 // Professional Care: sessions, care plans, clinical notes
+}
+
+// Risk classification output (Section 7 of spec)
+enum RiskLevel {
+  GREEN
+  YELLOW
+  ORANGE
+  RED
+}
+
+// Supported wellness activity content types (Section 8)
+enum WellnessContentType {
+  BREATHING
+  MEDITATION
+  MINDFULNESS
+  SLEEP_SOUND
+  SLEEP_STORY
+  RELAXATION_MUSIC
+  GRATITUDE
+  GROUNDING
+  FOCUS
+  WELLNESS_PROGRAM
+}
+
+// Conversation intent categories (Section 6.3)
+enum WellnessIntentType {
+  SLEEP_SUPPORT
+  STRESS_SUPPORT
+  FOCUS_SUPPORT
+  SOCIAL_SUPPORT
+  RELAXATION
+  MEDITATION
+  REFLECTION
+  PROFESSIONAL_SUPPORT
+  GENERAL
+}
+
+// Supported emotional states (Section 6.2)
+enum WellnessEmotionType {
+  CALM
+  HAPPY
+  NEUTRAL
+  SAD
+  LOW
+  STRESSED
+  OVERWHELMED
+  ANXIOUS
+  ANGRY
+  LONELY
+  FRUSTRATED
+}
+
+// Trusted contact notification policy (Section 15)
+enum TrustedContactPolicy {
+  NEVER
+  ASK_FIRST
+  APPROVED_EMERGENCY_ONLY
+}
+
+// Crisis flow action types
+enum CrisisActionType {
+  VIEWED_RESOURCES
+  CALLED_HELPLINE
+  CONTACTED_TRUSTED_PERSON
+  BOOKED_PROFESSIONAL
+  DISMISSED
+}
+
+// ─────────────────────────────────────────────
 // USER & PROFILES
 // ─────────────────────────────────────────────
 
@@ -221,6 +300,9 @@ model User {
 
   // Phase 14: Audit log
   auditLogs   AuditLog[]
+
+  // Phase 17: Mental Wellness
+  mentalHealthProfile MentalHealthProfile?
 
   @@index([role])
   @@map("users")
@@ -1030,6 +1112,10 @@ enum NotificationType {
   LAB_PROCESSING
   PRESCRIPTION_CREATED
   PHARMACY_BILL_GENERATED
+  // Phase 17: Mental Wellness
+  MENTAL_HEALTH_CRISIS
+  MENTAL_WELLNESS_CHECKIN_REMINDER
+  MENTAL_WELLNESS_STREAK
 }
 
 model MasterLabCategory {
@@ -1123,4 +1209,278 @@ model AuditLog {
   @@index([actorUserId])
   @@index([action])
   @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 17: MENTAL WELLNESS ECOSYSTEM
+// ─────────────────────────────────────────────
+
+// Per-user mental wellness profile and consent tier.
+// Consent level is the authoritative source — checked by consentCheck middleware.
+model MentalHealthProfile {
+  id           String                   @id @default(uuid())
+  userId       String                   @unique
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentLevel MentalHealthConsentLevel @default(NONE)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  checkIns              MentalHealthCheckIn[]
+  conversations         AIConversation[]
+  riskEvents            MentalHealthRiskEvent[]
+  trustedContacts       TrustedContact[]
+  activities            WellnessActivity[]
+  recommendations       WellnessRecommendation[]
+  programEnrollments    WellnessProgramEnrollment[]
+  gratitudeEntries      GratitudeEntry[]
+  professionalConnections ProfessionalConnection[]
+
+  @@map("mental_health_profiles")
+}
+
+// Daily mood/wellness check-in (Zone A - Section 4).
+// Free-text note passes through safety engine before storage.
+model MentalHealthCheckIn {
+  id           String              @id @default(uuid())
+  profileId    String
+  profile      MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  mood         Int                 // 1=Overwhelmed ... 5=Great
+  stress       Int                 // 0-10
+  energy       Int                 // 1-5
+  motivation   Int                 // 1-5
+  sleepHours   Float?
+  note         String?             // safety-scanned before storage
+  noteRiskLevel RiskLevel?         // risk level of the note scan
+  createdAt    DateTime            @default(now())
+
+  @@index([profileId])
+  @@index([createdAt])
+  @@map("mental_health_check_ins")
+}
+
+// AI conversation session (Zone B - Section 4).
+model AIConversation {
+  id          String              @id @default(uuid())
+  profileId   String
+  profile     MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title       String?             // auto-generated from first message
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  messages        AIConversationMessage[]
+  riskAssessments AIRiskAssessment[]
+
+  @@index([profileId])
+  @@index([createdAt])
+  @@map("ai_conversations")
+}
+
+// Individual message within an AI conversation.
+// promptVersion stored so every AI call is reproducible for audit.
+model AIConversationMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String         // 'user' | 'assistant'
+  content        String
+  emotion        WellnessEmotionType?
+  emotionIntensity Int?
+  intent         WellnessIntentType?
+  riskLevel      RiskLevel?
+  promptVersion  String?        // e.g. 'wellness-v1.0'
+  modelVersion   String?        // e.g. 'gemini-1.5-flash'
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId])
+  @@map("ai_conversation_messages")
+}
+
+// Full audit record of every risk classification call.
+// Stored for every level (GREEN through RED) — never skipped.
+// Append-only: no destructive updates.
+model AIRiskAssessment {
+  id               String         @id @default(uuid())
+  conversationId   String
+  conversation     AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  inputText        String         // the user message that triggered this assessment
+  ruleBasedLevel   RiskLevel      // output from rule-based keyword classifier
+  aiClassifiedLevel RiskLevel     // output from Gemini structured classifier
+  finalLevel       RiskLevel      // the more cautious of the two
+  requiresEscalation Boolean
+  aiReasoning      String?        // Gemini's reasoning text
+  promptVersion    String         // risk prompt version used
+  modelVersion     String         // Gemini model version used
+  createdAt        DateTime       @default(now())
+
+  @@index([conversationId])
+  @@index([finalLevel])
+  @@index([createdAt])
+  @@map("ai_risk_assessments")
+}
+
+// Append-only risk event log for ORANGE and RED events.
+// No destructive updates allowed — safety audit trail.
+model MentalHealthRiskEvent {
+  id          String              @id @default(uuid())
+  profileId   String
+  profile     MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  riskLevel   RiskLevel
+  triggerText String              // the message that triggered the event
+  sessionId   String?             // conversation ID if from AI companion
+  resolvedAt  DateTime?           // set when user completes crisis flow
+  createdAt   DateTime            @default(now())
+
+  crisisActions CrisisAction[]
+
+  @@index([profileId])
+  @@index([riskLevel])
+  @@index([createdAt])
+  @@map("mental_health_risk_events")
+}
+
+// Records individual user actions taken during the crisis flow (RED path).
+model CrisisAction {
+  id           String               @id @default(uuid())
+  riskEventId  String
+  riskEvent    MentalHealthRiskEvent @relation(fields: [riskEventId], references: [id], onDelete: Cascade)
+  actionType   CrisisActionType
+  metadata     Json?                // e.g. which helpline was called
+  createdAt    DateTime             @default(now())
+
+  @@index([riskEventId])
+  @@map("crisis_actions")
+}
+
+// Opt-in trusted contact with server-enforced notification policy (Section 15).
+model TrustedContact {
+  id                 String                  @id @default(uuid())
+  profileId          String
+  profile            MentalHealthProfile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name               String
+  relationship       String
+  phone              String
+  notificationPolicy TrustedContactPolicy    @default(ASK_FIRST)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@index([profileId])
+  @@map("trusted_contacts")
+}
+
+// Governed wellness content library — all AI recommendations must come from here.
+// Never let the AI invent activities outside this set (Section 8).
+model WellnessContent {
+  id          String              @id @default(uuid())
+  type        WellnessContentType
+  title       String
+  description String?
+  duration    Int?                // minutes
+  tags        String[]            // e.g. ["STRESS", "ANXIETY", "FOCUS"]
+  audioUrl    String?
+  imageUrl    String?
+  isActive    Boolean             @default(true)
+  sortOrder   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+
+  activities      WellnessActivity[]
+  recommendations WellnessRecommendation[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("wellness_content")
+}
+
+// Wellness program definition (structured multi-day programs).
+model WellnessProgram {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  durationDays Int
+  tags        String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  enrollments WellnessProgramEnrollment[]
+
+  @@map("wellness_programs")
+}
+
+// User's completion record for a wellness activity.
+model WellnessActivity {
+  id          String              @id @default(uuid())
+  profileId   String
+  profile     MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  contentId   String
+  content     WellnessContent     @relation(fields: [contentId], references: [id])
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+  durationSeconds Int?            // actual time spent
+
+  @@index([profileId])
+  @@index([contentId])
+  @@index([startedAt])
+  @@map("wellness_activities")
+}
+
+// Scored recommendation record (deterministic V1 scoring engine output).
+model WellnessRecommendation {
+  id         String              @id @default(uuid())
+  profileId  String
+  profile    MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  contentId  String
+  content    WellnessContent     @relation(fields: [contentId], references: [id])
+  score      Float               // deterministic score
+  reason     String?             // e.g. 'mood_match:stressed,intent:stress_support'
+  shownAt    DateTime            @default(now())
+  clickedAt  DateTime?
+
+  @@index([profileId])
+  @@index([shownAt])
+  @@map("wellness_recommendations")
+}
+
+// User enrollment in a multi-day wellness program.
+model WellnessProgramEnrollment {
+  id          String              @id @default(uuid())
+  profileId   String
+  profile     MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  programId   String
+  program     WellnessProgram     @relation(fields: [programId], references: [id])
+  startedAt   DateTime            @default(now())
+  currentDay  Int                 @default(1)
+  streakDays  Int                 @default(0)
+  completedAt DateTime?
+  isActive    Boolean             @default(true)
+
+  @@index([profileId])
+  @@map("wellness_program_enrollments")
+}
+
+// Gratitude / journal entry.
+model GratitudeEntry {
+  id        String              @id @default(uuid())
+  profileId String
+  profile   MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content   String
+  mood      WellnessEmotionType?
+  createdAt DateTime            @default(now())
+
+  @@index([profileId])
+  @@map("gratitude_entries")
+}
+
+// Phase 4 stub: bridge to Healthcare+ professional appointment pipeline.
+// Wires to existing Appointment model rather than duplicating booking logic.
+model ProfessionalConnection {
+  id            String              @id @default(uuid())
+  profileId     String
+  profile       MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  doctorId      String              // references Doctor.id
+  appointmentId String?             // references Appointment.id once booked
+  notes         String?
+  createdAt     DateTime            @default(now())
+
+  @@index([profileId])
+  @@map("professional_connections")
 }

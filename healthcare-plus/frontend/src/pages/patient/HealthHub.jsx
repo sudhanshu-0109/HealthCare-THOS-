@@ -5,14 +5,16 @@
  * Uses the actual provided images for all three module cards.
  */
 
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Heart, Building2, Brain, Dumbbell, Bell, MapPin, ChevronDown,
+  Heart, Building2, Brain, Dumbbell, MapPin, ChevronDown,
   ArrowRight, Shield, CheckCircle2, AlertCircle,
-  FileText, Pill, FlaskConical, Syringe
+  FileText, Pill, FlaskConical, Syringe, LogOut, Calendar, Check
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import { useAuth } from '../../hooks/useAuth';
+import NotificationBell from '../../components/notifications/NotificationBell';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getGreeting() {
@@ -25,6 +27,15 @@ function getFirstName(fullName) {
   if (!fullName) return 'there';
   return fullName.split(' ')[0];
 }
+
+const AVAILABLE_LOCATIONS = [
+  'Vadodara, Gujarat',
+  'Ahmedabad, Gujarat',
+  'Surat, Gujarat',
+  'Mumbai, Maharashtra',
+  'Delhi NCR',
+  'Bengaluru, Karnataka',
+];
 
 // ── Static data ───────────────────────────────────────────────────────────────
 const HEALTH_STATS = [
@@ -87,12 +98,30 @@ export default function HealthHub() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { logout } = useAuth();
+  const [selectedLocation, setSelectedLocation] = useState(user?.city || 'Vadodara, Gujarat');
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileRef = useRef(null);
+  const locationRef = useRef(null);
 
   const greeting = getGreeting();
   const firstName = getFirstName(user?.fullName);
 
   const handleLogout = async () => { await logout(); navigate('/', { replace: true }); };
   const handleSOS = () => navigate('/patient/dashboard');
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setShowProfileDropdown(false);
+      }
+      if (locationRef.current && !locationRef.current.contains(e.target)) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   return (
     /*
@@ -103,10 +132,10 @@ export default function HealthHub() {
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
       <header className="flex-shrink-0 bg-white border-b border-slate-100 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-5 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-5 py-2.5 flex items-center justify-between gap-3">
           {/* Logo */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center">
+          <div className="flex items-center gap-2 flex-shrink-0 cursor-pointer" onClick={() => navigate('/health-hub')}>
+            <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center shadow-xs">
               <Heart className="w-4 h-4 text-white fill-white" />
             </div>
             <span className="text-base font-bold text-slate-900 hidden sm:block">
@@ -114,29 +143,96 @@ export default function HealthHub() {
             </span>
           </div>
 
-          {/* Location */}
-          <button className="flex items-center gap-1 text-slate-600 hover:text-teal-600 transition-colors">
-            <MapPin className="w-3.5 h-3.5 text-teal-600" />
-            <span className="text-xs font-medium truncate max-w-[140px]">{user?.city || 'Vadodara, Gujarat'}</span>
-            <ChevronDown className="w-3 h-3" />
-          </button>
+          {/* Location Selector */}
+          <div className="relative" ref={locationRef}>
+            <button
+              onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 transition-colors cursor-pointer"
+            >
+              <MapPin className="w-3.5 h-3.5 text-teal-600" />
+              <span className="truncate max-w-[130px] sm:max-w-[180px]">{selectedLocation}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showLocationDropdown ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Right */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button className="relative p-1.5">
-              <Bell className="w-4 h-4 text-slate-600" />
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full text-white text-[8px] font-bold flex items-center justify-center">3</span>
-            </button>
-            <button onClick={handleLogout} className="flex items-center gap-2 hover:opacity-80 transition-opacity" title="Logout">
-              <div className="w-8 h-8 bg-gradient-to-br from-teal-400 to-teal-600 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                {(user?.fullName || 'U').charAt(0).toUpperCase()}
+            {showLocationDropdown && (
+              <div className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Select Your City
+                </div>
+                {AVAILABLE_LOCATIONS.map((loc) => (
+                  <button
+                    key={loc}
+                    onClick={() => {
+                      setSelectedLocation(loc);
+                      setShowLocationDropdown(false);
+                    }}
+                    className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between hover:bg-teal-50 hover:text-teal-800 transition-colors cursor-pointer ${
+                      selectedLocation === loc ? 'font-bold text-teal-700 bg-teal-50/50' : 'text-slate-600'
+                    }`}
+                  >
+                    <span>{loc}</span>
+                    {selectedLocation === loc && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                  </button>
+                ))}
               </div>
-              <div className="hidden sm:block text-left">
-                <p className="text-xs font-semibold text-slate-800 leading-tight">{firstName}</p>
-                <p className="text-[10px] text-slate-400 leading-tight">View Profile</p>
-              </div>
-              <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-slate-400" />
-            </button>
+            )}
+          </div>
+
+          {/* Right: Real Live Notification Bell + Profile Menu */}
+          <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+            {/* Live Notification Bell Component */}
+            <NotificationBell />
+
+            {/* Profile Dropdown */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                className="flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer group focus:outline-none"
+              >
+                <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-teal-700 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-2xs group-hover:ring-2 group-hover:ring-teal-400/40 transition-all">
+                  {(user?.fullName || 'P').charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <p className="text-xs font-semibold text-slate-800 leading-tight">{firstName}</p>
+                  <p className="text-[10px] text-slate-400 leading-tight">View Profile</p>
+                </div>
+                <ChevronDown className={`hidden sm:block w-3.5 h-3.5 text-slate-400 transition-transform ${showProfileDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showProfileDropdown && (
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-4 py-2 border-b border-slate-100 mb-1">
+                    <p className="text-xs font-bold text-slate-900 truncate">{user?.fullName || 'Patient'}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{user?.email || 'patient@example.com'}</p>
+                    <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-bold bg-teal-50 text-teal-700 rounded-md">
+                      Patient
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setShowProfileDropdown(false); navigate('/patient/passport'); }}
+                    className="w-full text-left px-4 py-2 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-teal-600" />
+                    <span>My Health Passport</span>
+                  </button>
+                  <button
+                    onClick={() => { setShowProfileDropdown(false); navigate('/patient/dashboard'); }}
+                    className="w-full text-left px-4 py-2 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-cyan-600" />
+                    <span>My Appointments</span>
+                  </button>
+                  <div className="border-t border-slate-100 my-1" />
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer font-medium transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -230,28 +326,33 @@ export default function HealthHub() {
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-slate-900 text-sm">Mental Wellness Streak</h2>
-                <button className="flex items-center gap-1 text-xs text-teal-600 font-semibold hover:underline">
+                <button
+                  onClick={() => navigate('/health-hub/mental-wellness')}
+                  className="flex items-center gap-1 text-xs text-teal-600 font-semibold hover:underline cursor-pointer"
+                >
                   View Details <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-xl">🌿</div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 flex-shrink-0">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 bg-green-50 border border-green-100/80 rounded-xl flex items-center justify-center text-lg sm:text-xl shadow-2xs">🌿</div>
                   <div>
-                    <p className="text-2xl font-extrabold text-slate-900 leading-none">7</p>
-                    <p className="text-[10px] font-semibold text-slate-600 mt-0.5">Days Streak</p>
-                    <p className="text-[10px] text-slate-400 italic">Great going!</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">7</p>
+                      <p className="text-xs font-bold text-slate-700">Days Streak</p>
+                    </div>
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">🔥 Great going!</p>
                   </div>
                 </div>
-                <div className="flex-1 flex items-center justify-between">
+                <div className="grid grid-cols-7 gap-1 sm:flex sm:items-center sm:gap-2 flex-1 max-w-full justify-between pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                   {DAYS.map((day, i) => (
                     <div key={day} className="flex flex-col items-center gap-1">
                       {STREAK_DONE[i] ? (
-                        <div className="w-7 h-7 bg-teal-500 rounded-full flex items-center justify-center">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 bg-teal-500 rounded-full flex items-center justify-center shadow-2xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                         </div>
                       ) : (
-                        <div className="w-7 h-7 border-2 border-slate-200 rounded-full" />
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-slate-200 rounded-full" />
                       )}
                       <span className="text-[9px] text-slate-500 font-medium">{day}</span>
                     </div>

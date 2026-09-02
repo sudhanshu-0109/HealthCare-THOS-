@@ -25,3 +25,16 @@ export const strictLimiter = rateLimit({
     message: 'Too many requests. Please try again later.',
   },
 });
+
+// AI conversation rate limiter — protects Gemini API usage
+// 30 messages per 15 minutes per IP
+export const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many AI requests. Please take a short break and try again.',
+  },
+});

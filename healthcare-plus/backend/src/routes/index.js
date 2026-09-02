@@ -47,6 +47,8 @@ import labTestsRouter from './labTests.routes.js';
 import medicinesRouter from './medicines.routes.js';
 // Phase 16
 import onlineSessionRouter from './onlineSession.routes.js';
+// Phase 17: Mental Wellness
+import mentalHealthRouter from '../modules/mental-health/routes/mentalHealth.routes.js';
 
 const router = Router();
 
@@ -93,5 +95,7 @@ router.use('/lab-tests', labTestsRouter);
 router.use('/medicines', medicinesRouter);
 // Phase 16
 router.use('/online-sessions', onlineSessionRouter);
+// Phase 17: Mental Wellness
+router.use('/mental-health', mentalHealthRouter);
 
 export default router;
