@@ -9,7 +9,15 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Play, Pause, RotateCcw, CheckCircle2, ChevronLeft } from 'lucide-react';
+import {
+  X, Play, Pause, RotateCcw, CheckCircle2, ChevronLeft,
+  Volume2, VolumeX, Check,
+} from 'lucide-react';
+import {
+  wellnessAudio,
+  WELLNESS_SOUNDSCAPES,
+  DEFAULT_ACTIVITY_SOUNDS,
+} from '../../utils/wellnessSoundEngine';
 
 // ── Type-specific configs ─────────────────────────────────────────────────────
 
