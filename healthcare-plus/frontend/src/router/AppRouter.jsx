@@ -3,71 +3,92 @@
  *
  * All new dashboards from Responsive Elegant Website are self-contained (include DashboardShell),
  * so they do NOT need a DashboardLayout wrapper.
+ *
+ * Every page except the landing page is code-split with React.lazy. Eagerly importing
+ * all 20+ pages meant a single first paint pulled the entire app (and every dashboard's
+ * chart/map dependency) into the module graph, which made the dev server take minutes to
+ * serve `/`. Now `/` loads only the landing page, and each dashboard pulls its own chunk
+ * the first time you navigate to it.
  */
 
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
 import PublicLayout from '../layouts/PublicLayout';
 
-// Public pages
-import Landing from '../pages/public/Landing';
-import Login from '../pages/public/Login';
-import Register from '../pages/public/Register';
-import VerifyEmail from '../pages/public/VerifyEmail';
-import ForgotPassword from '../pages/public/ForgotPassword';
-import ResetPassword from '../pages/public/ResetPassword';
-import AcceptInvite from '../pages/public/AcceptInvite';
-import NotFound from '../pages/NotFound';
-import Unauthorized from '../pages/Unauthorized';
-import DevMapCheck from '../pages/__DevMapCheck'; // TEMP: remove after map verification
-
 // Auth Guard Component
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 
-// Patient pages
-import PatientDashboard from '../pages/patient/Dashboard';
-import HospitalWorkspace from '../pages/patient/HospitalWorkspace';
-import DoctorBooking from '../pages/patient/DoctorBooking';
-import AppointmentConfirmation from '../pages/patient/AppointmentConfirmation';
-import LiveQueue from '../pages/patient/LiveQueue';
-import Passport from '../pages/patient/Passport';
-import MedicalTimeline from '../pages/patient/MedicalTimeline';
-import EmergencyTracking from '../pages/patient/EmergencyTracking';
-// Phase 16: Online Consultation
-import WaitingRoom from '../pages/patient/WaitingRoom';
-import VideoConsultation from '../pages/patient/VideoConsultation';
+// Landing stays eager — it is the first paint for `/`.
+import Landing from '../pages/public/Landing';
+
+// Public pages (lazy-loaded)
+const Login = lazy(() => import('../pages/public/Login'));
+const Register = lazy(() => import('../pages/public/Register'));
+const VerifyEmail = lazy(() => import('../pages/public/VerifyEmail'));
+const ForgotPassword = lazy(() => import('../pages/public/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/public/ResetPassword'));
+const AcceptInvite = lazy(() => import('../pages/public/AcceptInvite'));
+const NotFound = lazy(() => import('../pages/NotFound'));
+const Unauthorized = lazy(() => import('../pages/Unauthorized'));
+const DevMapCheck = lazy(() => import('../pages/__DevMapCheck')); // TEMP: remove after map verification
+
+// Patient pages (lazy-loaded)
+const PatientDashboard = lazy(() => import('../pages/patient/Dashboard'));
+const HospitalWorkspace = lazy(() => import('../pages/patient/HospitalWorkspace'));
+const DoctorBooking = lazy(() => import('../pages/patient/DoctorBooking'));
+const AppointmentConfirmation = lazy(() => import('../pages/patient/AppointmentConfirmation'));
+const LiveQueue = lazy(() => import('../pages/patient/LiveQueue'));
+const Passport = lazy(() => import('../pages/patient/Passport'));
+const MedicalTimeline = lazy(() => import('../pages/patient/MedicalTimeline'));
+const EmergencyTracking = lazy(() => import('../pages/patient/EmergencyTracking'));
 // Health Hub + Wellness modules
-import HealthHub from '../pages/patient/HealthHub';
-import MentalWellness from '../pages/patient/MentalWellness';
-import PhysicalHealth from '../pages/patient/PhysicalHealth';
-
-// Admin pages
-import HospitalAdminDashboard from '../pages/admin/Dashboard';
-
-// Doctor pages
-import DoctorDashboard from '../pages/doctor/Dashboard';
-import DoctorQueue from '../pages/doctor/Queue';
-import ConsultationScreen from '../pages/doctor/ConsultationScreen';
-import PatientProfileView from '../pages/doctor/PatientProfileView';
+const HealthHub = lazy(() => import('../pages/patient/HealthHub'));
+const PhysicalHealth = lazy(() => import('../pages/patient/PhysicalHealth'));
+// Mental Wellness module (Option C full-merge — 3 sub-routes + shared layout)
+const MentalWellnessLayout  = lazy(() => import('../pages/patient/MentalWellnessLayout'));
+const WellnessHome          = lazy(() => import('../pages/patient/WellnessHome'));
+const WellnessCompanion     = lazy(() => import('../pages/patient/WellnessCompanion'));
+const WellnessJourney       = lazy(() => import('../pages/patient/WellnessJourney'));
 // Phase 16: Online Consultation
-import DoctorVideoConsultation from '../pages/doctor/DoctorVideoConsultation';
+const WaitingRoom = lazy(() => import('../pages/patient/WaitingRoom'));
+const VideoConsultation = lazy(() => import('../pages/patient/VideoConsultation'));
 
-// Lab pages
-import LabDashboard from '../pages/lab/Dashboard';
+// Admin pages (lazy-loaded)
+const HospitalAdminDashboard = lazy(() => import('../pages/admin/Dashboard'));
 
-// Pharmacy pages
-import PharmacyDashboard from '../pages/pharmacy/Dashboard';
+// Doctor pages (lazy-loaded)
+const DoctorDashboard = lazy(() => import('../pages/doctor/Dashboard'));
+const DoctorQueue = lazy(() => import('../pages/doctor/Queue'));
+const ConsultationScreen = lazy(() => import('../pages/doctor/ConsultationScreen'));
+const PatientProfileView = lazy(() => import('../pages/doctor/PatientProfileView'));
+// Phase 16: Online Consultation
+const DoctorVideoConsultation = lazy(() => import('../pages/doctor/DoctorVideoConsultation'));
 
-// Driver pages
-import AmbulanceDashboard from '../pages/driver/Dashboard';
+// Lab pages (lazy-loaded)
+const LabDashboard = lazy(() => import('../pages/lab/Dashboard'));
 
-// Super Admin pages
-import SuperAdminDashboard from '../pages/superadmin/Dashboard';
+// Pharmacy pages (lazy-loaded)
+const PharmacyDashboard = lazy(() => import('../pages/pharmacy/Dashboard'));
+
+// Driver pages (lazy-loaded)
+const AmbulanceDashboard = lazy(() => import('../pages/driver/Dashboard'));
+
+// Super Admin pages (lazy-loaded)
+const SuperAdminDashboard = lazy(() => import('../pages/superadmin/Dashboard'));
+
+// Shown while a route's chunk is in flight.
+const RouteFallback = () => (
+  <div className="flex min-h-screen items-center justify-center bg-slate-50">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-teal-600" />
+  </div>
+);
 
 // ── AppRouter ─────────────────────────────────────────────────────────────
 const AppRouter = () => {
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
 
       {/* ── Public routes ──────────────────────────────────────────────── */}
@@ -87,15 +108,22 @@ const AppRouter = () => {
       {/*   PatientDashboard is self-contained with DashboardShell          */}
       <Route element={<ProtectedRoute allowedRoles={['PATIENT']} />}>
 
-        {/* ── NEW: Patient Health Hub entry point ────────────────────── */}
+        {/* ── Patient Health Hub entry point ────────────────────── */}
         <Route path="/health-hub" element={<HealthHub />} />
         <Route path="/health-hub/hospital-care" element={<Navigate to="/patient/dashboard" replace />} />
-        <Route path="/health-hub/mental-wellness" element={<MentalWellness />} />
         <Route path="/health-hub/physical-health" element={<PhysicalHealth />} />
+
+        {/* ── Mental Wellness module — nested sub-routes ───────── */}
+        {/* MentalWellnessLayout renders: AmbientBackground + MWNavigation + <Outlet /> */}
+        <Route path="/health-hub/mental-wellness" element={<MentalWellnessLayout />}>
+          <Route index element={<WellnessHome />} />
+          <Route path="companion" element={<WellnessCompanion />} />
+          <Route path="journey"   element={<WellnessJourney />} />
+        </Route>
 
         <Route path="/patient/dashboard" element={<PatientDashboard />} />
         <Route path="/hospitals" element={<PatientDashboard />} />
-        
+
         {/* Phase 5, 6, 7 Routes */}
         <Route path="/hospitals/:hospitalId" element={<HospitalWorkspace />} />
         <Route path="/hospitals/:hospitalId/doctors/:doctorId/book" element={<DoctorBooking />} />
@@ -109,7 +137,7 @@ const AppRouter = () => {
         {/* Phase 16: Online Consultation */}
         <Route path="/patient/waiting-room/:appointmentId" element={<WaitingRoom />} />
         <Route path="/patient/video-consultation/:appointmentId" element={<VideoConsultation />} />
-        
+
         {/* Redirect old dashboard routes */}
         <Route path="/dashboard" element={<PatientDashboard />} />
         <Route path="/appointments" element={<PatientDashboard />} />
@@ -173,6 +201,7 @@ const AppRouter = () => {
       </Route>
 
     </Routes>
+    </Suspense>
   );
 };
 
