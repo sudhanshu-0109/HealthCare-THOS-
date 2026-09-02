@@ -166,12 +166,16 @@ export default function WellnessHome() {
         const res  = await mhService.getProgress();
         const data = res?.data ?? res;
         if (data) {
-          setStreak(data.currentStreak ?? 0);
-          saveProgressCache(data); // update cache with fresh value
+          const localStreak = calculateStreak();
+          const effectiveStreak = Math.max(Number(data.currentStreak || 0), localStreak);
+          setStreak(effectiveStreak);
+          saveProgressCache({
+            ...data,
+            currentStreak: effectiveStreak,
+          });
         }
       } catch {
-        // Cache was already loaded as initial state — just ensure it's a number
-        setStreak(prev => prev ?? 0);
+        setStreak(calculateStreak());
       }
     })();
   }, []);

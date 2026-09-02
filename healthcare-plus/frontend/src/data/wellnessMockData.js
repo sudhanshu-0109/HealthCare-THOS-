@@ -104,7 +104,23 @@ const PROGRESS_KEY = 'mw_progress_cache';
 // ── Check-in persistence & Streak Calculation ─────────────────────────────────
 
 /**
+ * Returns local date in YYYY-MM-DD format (avoids UTC timezone shift bugs).
+ * @param {Date|number|string} date
+ * @returns {string}
+ */
+export function getLocalDateStr(date = new Date()) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Calculates the current consecutive streak (in days) ending today or yesterday.
+ * - If user checked in today: count consecutive days backwards ending today.
+ * - If user checked in yesterday (and hasn't checked in today yet): count consecutive days backwards ending yesterday (streak is active and remains intact for today!).
+ * - If user missed yesterday: streak is broken and returns 0.
  * @returns {number}
  */
 export function calculateStreak() {
@@ -112,41 +128,44 @@ export function calculateStreak() {
     const rawDates = localStorage.getItem(DATES_KEY);
     const dates = rawDates ? JSON.parse(rawDates) : [];
     
-    // Also consider today's check-in if present
+    // Also consider today's active check-in if present
     const todayCI = loadTodayCheckIn();
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayStr = getLocalDateStr(new Date());
     
-    let allDates = [...dates];
-    if (todayCI && !allDates.includes(todayIso)) {
-      allDates.push(todayIso);
+    const dateSet = new Set(dates);
+    if (todayCI) {
+      dateSet.add(todayStr);
     }
     
-    if (allDates.length === 0) {
-      return todayCI ? 1 : 0;
+    if (dateSet.size === 0) {
+      return 0;
     }
 
-    const uniqueSorted = Array.from(new Set(allDates)).sort().reverse();
+    const uniqueSorted = Array.from(dateSet).sort().reverse();
     const yesterdayDate = new Date(Date.now() - 86400000);
-    const yesterdayIso = yesterdayDate.toISOString().slice(0, 10);
+    const yesterdayStr = getLocalDateStr(yesterdayDate);
 
     const latest = uniqueSorted[0];
-    if (latest !== todayIso && latest !== yesterdayIso) {
-      return 0; // Streak broken
+    
+    // Streak is alive ONLY if the most recent check-in was today OR yesterday
+    if (latest !== todayStr && latest !== yesterdayStr) {
+      return 0; // Streak broken: user missed yesterday
     }
 
+    // Count consecutive days backward starting from latest check-in
     let streak = 1;
-    let expected = new Date(latest);
+    let expected = new Date(latest + 'T12:00:00');
 
     for (let i = 1; i < uniqueSorted.length; i++) {
       expected.setDate(expected.getDate() - 1);
-      const expectedIso = expected.toISOString().slice(0, 10);
-      if (uniqueSorted[i] === expectedIso) {
+      const expectedStr = getLocalDateStr(expected);
+      if (uniqueSorted[i] === expectedStr) {
         streak++;
       } else {
         break;
       }
     }
-    return Math.max(streak, todayCI ? 1 : 0);
+    return streak;
   } catch {
     return loadTodayCheckIn() ? 1 : 0;
   }
@@ -161,13 +180,13 @@ export function calculateStreak() {
 export function saveCheckIn(data) {
   try {
     const now = new Date();
-    const todayIso = now.toISOString().slice(0, 10);
+    const todayIso = getLocalDateStr(now);
     const dateKey = now.toDateString();
 
     localStorage.setItem(CHECKIN_KEY, JSON.stringify({
       ...data,
       savedAt: now.toISOString(),
-      dateKey, // e.g. "Mon Sep 01 2026"
+      dateKey, // e.g. "Wed Sep 02 2026"
     }));
 
     // Record today's date in streak date history

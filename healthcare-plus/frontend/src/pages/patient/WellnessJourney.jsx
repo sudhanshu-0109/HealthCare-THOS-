@@ -652,8 +652,13 @@ export default function WellnessJourney() {
     if (progressRes.status === 'fulfilled') {
       const d = progressRes.value?.data ?? progressRes.value;
       if (d) {
-        setProgress(d);
-        saveProgressCache(d); // keep cache fresh
+        const localStreak = calculateStreak();
+        const mergedProgress = {
+          ...d,
+          currentStreak: Math.max(Number(d.currentStreak || 0), localStreak),
+        };
+        setProgress(mergedProgress);
+        saveProgressCache(mergedProgress); // keep cache fresh
       }
     }
     if (checkInRes.status === 'fulfilled') {
