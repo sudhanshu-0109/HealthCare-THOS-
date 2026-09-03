@@ -179,6 +179,24 @@ function WellnessOverview({ checkIns, activityLog }) {
 function ThreeDHexagonalTrendsChart({ checkIns }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [selectedIdx, setSelectedIdx] = useState(3); // Default to Thursday (Today, index 3)
+  const [isGraphLoading, setIsGraphLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(15);
+
+  // 3-Second side-by-side loading animation to avoid page delay
+  useEffect(() => {
+    const start = Date.now();
+    const duration = 3000;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+      setLoadingProgress(pct);
+      if (elapsed >= duration) {
+        clearInterval(interval);
+        setIsGraphLoading(false);
+      }
+    }, 40);
+    return () => clearInterval(interval);
+  }, []);
 
   // Dynamically compute days directly from checkIns records (Mon-Thu of current week)
   const weekDays = useMemo(() => {
@@ -196,14 +214,15 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
         return cDate === tmpl.date || (tmpl.isToday && (c.isToday || c.dateKey === new Date().toDateString()));
       });
 
-      const mScore = Number(ci?.moodScore ?? (MOODS.find(m => m.id === ci?.mood)?.score) ?? 5);
+      // Scale to 10: moodScore 4 corresponds to 6.7/10
+      const mScore = Number(ci?.moodScore ?? (MOODS.find(m => m.id === ci?.mood)?.score) ?? 4);
       const score10 = Number(((mScore / 6) * 10).toFixed(1));
       const pct = Math.min(100, Math.max(20, Math.round((mScore / 6) * 100)));
-      const energy = Number(ci?.energy ?? (tmpl.isToday ? 9 : 7));
+      const energy = Number(ci?.energy ?? (tmpl.isToday ? 10 : 7));
       const stress = Number(ci?.stressLevel ?? ci?.stress ?? (tmpl.isToday ? 6 : 5));
-      const mot = Number(ci?.motivation ?? (tmpl.isToday ? 4 : 6));
+      const mot = Number(ci?.motivation ?? (tmpl.isToday ? 5 : 6));
       const moodObj = MOODS.find(m => m.id === ci?.mood || m.score === ci?.moodScore);
-      const moodLabel = moodObj?.label || (typeof ci?.mood === 'string' ? ci.mood : 'Good');
+      const moodLabel = moodObj?.label || (typeof ci?.mood === 'string' ? ci.mood : 'Okay');
 
       const dateObj = new Date(tmpl.date + 'T12:00:00');
       const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -267,246 +286,387 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-3 py-1 rounded-full font-display flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#006a67] animate-pulse" />
-            <span>Mon Aug 31 – Thu Sep 03 (4 Days Sealed)</span>
-          </span>
+          {isGraphLoading ? (
+            <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-3 py-1 rounded-full font-display flex items-center gap-1.5 shadow-2xs">
+              <span className="material-symbols-outlined text-[14px] text-[#006a67] animate-spin">
+                progress_activity
+              </span>
+              <span>Loading 3D Prisms · {loadingProgress}%</span>
+            </span>
+          ) : (
+            <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-3 py-1 rounded-full font-display flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#006a67] animate-pulse" />
+              <span>Mon Aug 31 – Thu Sep 03 (4 Days Sealed)</span>
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Main Split Layout: Left Curled Ribbon Cards + Right 3D Bar Graph */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        {/* ── Left Side: Curled Ribbon Banners (01 through 07) ── */}
-        <div className="lg:col-span-5 space-y-2">
-          {weekDays.map((item, idx) => {
-            const isSelected = idx === activeIdx;
-
-            return (
-              <div
-                key={item.num}
-                onClick={() => setSelectedIdx(idx)}
-                onMouseEnter={() => setHoveredIdx(idx)}
-                onMouseLeave={() => setHoveredIdx(null)}
-                style={{
-                  background: isSelected
-                    ? `linear-gradient(90deg, ${item.color} 0%, ${item.colorDark} 100%)`
-                    : `linear-gradient(90deg, ${item.colorLight} 0%, #ffffff 100%)`,
-                  borderLeft: `5px solid ${item.color}`,
-                }}
-                className={`relative flex items-center justify-between px-3.5 py-2 rounded-r-2xl border border-gray-200/70 shadow-2xs transition-all duration-200 cursor-pointer ${
-                  isSelected
-                    ? 'scale-102 shadow-md -translate-x-0.5 text-white'
-                    : 'hover:bg-white hover:shadow-xs'
-                }`}
-              >
-                {/* 3D Curled Ribbon Corner effect */}
+      {isGraphLoading ? (
+        /* ── Side-by-Side 3-Second Loading Animation (Matching Page UI) ── */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center min-h-[420px]">
+          {/* Left Side: 4 Curled Ribbon Loading Skeletons */}
+          <div className="lg:col-span-5 space-y-2.5">
+            {[
+              { num: '01', day: 'Monday · Aug 31', color: '#f59e0b', colorDark: '#b45309', status: 'Calibrating baseline' },
+              { num: '02', day: 'Tuesday · Sep 01', color: '#10b981', colorDark: '#047857', status: 'Synthesizing focus' },
+              { num: '03', day: 'Wednesday · Sep 02', color: '#06b6d4', colorDark: '#0e7490', status: 'Equilibrium aligned' },
+              { num: '04', day: 'Thursday · Sep 03 (Today)', color: '#3b82f6', colorDark: '#1d4ed8', status: 'Ingesting runtime input' },
+            ].map((item, idx) => {
+              const isActivated = loadingProgress >= (idx + 1) * 22;
+              return (
                 <div
-                  className="absolute -left-2 top-1.5 bottom-1.5 w-2 rounded-l-sm opacity-60"
-                  style={{ backgroundColor: item.colorDark }}
-                />
+                  key={item.num}
+                  style={{
+                    borderLeft: `5px solid ${item.color}`,
+                    background: isActivated
+                      ? `linear-gradient(90deg, ${item.color}15 0%, #ffffff 100%)`
+                      : 'linear-gradient(90deg, #f8faf9 0%, #ffffff 100%)',
+                  }}
+                  className="relative flex items-center justify-between px-3.5 py-2.5 rounded-r-2xl border border-gray-200/70 shadow-2xs overflow-hidden transition-all duration-300"
+                >
+                  {/* Curled fold */}
+                  <div
+                    className="absolute -left-2 top-1.5 bottom-1.5 w-2 rounded-l-sm opacity-60"
+                    style={{ backgroundColor: item.colorDark }}
+                  />
 
-                {/* Day Info */}
-                <div className="min-w-0 flex-1 pr-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[11px] font-extrabold font-display uppercase tracking-wider ${
-                      isSelected ? 'text-white' : 'text-[#171d1c]'
-                    }`}>
-                      {item.day} · {item.date}
-                    </span>
-                    {item.isToday && (
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full bg-white text-blue-700 shadow-2xs">
-                        Today
+                  <div className="min-w-0 flex-1 pr-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-extrabold font-display uppercase tracking-wider text-[#171d1c]">
+                        {item.day}
                       </span>
-                    )}
+                      {idx === 3 && (
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700">
+                          Today
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-[#006a67] font-semibold font-display">
+                        {isActivated ? item.status : 'Loading biomarker nodes...'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <div className="h-1.5 w-16 bg-gray-200 rounded-full animate-pulse" />
+                      <div className="h-1.5 w-12 bg-gray-200 rounded-full animate-pulse" />
+                      <div className="h-1.5 w-12 bg-gray-200 rounded-full animate-pulse" />
+                    </div>
                   </div>
-                  <p className={`text-[10px] mt-0.5 truncate ${
-                    isSelected ? 'text-white/90' : 'text-[#6c7a78]'
-                  }`}>
-                    {item.note}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] font-medium font-display">
-                    <span className={isSelected ? 'text-white font-bold' : 'text-[#171d1c] font-semibold'}>
-                      Mood: {item.score}/10
-                    </span>
-                    <span>•</span>
-                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
-                      E: {item.energy}/10
-                    </span>
-                    <span>•</span>
-                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
-                      S: {item.stress}/10
-                    </span>
-                    <span>•</span>
-                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
-                      M: {item.mot}/10
+
+                  <div className="flex-shrink-0 text-right">
+                    <span className="font-display font-black text-3xl leading-none text-gray-300">
+                      {item.num}
                     </span>
                   </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Big Stylized Number (01, 02, 03, etc.) matching drawing */}
-                <div className="flex-shrink-0 text-right">
-                  <span
-                    className={`font-display font-black text-3xl leading-none tracking-tighter ${
-                      isSelected ? 'text-white/95' : 'text-gray-300'
+          {/* Right Side: 3D Holographic Canvas Chamber Loader */}
+          <div className="lg:col-span-7 relative flex flex-col justify-center items-center bg-gradient-to-b from-[#fbfdfd] to-[#eef6f5]/70 rounded-2xl p-6 border border-[#dce8e6] min-h-[410px] overflow-hidden">
+            {/* Holographic Wireframe Grid lines */}
+            <div className="absolute inset-0 opacity-25 pointer-events-none bg-[radial-gradient(#006a67_1px,transparent_1px)] [background-size:16px_16px]" />
+
+            {/* 3D Simulated Columns Rising Smoothly with loadingProgress */}
+            <div className="w-full flex justify-around items-end h-44 px-8 mb-5 relative">
+              {[
+                { label: 'Mon', targetH: 67, color: '#f59e0b', dark: '#b45309' },
+                { label: 'Tue', targetH: 67, color: '#10b981', dark: '#047857' },
+                { label: 'Wed', targetH: 67, color: '#06b6d4', dark: '#0e7490' },
+                { label: 'Thu', targetH: 67, color: '#3b82f6', dark: '#1d4ed8' },
+              ].map((c) => {
+                const currentH = Math.min(c.targetH, Math.round((c.targetH * (loadingProgress / 100))));
+                return (
+                  <div key={c.label} className="flex flex-col items-center gap-1.5">
+                    <div className="w-12 rounded-t-lg bg-gray-100/80 relative overflow-hidden border border-gray-200/80 shadow-inner flex items-end justify-center" style={{ height: '130px' }}>
+                      <div
+                        className="w-full transition-all duration-150 ease-out rounded-t-md opacity-90"
+                        style={{
+                          height: `${currentH}%`,
+                          background: `linear-gradient(180deg, ${c.color} 0%, ${c.dark} 100%)`,
+                          boxShadow: `0 0 14px ${c.color}40`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold text-[#3c4948] font-display">{c.label}</span>
+                  </div>
+                );
+              })}
+
+              {/* Laser Scanning Line */}
+              <div
+                className="absolute left-6 right-6 h-[2px] bg-gradient-to-r from-transparent via-[#006a67] to-transparent shadow-[0_0_10px_#006a67] transition-all duration-150"
+                style={{ bottom: `${Math.min(90, Math.max(12, loadingProgress * 0.9))}%` }}
+              />
+            </div>
+
+            {/* Center Status Hub */}
+            <div className="flex flex-col items-center text-center relative z-10">
+              <div className="w-11 h-11 rounded-2xl bg-[#006a67]/10 border border-[#006a67]/20 flex items-center justify-center text-[#006a67] mb-2.5 shadow-xs">
+                <span className="material-symbols-outlined text-2xl animate-spin">
+                  view_in_ar
+                </span>
+              </div>
+              <h4 className="font-display font-bold text-sm text-[#171d1c]">
+                Rendering 3D Hexagonal Biomarker Prisms
+              </h4>
+              <p className="text-[11px] text-[#3c4948] mt-0.5 max-w-sm">
+                Calibrating spatial coordinates & real runtime check-ins ({loadingProgress}%)
+              </p>
+
+              {/* High-Tech Progress Bar */}
+              <div className="w-60 h-2 bg-gray-200/80 rounded-full mt-3 overflow-hidden p-0.5 border border-gray-300/40">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#006a67] via-[#5bd9d3] to-[#3b82f6] transition-all duration-100 ease-out shadow-xs"
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+
+              <span className="text-[10px] text-[#6c7a78] font-semibold mt-1.5 font-display">
+                Loading side-by-side elements · {((3000 - (loadingProgress * 30)) / 1000).toFixed(1)}s
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ── Full Interactive 3D Bar Graph and Ribbon Cards ── */
+        <div className="animate-fadeIn">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+            {/* ── Left Side: Curled Ribbon Banners (01 through 04) ── */}
+            <div className="lg:col-span-5 space-y-2">
+              {weekDays.map((item, idx) => {
+                const isSelected = idx === activeIdx;
+
+                return (
+                  <div
+                    key={item.num}
+                    onClick={() => setSelectedIdx(idx)}
+                    onMouseEnter={() => setHoveredIdx(idx)}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                    style={{
+                      background: isSelected
+                        ? `linear-gradient(90deg, ${item.color} 0%, ${item.colorDark} 100%)`
+                        : `linear-gradient(90deg, ${item.colorLight} 0%, #ffffff 100%)`,
+                      borderLeft: `5px solid ${item.color}`,
+                    }}
+                    className={`relative flex items-center justify-between px-3.5 py-2 rounded-r-2xl border border-gray-200/70 shadow-2xs transition-all duration-200 cursor-pointer ${
+                      isSelected
+                        ? 'scale-102 shadow-md -translate-x-0.5 text-white'
+                        : 'hover:bg-white hover:shadow-xs'
                     }`}
                   >
-                    {item.num}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    {/* 3D Curled Ribbon Corner effect */}
+                    <div
+                      className="absolute -left-2 top-1.5 bottom-1.5 w-2 rounded-l-sm opacity-60"
+                      style={{ backgroundColor: item.colorDark }}
+                    />
 
-        {/* ── Right Side: 3D Hexagonal / Prismatic Columns SVG Graph ── */}
-        <div className="lg:col-span-7 relative flex justify-center items-center bg-gradient-to-b from-[#fbfdfd] to-[#eef6f5]/40 rounded-2xl p-3 border border-[#dce8e6]">
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[460px] overflow-visible select-none">
-            <defs>
-              {/* Drop Shadow filter */}
-              <filter id="colShadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#091e1d" floodOpacity="0.18" />
-              </filter>
-            </defs>
+                    {/* Day Info */}
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] font-extrabold font-display uppercase tracking-wider ${
+                          isSelected ? 'text-white' : 'text-[#171d1c]'
+                        }`}>
+                          {item.day} · {item.date}
+                        </span>
+                        {item.isToday && (
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full bg-white text-blue-700 shadow-2xs">
+                            Today
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[10px] mt-0.5 truncate ${
+                        isSelected ? 'text-white/90' : 'text-[#6c7a78]'
+                      }`}>
+                        {item.note}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] font-medium font-display">
+                        <span className={isSelected ? 'text-white font-bold' : 'text-[#171d1c] font-semibold'}>
+                          Mood: {item.score}/10
+                        </span>
+                        <span>•</span>
+                        <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                          E: {item.energy}/10
+                        </span>
+                        <span>•</span>
+                        <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                          S: {item.stress}/10
+                        </span>
+                        <span>•</span>
+                        <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                          M: {item.mot}/10
+                        </span>
+                      </div>
+                    </div>
 
-            {/* 3D Perspective Ground Grid Lines */}
-            <g opacity="0.45">
-              <line x1="20" y1={Y_BASE + 8} x2={W - 20} y2={Y_BASE + 8} stroke="#cbd5e1" strokeWidth="1.5" />
-              <line x1="20" y1={Y_BASE - 12} x2={W - 20} y2={Y_BASE - 12} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-            </g>
+                    {/* Big Stylized Number (01, 02, 03, 04) */}
+                    <div className="flex-shrink-0 text-right">
+                      <span
+                        className={`font-display font-black text-3xl leading-none tracking-tighter ${
+                          isSelected ? 'text-white/95' : 'text-gray-300'
+                        }`}
+                      >
+                        {item.num}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-            {/* Ground Shadows beneath 3D Columns (drawn first) */}
-            {weekDays.map((d, i) => {
-              const cx = 75 + i * 130;
-              return (
-                <path
-                  key={`shadow_${d.num}`}
-                  d={`M ${cx - w - 4},${Y_BASE + qCap}
-                      L ${cx + w},${Y_BASE + qCap}
-                      L ${cx + w + 36},${Y_BASE - 14}
-                      L ${cx + 8},${Y_BASE - 14} Z`}
-                  fill="rgba(15, 23, 42, 0.12)"
-                />
-              );
-            })}
+            {/* ── Right Side: 3D Hexagonal / Prismatic Columns SVG Graph ── */}
+            <div className="lg:col-span-7 relative flex justify-center items-center bg-gradient-to-b from-[#fbfdfd] to-[#eef6f5]/40 rounded-2xl p-3 border border-[#dce8e6]">
+              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[460px] overflow-visible select-none">
+                <defs>
+                  {/* Drop Shadow filter */}
+                  <filter id="colShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#091e1d" floodOpacity="0.18" />
+                  </filter>
+                </defs>
 
-            {/* Stepped Gray Trendline connecting the tops */}
-            <path
-              d={stepLinePath}
-              fill="none"
-              stroke="#94a3b8"
-              strokeWidth="2.2"
-              strokeLinejoin="round"
-              opacity="0.75"
-            />
-
-            {/* 3D Hexagonal Columns (Mon - Thu) */}
-            {weekDays.map((d, i) => {
-              const cx = 75 + i * 130;
-              const colHeight = 50 + (d.pct / 100) * 175;
-              const cy = Y_BASE - colHeight;
-              const isSelected = i === activeIdx;
-
-              return (
-                <g
-                  key={`col_${d.num}`}
-                  onClick={() => setSelectedIdx(i)}
-                  onMouseEnter={() => setHoveredIdx(i)}
-                  onMouseLeave={() => setHoveredIdx(null)}
-                  className="cursor-pointer transition-transform duration-200"
-                  style={{
-                    transform: isSelected ? 'translateY(-6px)' : undefined,
-                  }}
-                  filter={isSelected ? 'url(#colShadow)' : undefined}
-                >
-                  {/* Stepped line junction dot */}
-                  <circle cx={cx} cy={cy - 22} r="3.5" fill="#64748b" />
-
-                  {/* Two-Tone Pill Badge above column (showing exact 10-scale score matching diagnostics) */}
-                  <g transform={`translate(${cx - 38}, ${cy - 31})`}>
-                    {/* Left neutral box */}
-                    <rect x="0" y="0" width="38" height="18" rx="4" fill="#e2e8f0" />
-                    <text x="19" y="13" fill="#334155" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
-                      {d.short}
-                    </text>
-                    {/* Right colored box */}
-                    <rect x="38" y="0" width="38" height="18" rx="4" fill={d.color} />
-                    <text x="57" y="13" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
-                      {d.score}
-                    </text>
-                  </g>
-
-                  {/* Floating Milestone Icon inside circle */}
-                  <g transform={`translate(${cx}, ${cy - 52})`}>
-                    <circle cx="0" cy="0" r="14" fill="#ffffff" stroke={d.color} strokeWidth="2" />
-                    <text
-                      x="0"
-                      y="5"
-                      fill={d.color}
-                      fontSize="14"
-                      textAnchor="middle"
-                      fontFamily="'Material Symbols Outlined'"
-                    >
-                      {d.icon}
-                    </text>
-                    {/* Icon reflection */}
-                    <ellipse cx="0" cy="18" rx="10" ry="2" fill="rgba(0,0,0,0.06)" />
-                  </g>
-
-                  {/* 1. Left Front Facet (Lit Face) */}
-                  <path
-                    d={`M ${cx - w},${cy + qCap}
-                        L ${cx},${cy + hCap}
-                        L ${cx},${Y_BASE + hCap}
-                        L ${cx - w},${Y_BASE + qCap} Z`}
-                    fill={d.color}
-                    opacity={isSelected ? 1 : 0.9}
-                  />
-
-                  {/* 2. Right Front Facet (Shaded Face) */}
-                  <path
-                    d={`M ${cx},${cy + hCap}
-                        L ${cx + w},${cy + qCap}
-                        L ${cx + w},${Y_BASE + qCap}
-                        L ${cx},${Y_BASE + hCap} Z`}
-                    fill={d.colorDark}
-                    opacity={isSelected ? 1 : 0.92}
-                  />
-
-                  {/* 3. Top Hexagonal Cap (Bright Highlight Face) */}
-                  <path
-                    d={`M ${cx},${cy - hCap}
-                        L ${cx + w},${cy - qCap}
-                        L ${cx + w},${cy + qCap}
-                        L ${cx},${cy + hCap}
-                        L ${cx - w},${cy + qCap}
-                        L ${cx - w},${cy - qCap} Z`}
-                    fill={d.colorLight}
-                    stroke={d.color}
-                    strokeWidth="1"
-                  />
+                {/* 3D Perspective Ground Grid Lines */}
+                <g opacity="0.45">
+                  <line x1="20" y1={Y_BASE + 8} x2={W - 20} y2={Y_BASE + 8} stroke="#cbd5e1" strokeWidth="1.5" />
+                  <line x1="20" y1={Y_BASE - 12} x2={W - 20} y2={Y_BASE - 12} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
                 </g>
-              );
-            })}
-          </svg>
-        </div>
-      </div>
 
-      {/* Dynamic Detail Pill Footer */}
-      <div className="mt-4 pt-3.5 border-t border-[#e4ebe9] flex items-center justify-between flex-wrap gap-2 text-xs font-display">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-[#171d1c]">
-            Active Day: {activeDay.day} ({activeDay.date})
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: activeDay.color }}>
-            Score: {activeDay.score}/10 · {activeDay.pct}%
-          </span>
+                {/* Ground Shadows beneath 3D Columns (drawn first) */}
+                {weekDays.map((d, i) => {
+                  const cx = 75 + i * 130;
+                  return (
+                    <path
+                      key={`shadow_${d.num}`}
+                      d={`M ${cx - w - 4},${Y_BASE + qCap}
+                          L ${cx + w},${Y_BASE + qCap}
+                          L ${cx + w + 36},${Y_BASE - 14}
+                          L ${cx + 8},${Y_BASE - 14} Z`}
+                      fill="rgba(15, 23, 42, 0.12)"
+                    />
+                  );
+                })}
+
+                {/* Stepped Gray Trendline connecting the tops */}
+                <path
+                  d={stepLinePath}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth="2.2"
+                  strokeLinejoin="round"
+                  opacity="0.75"
+                />
+
+                {/* 3D Hexagonal Columns (Mon - Thu) */}
+                {weekDays.map((d, i) => {
+                  const cx = 75 + i * 130;
+                  const colHeight = 50 + (d.pct / 100) * 175;
+                  const cy = Y_BASE - colHeight;
+                  const isSelected = i === activeIdx;
+
+                  return (
+                    <g
+                      key={`col_${d.num}`}
+                      onClick={() => setSelectedIdx(i)}
+                      onMouseEnter={() => setHoveredIdx(i)}
+                      onMouseLeave={() => setHoveredIdx(null)}
+                      className="cursor-pointer transition-transform duration-200"
+                      style={{
+                        transform: isSelected ? 'translateY(-6px)' : undefined,
+                      }}
+                      filter={isSelected ? 'url(#colShadow)' : undefined}
+                    >
+                      {/* Stepped line junction dot */}
+                      <circle cx={cx} cy={cy - 22} r="3.5" fill="#64748b" />
+
+                      {/* Two-Tone Pill Badge above column (showing exact 10-scale score matching diagnostics) */}
+                      <g transform={`translate(${cx - 38}, ${cy - 31})`}>
+                        {/* Left neutral box */}
+                        <rect x="0" y="0" width="38" height="18" rx="4" fill="#e2e8f0" />
+                        <text x="19" y="13" fill="#334155" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                          {d.short}
+                        </text>
+                        {/* Right colored box */}
+                        <rect x="38" y="0" width="38" height="18" rx="4" fill={d.color} />
+                        <text x="57" y="13" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                          {d.score}
+                        </text>
+                      </g>
+
+                      {/* Floating Milestone Icon inside circle */}
+                      <g transform={`translate(${cx}, ${cy - 52})`}>
+                        <circle cx="0" cy="0" r="14" fill="#ffffff" stroke={d.color} strokeWidth="2" />
+                        <text
+                          x="0"
+                          y="5"
+                          fill={d.color}
+                          fontSize="14"
+                          textAnchor="middle"
+                          fontFamily="'Material Symbols Outlined'"
+                        >
+                          {d.icon}
+                        </text>
+                        {/* Icon reflection */}
+                        <ellipse cx="0" cy="18" rx="10" ry="2" fill="rgba(0,0,0,0.06)" />
+                      </g>
+
+                      {/* 1. Left Front Facet (Lit Face) */}
+                      <path
+                        d={`M ${cx - w},${cy + qCap}
+                            L ${cx},${cy + hCap}
+                            L ${cx},${Y_BASE + hCap}
+                            L ${cx - w},${Y_BASE + qCap} Z`}
+                        fill={d.color}
+                        opacity={isSelected ? 1 : 0.9}
+                      />
+
+                      {/* 2. Right Front Facet (Shaded Face) */}
+                      <path
+                        d={`M ${cx},${cy + hCap}
+                            L ${cx + w},${cy + qCap}
+                            L ${cx + w},${Y_BASE + qCap}
+                            L ${cx},${Y_BASE + hCap} Z`}
+                        fill={d.colorDark}
+                        opacity={isSelected ? 1 : 0.92}
+                      />
+
+                      {/* 3. Top Hexagonal Cap (Bright Highlight Face) */}
+                      <path
+                        d={`M ${cx},${cy - hCap}
+                            L ${cx + w},${cy - qCap}
+                            L ${cx + w},${cy + qCap}
+                            L ${cx},${cy + hCap}
+                            L ${cx - w},${cy + qCap}
+                            L ${cx - w},${cy - qCap} Z`}
+                        fill={d.colorLight}
+                        stroke={d.color}
+                        strokeWidth="1"
+                      />
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          </div>
+
+          {/* Dynamic Detail Pill Footer */}
+          <div className="mt-4 pt-3.5 border-t border-[#e4ebe9] flex items-center justify-between flex-wrap gap-2 text-xs font-display">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-[#171d1c]">
+                Active Day: {activeDay.day} ({activeDay.date})
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: activeDay.color }}>
+                Score: {activeDay.score}/10 · {activeDay.pct}%
+              </span>
+            </div>
+            <div className="flex items-center gap-4 text-[#3c4948] text-xs">
+              <span>⚡ Energy: <strong>{activeDay.energy}/10</strong></span>
+              <span>🌀 Stress: <strong>{activeDay.stress}/10</strong></span>
+              <span>🎯 Motivation: <strong>{activeDay.mot}/10</strong></span>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-[#3c4948] text-xs">
-          <span>⚡ Energy: <strong>{activeDay.energy}/10</strong></span>
-          <span>🌀 Stress: <strong>{activeDay.stress}/10</strong></span>
-          <span>🎯 Motivation: <strong>{activeDay.mot}/10</strong></span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
