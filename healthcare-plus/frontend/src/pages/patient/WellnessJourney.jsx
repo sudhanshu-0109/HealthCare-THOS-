@@ -245,7 +245,8 @@ function MoodHistory({ checkIns }) {
     const moodObj  = MOODS.find(m => m.id === moodId || m.score === ci.moodScore);
     return {
       day:   dayLabel,
-      emoji: moodObj?.emoji ?? '😐',
+      icon:  moodObj?.icon ?? 'balance',
+      color: moodObj?.color ?? '#006a67',
       label: moodObj?.label ?? (ci.mood ?? 'Logged'),
       score: ci.moodScore ?? moodObj?.score ?? 3,
       date:  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -270,7 +271,11 @@ function MoodHistory({ checkIns }) {
               entry.isToday ? 'bg-[#006a67]/8 ring-1 ring-[#006a67]/20' : 'bg-[#e9efee]'
             }`}
           >
-            <span className="text-2xl">{entry.emoji}</span>
+            <div className="w-8 h-8 rounded-lg bg-white/90 flex items-center justify-center shadow-xs">
+              <span className="material-symbols-outlined text-[18px]" style={{ color: entry.color }}>
+                {entry.icon}
+              </span>
+            </div>
             <span className="text-[10px] font-semibold text-[#171d1c] font-display">{entry.label}</span>
             <span className="text-[9px] text-[#3c4948]">{entry.date}</span>
           </div>
@@ -286,7 +291,11 @@ function MoodHistory({ checkIns }) {
               entry.isToday ? 'bg-[#006a67]/8 border border-[#006a67]/15' : 'bg-[#e9efee]'
             }`}
           >
-            <span className="text-xl">{entry.emoji}</span>
+            <div className="w-8 h-8 rounded-lg bg-white/90 flex items-center justify-center shadow-xs flex-shrink-0">
+              <span className="material-symbols-outlined text-[18px]" style={{ color: entry.color }}>
+                {entry.icon}
+              </span>
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-[#171d1c] font-display">{entry.day}</p>
               <p className="text-[10px] text-[#3c4948]">{entry.date}</p>

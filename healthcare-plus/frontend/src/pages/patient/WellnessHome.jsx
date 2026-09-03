@@ -309,23 +309,142 @@ export default function WellnessHome() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-8">
 
           {/* Check-in card */}
-          <div className="mw-card p-6">
+          <div className="mw-card p-6 flex flex-col justify-between">
             {checkedIn ? (
-              <div className="flex flex-col items-center justify-center text-center py-4 gap-3">
-                <div className="w-14 h-14 rounded-2xl bg-[#006a67]/10 flex items-center justify-center mb-1">
-                  <span className="text-3xl">{currentMood?.emoji ?? '😊'}</span>
+              <div className="flex flex-col justify-between h-full min-h-[360px]">
+                {/* 1. Header Bar */}
+                <div>
+                  <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-[#e4e9e8]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[18px]">verified</span>
+                      </div>
+                      <div>
+                        <h3 className="font-display font-bold text-[#171d1c] text-sm leading-tight">Daily State Logged</h3>
+                        <p className="text-[11px] text-[#3c4948]">Synchronized with your personal profile</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-display">
+                      <span>Active Streak</span>
+                      <span>🔥</span>
+                    </span>
+                  </div>
+
+                  {/* 2. Primary Mood Showcase Card */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#006a67]/8 to-[#5bd9d3]/10 border border-[#006a67]/15 mb-4 flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-[#006a67] text-white flex items-center justify-center shadow-sm flex-shrink-0">
+                      <span className="material-symbols-outlined text-[24px]">
+                        {currentMood?.icon || 'balance'}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#006a67] font-display">Primary State</span>
+                        <span className="text-[10px] text-[#3c4948]">· Level {currentMood?.score || 3}/6</span>
+                      </div>
+                      <h4 className="font-display font-bold text-base text-[#171d1c] truncate">
+                        {currentMood?.label || 'Neutral'}
+                      </h4>
+                      <p className="text-xs text-[#3c4948] truncate">
+                        {currentMood?.description || 'Centered equilibrium and steady perspective'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 3. Biomarkers / Metrics Matrix */}
+                  <div className="grid grid-cols-3 gap-2.5 mb-4">
+                    {/* Energy Metric */}
+                    <div className="p-3 rounded-xl bg-[#f8faf9] border border-[#e4e9e8] flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-medium text-[#3c4948]">Energy</span>
+                        <span className="material-symbols-outlined text-[16px] text-amber-500">bolt</span>
+                      </div>
+                      <p className="font-display font-bold text-sm text-[#171d1c] mb-1.5">
+                        {energy}<span className="text-[11px] font-normal text-[#6c7a78]">/10</span>
+                      </p>
+                      <div className="w-full bg-[#e4e9e8] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(10, energy * 10))}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-[#3c4948] mt-1 font-medium">
+                        {energy >= 7 ? 'High Vitality' : energy <= 3 ? 'Depleted' : 'Balanced'}
+                      </span>
+                    </div>
+
+                    {/* Stress Metric */}
+                    <div className="p-3 rounded-xl bg-[#f8faf9] border border-[#e4e9e8] flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-medium text-[#3c4948]">Stress</span>
+                        <span className="material-symbols-outlined text-[16px] text-rose-500">cyclone</span>
+                      </div>
+                      <p className="font-display font-bold text-sm text-[#171d1c] mb-1.5">
+                        {stress}<span className="text-[11px] font-normal text-[#6c7a78]">/10</span>
+                      </p>
+                      <div className="w-full bg-[#e4e9e8] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-rose-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(10, stress * 10))}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-[#3c4948] mt-1 font-medium">
+                        {stress >= 7 ? 'Elevated' : stress <= 3 ? 'Relaxed' : 'Moderate'}
+                      </span>
+                    </div>
+
+                    {/* Motivation Metric */}
+                    <div className="p-3 rounded-xl bg-[#f8faf9] border border-[#e4e9e8] flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-medium text-[#3c4948]">Motivation</span>
+                        <span className="material-symbols-outlined text-[16px] text-teal-600">target</span>
+                      </div>
+                      <p className="font-display font-bold text-sm text-[#171d1c] mb-1.5">
+                        {motivation}<span className="text-[11px] font-normal text-[#6c7a78]">/10</span>
+                      </p>
+                      <div className="w-full bg-[#e4e9e8] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-teal-600 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(10, motivation * 10))}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-[#3c4948] mt-1 font-medium">
+                        {motivation >= 7 ? 'Driven' : motivation <= 3 ? 'Rest Mode' : 'Steady'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 4. Adaptive Clinical Insight Notice */}
+                  <div className="p-3 rounded-xl bg-[#eef7f6] border border-[#d3ebe8] flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[#006a67] text-[18px] mt-0.5 flex-shrink-0">
+                      tips_and_updates
+                    </span>
+                    <p className="text-xs text-[#204a48] leading-relaxed">
+                      {stress >= 7
+                        ? 'Elevated tension detected. We prioritized vagal breathwork and somatic release on the right to decompress your body.'
+                        : energy <= 4
+                        ? 'Low energy reserves detected. Prioritize gentle restorative recovery over high demands today.'
+                        : energy >= 7 && stress <= 5
+                        ? 'High vitality and steady calm. Ideal window for creative focus and intentional work.'
+                        : 'Your daily state has been recorded. Personal recommendations on the right are aligned with your balance.'}
+                    </p>
+                  </div>
                 </div>
-                <h3 className="font-display font-semibold text-[#171d1c] text-lg">Check-in complete!</h3>
-                <p className="text-sm text-[#3c4948] max-w-xs">
-                  Feeling {currentMood?.label.toLowerCase() ?? 'good'} ·
-                  Energy {energy}/10 · Stress {stress}/10
-                </p>
-                <button
-                  onClick={() => setCheckedIn(false)}
-                  className="mt-2 text-xs text-[#006a67] hover:underline font-medium"
-                >
-                  Update check-in
-                </button>
+
+                {/* 5. Footer Update Action */}
+                <div className="pt-4 border-t border-[#e4e9e8] flex items-center justify-between gap-3 mt-4">
+                  <span className="text-[11px] text-[#6c7a78] flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">lock</span>
+                    <span>Private & encrypted health log</span>
+                  </span>
+                  <button
+                    onClick={() => setCheckedIn(false)}
+                    className="px-3.5 py-1.5 rounded-xl border border-[#c2d6d4] hover:bg-[#eef7f6] text-[#006a67] font-semibold text-xs flex items-center gap-1.5 transition-colors font-display cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">edit_note</span>
+                    <span>Update Check-in</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -335,32 +454,42 @@ export default function WellnessHome() {
                   </div>
                   <div>
                     <h2 className="font-display font-semibold text-[#171d1c] text-base leading-tight">Daily Check-In</h2>
-                    <p className="text-xs text-[#3c4948]">How are you feeling right now?</p>
+                    <p className="text-xs text-[#3c4948]">Select your current emotional state</p>
                   </div>
                 </div>
 
-                {/* Mood picker */}
-                <div className="grid grid-cols-6 gap-1.5 mb-6">
-                  {MOODS.map((mood) => (
-                    <button
-                      key={mood.id}
-                      onClick={() => setSelectedMood(mood.id)}
-                      className={`flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl transition-all duration-150 ${
-                        selectedMood === mood.id
-                          ? 'bg-[#006a67]/10 ring-2 ring-[#006a67] scale-105'
-                          : 'hover:bg-[#e9efee]'
-                      }`}
-                      aria-label={mood.label}
-                      aria-pressed={selectedMood === mood.id}
-                    >
-                      <span className="text-2xl leading-none">{mood.emoji}</span>
-                      <span className={`text-[9px] font-medium leading-none ${
-                        selectedMood === mood.id ? 'text-[#006a67]' : 'text-[#3c4948]'
-                      }`}>
-                        {mood.label}
-                      </span>
-                    </button>
-                  ))}
+                {/* Mood picker with modern vector icons */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
+                  {MOODS.map((mood) => {
+                    const isSelected = selectedMood === mood.id;
+                    return (
+                      <button
+                        key={mood.id}
+                        type="button"
+                        onClick={() => setSelectedMood(mood.id)}
+                        className={`group flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl transition-all duration-200 border cursor-pointer ${
+                          isSelected
+                            ? `${mood.activeBg} shadow-md scale-105 ring-2 ring-offset-1 ring-[#006a67]/30`
+                            : `${mood.bg} hover:scale-102 hover:shadow-xs border-transparent`
+                        }`}
+                        aria-label={mood.label}
+                        aria-pressed={isSelected}
+                      >
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                          isSelected ? 'bg-white/20' : 'bg-white/80 shadow-xs'
+                        }`}>
+                          <span className="material-symbols-outlined text-[22px]">
+                            {mood.icon}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-bold leading-tight font-display tracking-tight text-center ${
+                          isSelected ? 'text-white' : 'text-[#171d1c]'
+                        }`}>
+                          {mood.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Sliders */}

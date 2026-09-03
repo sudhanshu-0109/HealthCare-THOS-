@@ -226,15 +226,18 @@ function LiveContext({ lastCheckIn }) {
       {hasCheckIn ? (
         <div className="space-y-3">
           {[
-            { label: 'Mood',   value: moodLabel,          icon: moodEmoji, bar: moodBar,     color: 'bg-[#006a67]' },
-            { label: 'Energy', value: `${energy}/10`,     icon: '⚡',      bar: energy * 10, color: 'bg-[#5bd9d3]' },
-            { label: 'Stress', value: `${stress}/10`,     icon: '🌀',      bar: stress * 10, color: 'bg-[#ddc39c]' },
+            { label: 'Mood',   value: moodLabel,      icon: moodObj?.icon || 'balance', isMat: true,  bar: moodBar,     color: 'bg-[#006a67]' },
+            { label: 'Energy', value: `${energy}/10`, icon: 'bolt',                     isMat: true,  bar: energy * 10, color: 'bg-[#5bd9d3]' },
+            { label: 'Stress', value: `${stress}/10`, icon: 'cyclone',                  isMat: true,  bar: stress * 10, color: 'bg-[#ddc39c]' },
           ].map((item) => (
             <div key={item.label}>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-[#3c4948]">{item.label}</span>
-                <span className="text-xs font-semibold text-[#171d1c] font-display">
-                  {item.icon} {item.value}
+                <span className="text-xs font-semibold text-[#171d1c] font-display flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[15px] text-[#006a67]">
+                    {item.icon}
+                  </span>
+                  <span>{item.value}</span>
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-[#e4e9e8] overflow-hidden">
