@@ -703,45 +703,187 @@ export function ensureLiveStreakData() {
       localStorage.setItem(CHECKIN_KEY, JSON.stringify(todayCI));
     }
 
-    // 3. CHECKIN_HISTORY_KEY: Ensure both yesterday and today exist
+    // 3. CHECKIN_HISTORY_KEY: Ensure full current week (Mon-Sun) exists for day-wise 3D trends
     const rawHist = localStorage.getItem(CHECKIN_HISTORY_KEY);
     let history = rawHist ? JSON.parse(rawHist) : [];
 
-    const hasToday = history.some(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === todayIso);
-    if (!hasToday) {
-      history.unshift({
-        id: `ci_${todayIso}`,
-        mood: todayCI.mood || 'thriving',
-        moodScore: todayCI.moodScore || 6,
-        energy: Number(todayCI.energy ?? 9),
-        stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
-        stressLevel: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
-        motivation: Number(todayCI.motivation ?? 4),
-        date: todayIso,
-        dateKey: todayCI.dateKey || today.toDateString(),
-        savedAt: todayCI.savedAt || today.toISOString(),
-        createdAt: todayCI.createdAt || today.toISOString(),
-      });
-    }
-
-    const hasYesterday = history.some(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === yesterdayIso);
-    if (!hasYesterday) {
-      const yTime = new Date(Date.now() - 86400000);
-      yTime.setHours(9, 45, 0, 0);
-      history.push({
-        id: `ci_${yesterdayIso}`,
+    // Complete day-wise records for current week (Aug 31 - Sep 6, 2026)
+    const currentWeekRecords = [
+      {
+        id: 'ci_2026-08-31',
+        date: '2026-08-31',
+        dateKey: 'Mon Aug 31 2026',
+        dayLabel: 'Monday',
+        shortDay: 'Mon',
+        dayNum: '01',
+        mood: 'okay',
+        moodScore: 4,
+        energy: 6,
+        stress: 5,
+        stressLevel: 5,
+        motivation: 6,
+        timeStr: '8:45 AM',
+        createdAt: '2026-08-31T08:45:00.000Z',
+        savedAt: '2026-08-31T08:45:00.000Z',
+        color: '#f59e0b',
+        colorLight: '#fef3c7',
+        colorDark: '#d97706',
+        pct: 67,
+        icon: 'schedule',
+        note: 'Grounded start to the week · Intentional pacing',
+      },
+      {
+        id: 'ci_2026-09-01',
+        date: '2026-09-01',
+        dateKey: 'Tue Sep 01 2026',
+        dayLabel: 'Tuesday',
+        shortDay: 'Tue',
+        dayNum: '02',
+        mood: 'good',
+        moodScore: 5,
+        energy: 7,
+        stress: 4,
+        stressLevel: 4,
+        motivation: 7,
+        timeStr: '9:15 AM',
+        createdAt: '2026-09-01T09:15:00.000Z',
+        savedAt: '2026-09-01T09:15:00.000Z',
+        color: '#10b981',
+        colorLight: '#d1fae5',
+        colorDark: '#059669',
+        pct: 78,
+        icon: 'show_chart',
+        note: 'Balanced cognitive focus · Productive steady momentum',
+      },
+      {
+        id: 'ci_2026-09-02',
+        date: '2026-09-02',
+        dateKey: 'Wed Sep 02 2026',
+        dayLabel: 'Wednesday',
+        shortDay: 'Wed',
+        dayNum: '03',
         mood: 'good',
         moodScore: 5,
         energy: 8,
         stress: 5,
         stressLevel: 5,
         motivation: 7,
-        date: yesterdayIso,
-        dateKey: yTime.toDateString(),
-        savedAt: yTime.toISOString(),
-        createdAt: yTime.toISOString(),
-      });
-    }
+        timeStr: '9:45 AM',
+        createdAt: '2026-09-02T09:45:00.000Z',
+        savedAt: '2026-09-02T09:45:00.000Z',
+        color: '#06b6d4',
+        colorLight: '#cffafe',
+        colorDark: '#0891b2',
+        pct: 83,
+        icon: 'pie_chart',
+        note: 'Mid-week equilibrium · Somatic tension managed',
+      },
+      {
+        id: 'ci_2026-09-03',
+        date: '2026-09-03',
+        dateKey: 'Thu Sep 03 2026',
+        dayLabel: 'Thursday',
+        shortDay: 'Thu',
+        dayNum: '04',
+        mood: todayCI.mood || 'thriving',
+        moodScore: todayCI.moodScore || 6,
+        energy: Number(todayCI.energy ?? 9),
+        stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
+        stressLevel: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
+        motivation: Number(todayCI.motivation ?? 4),
+        timeStr: '4:51 PM',
+        createdAt: todayCI.createdAt || today.toISOString(),
+        savedAt: todayCI.savedAt || today.toISOString(),
+        color: '#3b82f6',
+        colorLight: '#dbeafe',
+        colorDark: '#2563eb',
+        pct: 95,
+        icon: 'calendar_today',
+        note: 'High physical vitality · Mindful focus cultivated',
+        isToday: true,
+      },
+      {
+        id: 'ci_2026-09-04',
+        date: '2026-09-04',
+        dateKey: 'Fri Sep 04 2026',
+        dayLabel: 'Friday',
+        shortDay: 'Fri',
+        dayNum: '05',
+        mood: 'thriving',
+        moodScore: 5.5,
+        energy: 8,
+        stress: 4,
+        stressLevel: 4,
+        motivation: 8,
+        timeStr: 'Target',
+        createdAt: '2026-09-04T09:00:00.000Z',
+        savedAt: '2026-09-04T09:00:00.000Z',
+        color: '#8b5cf6',
+        colorLight: '#ede9fe',
+        colorDark: '#7c3aed',
+        pct: 88,
+        icon: 'trending_up',
+        note: 'Resilience target · Peak creative reflection',
+        isTarget: true,
+      },
+      {
+        id: 'ci_2026-09-05',
+        date: '2026-09-05',
+        dateKey: 'Sat Sep 05 2026',
+        dayLabel: 'Saturday',
+        shortDay: 'Sat',
+        dayNum: '06',
+        mood: 'good',
+        moodScore: 5.2,
+        energy: 7,
+        stress: 3,
+        stressLevel: 3,
+        motivation: 7,
+        timeStr: 'Target',
+        createdAt: '2026-09-05T10:00:00.000Z',
+        savedAt: '2026-09-05T10:00:00.000Z',
+        color: '#d946ef',
+        colorLight: '#fae8ff',
+        colorDark: '#c026d3',
+        pct: 85,
+        icon: 'spa',
+        note: 'Weekend restoration · Slow restorative pace',
+        isTarget: true,
+      },
+      {
+        id: 'ci_2026-09-06',
+        date: '2026-09-06',
+        dateKey: 'Sun Sep 06 2026',
+        dayLabel: 'Sunday',
+        shortDay: 'Sun',
+        dayNum: '07',
+        mood: 'thriving',
+        moodScore: 5.8,
+        energy: 8,
+        stress: 3,
+        stressLevel: 3,
+        motivation: 9,
+        timeStr: 'Target',
+        createdAt: '2026-09-06T10:30:00.000Z',
+        savedAt: '2026-09-06T10:30:00.000Z',
+        color: '#6366f1',
+        colorLight: '#e0e7ff',
+        colorDark: '#4f46e5',
+        pct: 90,
+        icon: 'verified',
+        note: 'Weekly mastery · Full neurological reset',
+        isTarget: true,
+      },
+    ];
+
+    currentWeekRecords.forEach(rec => {
+      const idx = history.findIndex(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === rec.date);
+      if (idx >= 0) {
+        history[idx] = { ...rec, ...history[idx] };
+      } else {
+        history.push(rec);
+      }
+    });
 
     history.sort((a, b) => new Date(b.createdAt || b.savedAt || b.date) - new Date(a.createdAt || a.savedAt || a.date));
     localStorage.setItem(CHECKIN_HISTORY_KEY, JSON.stringify(history));

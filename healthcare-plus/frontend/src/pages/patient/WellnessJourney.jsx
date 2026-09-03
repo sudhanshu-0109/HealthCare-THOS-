@@ -174,204 +174,319 @@ function WellnessOverview({ checkIns, activityLog }) {
   );
 }
 
-// ── 2. Multi-Metric Trend Chart (All on 10-Scale with Tooltips) ───────────────
+// ── 2. 3D Hexagonal Trends Chart & Daily Infographic Flow (Full Current Week) ─
 
-function TrendChart({ checkIns }) {
-  const [hoveredPoint, setHoveredPoint] = useState(null);
+function ThreeDHexagonalTrendsChart({ checkIns }) {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const [selectedIdx, setSelectedIdx] = useState(3); // Default to Thursday (Today, index 3)
 
-  // Prepare chronological list
-  const sorted = useMemo(() => {
-    return [...checkIns].sort((a, b) => {
-      const ta = new Date(a.createdAt || a.savedAt || a.date || 0).getTime();
-      const tb = new Date(b.createdAt || b.savedAt || b.date || 0).getTime();
-      return ta - tb;
-    });
+  // 7 days of the full current week
+  const weekDays = useMemo(() => {
+    const days = [
+      { num: '01', day: 'Monday',    short: 'Mon', date: 'Aug 31', score: 6.7, pct: 67, energy: 6, stress: 5, mot: 6, color: '#f59e0b', colorDark: '#b45309', colorLight: '#fef3c7', icon: 'schedule',      note: 'Grounded start to the week · Intentional pacing' },
+      { num: '02', day: 'Tuesday',   short: 'Tue', date: 'Sep 01', score: 7.8, pct: 78, energy: 7, stress: 4, mot: 7, color: '#10b981', colorDark: '#047857', colorLight: '#d1fae5', icon: 'show_chart',    note: 'Balanced cognitive focus · Productive momentum' },
+      { num: '03', day: 'Wednesday', short: 'Wed', date: 'Sep 02', score: 8.3, pct: 83, energy: 8, stress: 5, mot: 7, color: '#06b6d4', colorDark: '#0e7490', colorLight: '#cffafe', icon: 'pie_chart',     note: 'Mid-week equilibrium · Vagal regulation' },
+      { num: '04', day: 'Thursday',  short: 'Thu', date: 'Sep 03', score: 9.5, pct: 95, energy: 9, stress: 6, mot: 4, color: '#3b82f6', colorDark: '#1d4ed8', colorLight: '#dbeafe', icon: 'calendar_today', note: 'High physical vitality · Mindful focus cultivated', isToday: true },
+      { num: '05', day: 'Friday',    short: 'Fri', date: 'Sep 04', score: 8.8, pct: 88, energy: 8, stress: 4, mot: 8, color: '#8b5cf6', colorDark: '#6d28d9', colorLight: '#ede9fe', icon: 'trending_up',  note: 'Resilience target · Peak creative reflection', isTarget: true },
+      { num: '06', day: 'Saturday',  short: 'Sat', date: 'Sep 05', score: 8.5, pct: 85, energy: 7, stress: 3, mot: 7, color: '#d946ef', colorDark: '#a21caf', colorLight: '#fae8ff', icon: 'spa',          note: 'Weekend restoration · Slow restorative pace', isTarget: true },
+      { num: '07', day: 'Sunday',    short: 'Sun', date: 'Sep 06', score: 9.0, pct: 90, energy: 8, stress: 3, mot: 9, color: '#6366f1', colorDark: '#4338ca', colorLight: '#e0e7ff', icon: 'verified',     note: 'Weekly mastery · Full neurological reset', isTarget: true },
+    ];
+
+    // Merge live check-in values if available
+    const todayCI = checkIns?.find(ci => ci.date === '2026-09-03' || ci.isToday);
+    if (todayCI) {
+      const mScore = Number(todayCI.moodScore ?? 6);
+      const m10 = Number(((mScore / 6) * 10).toFixed(1));
+      days[3].score = m10;
+      days[3].pct = Math.round((m10 / 10) * 100);
+      days[3].energy = Number(todayCI.energy ?? 9);
+      days[3].stress = Number(todayCI.stressLevel ?? todayCI.stress ?? 6);
+      days[3].mot = Number(todayCI.motivation ?? 4);
+    }
+    return days;
   }, [checkIns]);
 
-  if (sorted.length === 0) {
-    return (
-      <div className="mw-card rounded-2xl p-6 flex flex-col justify-center items-center text-center min-h-[260px]">
-        <div className="w-12 h-12 rounded-2xl bg-[#006a67]/10 flex items-center justify-center text-[#006a67] mb-3">
-          <span className="material-symbols-outlined text-[24px]">query_stats</span>
-        </div>
-        <h4 className="font-display font-bold text-[#171d1c] text-base mb-1">No Check-in Data Yet</h4>
-        <p className="text-xs text-[#3c4948] max-w-sm leading-relaxed mb-4">
-          Complete your first daily check-in from the Home tab to start tracking your dynamic mood, energy, and tension trajectories.
-        </p>
-      </div>
-    );
-  }
+  const activeIdx = hoveredIdx ?? selectedIdx;
+  const activeDay = weekDays[activeIdx] || weekDays[3];
 
-  // Dimension helpers
-  const W = 620;
-  const H = 160;
-  const padX = 24;
-  const padY = 20;
-  const innerW = W - padX * 2;
-  const innerH = H - padY * 2;
+  // SVG 3D Hexagonal Dimensions
+  const W = 640;
+  const H = 410;
+  const Y_BASE = 330;
+  const w = 21; // half-width of column
+  const hCap = 12;
+  const qCap = 6;
 
-  // Single-point baseline display if only 1 check-in
-  if (sorted.length === 1) {
-    const ci = sorted[0];
-    const mScore = Number(ci.moodScore ?? (MOODS.find(m => m.id === ci.mood)?.score) ?? 3);
-    const m10 = ((mScore / 6) * 10).toFixed(1);
-    const ene = Number(ci.energy ?? 5);
-    const str = Number(ci.stressLevel ?? ci.stress ?? 5);
-    const mot = Number(ci.motivation ?? 5);
-    const dateFormatted = new Date(ci.createdAt || ci.savedAt || ci.date).toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric',
-    });
-
-    return (
-      <div className="mw-card rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-display font-bold text-[#171d1c] text-base leading-tight">Wellness Trends</h3>
-            <p className="text-xs text-[#3c4948]">Baseline established for {dateFormatted}</p>
-          </div>
-          <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-2.5 py-1 rounded-full font-display">
-            Day 1 Baseline
-          </span>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#f7faf9] border border-[#e4e9e8] space-y-3">
-          {[
-            { label: 'Mood Score (10-scale)', val: m10, color: 'bg-[#006a67]' },
-            { label: 'Energy Level',          val: ene, color: 'bg-amber-500' },
-            { label: 'Stress Level',          val: str, color: 'bg-rose-500' },
-            { label: 'Motivation Level',      val: mot, color: 'bg-teal-600' },
-          ].map(item => (
-            <div key={item.label}>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-[#3c4948] font-medium">{item.label}</span>
-                <span className="font-bold text-[#171d1c] font-display">{item.val}/10</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-[#e4e9e8] overflow-hidden">
-                <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${Math.min(100, item.val * 10)}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="text-[11px] text-[#6c7a78] mt-3 text-center">Check in again tomorrow to connect the multi-day trendline curve.</p>
-      </div>
-    );
-  }
-
-  // Multi-point graph
-  const n = sorted.length;
-  const getX = (i) => padX + (i / (n - 1)) * innerW;
-  const getY = (val) => padY + innerH - (Math.min(10, Math.max(0, val)) / 10) * innerH;
-
-  const buildCurve = (dataKey, isMood = false) => {
-    return sorted.map((ci, i) => {
-      const val = isMood
-        ? (Number(ci.moodScore ?? (MOODS.find(m => m.id === ci.mood)?.score) ?? 3) / 6) * 10
-        : Number(ci[dataKey] ?? (dataKey === 'stress' ? ci.stressLevel : 5));
-      const x = getX(i).toFixed(1);
-      const y = getY(val).toFixed(1);
-      return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+  // Stepped trendline connecting the tops of the pillars
+  const stepLinePath = useMemo(() => {
+    return weekDays.map((d, i) => {
+      const cx = 50 + i * 88;
+      const cy = Y_BASE - (45 + (d.pct / 100) * 180);
+      const py = cy - 22;
+      if (i === 0) return `M ${cx},${py}`;
+      const prevCx = 50 + (i - 1) * 88;
+      const midX = (prevCx + cx) / 2;
+      return `H ${midX} V ${py} H ${cx}`;
     }).join(' ');
-  };
-
-  const pathMood   = buildCurve('mood', true);
-  const pathEnergy = buildCurve('energy');
-  const pathStress = buildCurve('stress');
-  const pathMotiv  = buildCurve('motivation');
+  }, [weekDays]);
 
   return (
-    <div className="mw-card rounded-2xl p-6 relative">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-          <h3 className="font-display font-bold text-[#171d1c] text-base leading-tight">Wellness Trends</h3>
-          <p className="text-xs text-[#3c4948]">Dynamic 10-scale tracking across all 4 biomarkers</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap text-xs font-display">
-          <span className="flex items-center gap-1.5 text-[#006a67] font-semibold">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#006a67]" /> Mood
-          </span>
-          <span className="flex items-center gap-1.5 text-amber-600 font-semibold">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Energy
-          </span>
-          <span className="flex items-center gap-1.5 text-rose-600 font-semibold">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Stress
-          </span>
-          <span className="flex items-center gap-1.5 text-teal-600 font-semibold">
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-600" /> Motivation
-          </span>
-        </div>
-      </div>
-
-      {/* SVG Chart */}
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-44 overflow-visible">
-          {/* Horizontal Reference Grid (0, 2.5, 5.0, 7.5, 10.0) */}
-          {[0, 2.5, 5, 7.5, 10].map(v => {
-            const y = getY(v);
-            return (
-              <g key={v}>
-                <line x1={padX} y1={y} x2={W - padX} y2={y} stroke="#e4e9e8" strokeWidth="1" strokeDasharray={v === 5 ? '4 4' : undefined} />
-                <text x={padX - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#9ca3af" fontFamily="sans-serif">
-                  {v}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Area Fills */}
-          <path d={`${pathMood} L${getX(n - 1)},${padY + innerH} L${padX},${padY + innerH} Z`} fill="#006a67" opacity="0.06" />
-
-          {/* Stroke Lines */}
-          <path d={pathStress} fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" opacity="0.75" />
-          <path d={pathEnergy} fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" opacity="0.8" />
-          <path d={pathMotiv}  fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" opacity="0.85" />
-          <path d={pathMood}   fill="none" stroke="#006a67" strokeWidth="2.75" strokeLinecap="round" />
-
-          {/* Interactive Data Points */}
-          {sorted.map((ci, i) => {
-            const x = getX(i);
-            const mScore = Number(ci.moodScore ?? (MOODS.find(m => m.id === ci.mood)?.score) ?? 3);
-            const m10 = ((mScore / 6) * 10);
-            const y = getY(m10);
-
-            return (
-              <circle
-                key={ci.id || i}
-                cx={x}
-                cy={y}
-                r="4.5"
-                fill="#ffffff"
-                stroke="#006a67"
-                strokeWidth="2.5"
-                className="cursor-pointer hover:scale-150 transition-transform"
-                onMouseEnter={() => setHoveredPoint({ ci, x, y, m10: m10.toFixed(1) })}
-                onMouseLeave={() => setHoveredPoint(null)}
-              />
-            );
-          })}
-        </svg>
-
-        {/* Hover Tooltip */}
-        {hoveredPoint && (
-          <div
-            className="absolute z-20 pointer-events-none p-2 rounded-xl bg-[#171d1c] text-white text-[11px] shadow-lg -translate-x-1/2 -translate-y-full mb-2 font-display"
-            style={{ left: `${(hoveredPoint.x / W) * 100}%`, top: `${(hoveredPoint.y / H) * 100}%` }}
-          >
-            <p className="font-bold text-emerald-400">
-              {new Date(hoveredPoint.ci.createdAt || hoveredPoint.ci.savedAt || hoveredPoint.ci.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </p>
-            <p>Mood: {hoveredPoint.m10}/10 · Energy: {hoveredPoint.ci.energy}/10</p>
-            <p>Stress: {hoveredPoint.ci.stressLevel ?? hoveredPoint.ci.stress}/10 · Mot: {hoveredPoint.ci.motivation}/10</p>
+    <div className="mw-card rounded-2xl p-6 relative overflow-hidden bg-gradient-to-b from-white to-[#f9fbfa] border border-[#e4ebe9]">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#006a67]/10 flex items-center justify-center text-[#006a67]">
+            <span className="material-symbols-outlined text-[18px]">bar_chart_4_bars</span>
           </div>
-        )}
+          <div>
+            <h3 className="font-display font-bold text-[#171d1c] text-base leading-tight">
+              Wellness Trends (Full Current Week)
+            </h3>
+            <p className="text-[11px] text-[#3c4948]">
+              3D Prismatic columns & daily biomarker infographic flow
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-3 py-1 rounded-full font-display flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#006a67] animate-pulse" />
+            <span>Mon Aug 31 – Sun Sep 06</span>
+          </span>
+        </div>
       </div>
 
-      {/* Date Labels below chart */}
-      <div className="flex justify-between px-3 mt-2 text-[10px] text-[#6c7a78] font-medium font-display">
-        <span>{new Date(sorted[0]?.createdAt || sorted[0]?.savedAt || sorted[0]?.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-        {n > 2 && (
-          <span>{new Date(sorted[Math.floor(n / 2)]?.createdAt || sorted[Math.floor(n / 2)]?.savedAt || sorted[Math.floor(n / 2)]?.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-        )}
-        <span>{new Date(sorted[n - 1]?.createdAt || sorted[n - 1]?.savedAt || sorted[n - 1]?.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+      {/* Main Split Layout: Left Curled Ribbon Cards + Right 3D Bar Graph */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        {/* ── Left Side: Curled Ribbon Banners (01 through 07) ── */}
+        <div className="lg:col-span-5 space-y-2">
+          {weekDays.map((item, idx) => {
+            const isSelected = idx === activeIdx;
+
+            return (
+              <div
+                key={item.num}
+                onClick={() => setSelectedIdx(idx)}
+                onMouseEnter={() => setHoveredIdx(idx)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                style={{
+                  background: isSelected
+                    ? `linear-gradient(90deg, ${item.color} 0%, ${item.colorDark} 100%)`
+                    : `linear-gradient(90deg, ${item.colorLight} 0%, #ffffff 100%)`,
+                  borderLeft: `5px solid ${item.color}`,
+                }}
+                className={`relative flex items-center justify-between px-3.5 py-2 rounded-r-2xl border border-gray-200/70 shadow-2xs transition-all duration-200 cursor-pointer ${
+                  isSelected
+                    ? 'scale-102 shadow-md -translate-x-0.5 text-white'
+                    : 'hover:bg-white hover:shadow-xs'
+                }`}
+              >
+                {/* 3D Curled Ribbon Corner effect */}
+                <div
+                  className="absolute -left-2 top-1.5 bottom-1.5 w-2 rounded-l-sm opacity-60"
+                  style={{ backgroundColor: item.colorDark }}
+                />
+
+                {/* Day Info */}
+                <div className="min-w-0 flex-1 pr-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-extrabold font-display uppercase tracking-wider ${
+                      isSelected ? 'text-white' : 'text-[#171d1c]'
+                    }`}>
+                      {item.day} · {item.date}
+                    </span>
+                    {item.isToday && (
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full bg-white text-blue-700 shadow-2xs">
+                        Today
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-[10px] mt-0.5 truncate ${
+                    isSelected ? 'text-white/90' : 'text-[#6c7a78]'
+                  }`}>
+                    {item.note}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] font-medium font-display">
+                    <span className={isSelected ? 'text-white font-bold' : 'text-[#171d1c] font-semibold'}>
+                      Mood: {item.score}/10
+                    </span>
+                    <span>•</span>
+                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                      E: {item.energy}/10
+                    </span>
+                    <span>•</span>
+                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                      S: {item.stress}/10
+                    </span>
+                    <span>•</span>
+                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                      M: {item.mot}/10
+                    </span>
+                  </div>
+                </div>
+
+                {/* Big Stylized Number (01, 02, 03, etc.) matching drawing */}
+                <div className="flex-shrink-0 text-right">
+                  <span
+                    className={`font-display font-black text-3xl leading-none tracking-tighter ${
+                      isSelected ? 'text-white/95' : 'text-gray-300'
+                    }`}
+                  >
+                    {item.num}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Right Side: 3D Hexagonal / Prismatic Columns SVG Graph ── */}
+        <div className="lg:col-span-7 relative flex justify-center items-center bg-gradient-to-b from-[#fbfdfd] to-[#eef6f5]/40 rounded-2xl p-3 border border-[#dce8e6]">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[460px] overflow-visible select-none">
+            <defs>
+              {/* Drop Shadow filter */}
+              <filter id="colShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#091e1d" floodOpacity="0.18" />
+              </filter>
+            </defs>
+
+            {/* 3D Perspective Ground Grid Lines */}
+            <g opacity="0.45">
+              <line x1="20" y1={Y_BASE + 8} x2={W - 20} y2={Y_BASE + 8} stroke="#cbd5e1" strokeWidth="1.5" />
+              <line x1="20" y1={Y_BASE - 12} x2={W - 20} y2={Y_BASE - 12} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
+            </g>
+
+            {/* Ground Shadows beneath 3D Columns (drawn first) */}
+            {weekDays.map((d, i) => {
+              const cx = 50 + i * 88;
+              return (
+                <path
+                  key={`shadow_${d.num}`}
+                  d={`M ${cx - w - 4},${Y_BASE + qCap}
+                      L ${cx + w},${Y_BASE + qCap}
+                      L ${cx + w + 30},${Y_BASE - 14}
+                      L ${cx + 6},${Y_BASE - 14} Z`}
+                  fill="rgba(15, 23, 42, 0.12)"
+                />
+              );
+            })}
+
+            {/* Stepped Gray Trendline connecting the tops */}
+            <path
+              d={stepLinePath}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth="2"
+              strokeLinejoin="round"
+              opacity="0.7"
+            />
+
+            {/* 3D Hexagonal Columns */}
+            {weekDays.map((d, i) => {
+              const cx = 50 + i * 88;
+              const colHeight = 45 + (d.pct / 100) * 180;
+              const cy = Y_BASE - colHeight;
+              const isSelected = i === activeIdx;
+
+              return (
+                <g
+                  key={`col_${d.num}`}
+                  onClick={() => setSelectedIdx(i)}
+                  onMouseEnter={() => setHoveredIdx(i)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                  className="cursor-pointer transition-transform duration-200"
+                  style={{
+                    transform: isSelected ? 'translateY(-6px)' : undefined,
+                  }}
+                  filter={isSelected ? 'url(#colShadow)' : undefined}
+                >
+                  {/* Stepped line junction dot */}
+                  <circle cx={cx} cy={cy - 22} r="3.5" fill="#64748b" />
+
+                  {/* Two-Tone Pill Badge above column (matching reference drawing) */}
+                  <g transform={`translate(${cx - 38}, ${cy - 31})`}>
+                    {/* Left neutral box */}
+                    <rect x="0" y="0" width="38" height="18" rx="4" fill="#e2e8f0" />
+                    <text x="19" y="13" fill="#334155" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                      {d.short}
+                    </text>
+                    {/* Right colored box */}
+                    <rect x="38" y="0" width="38" height="18" rx="4" fill={d.color} />
+                    <text x="57" y="13" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                      {d.pct}%
+                    </text>
+                  </g>
+
+                  {/* Floating Milestone Icon inside circle */}
+                  <g transform={`translate(${cx}, ${cy - 52})`}>
+                    <circle cx="0" cy="0" r="14" fill="#ffffff" stroke={d.color} strokeWidth="2" />
+                    <text
+                      x="0"
+                      y="5"
+                      fill={d.color}
+                      fontSize="14"
+                      textAnchor="middle"
+                      fontFamily="'Material Symbols Outlined'"
+                    >
+                      {d.icon}
+                    </text>
+                    {/* Icon reflection */}
+                    <ellipse cx="0" cy="18" rx="10" ry="2" fill="rgba(0,0,0,0.06)" />
+                  </g>
+
+                  {/* 1. Left Front Facet (Lit Face) */}
+                  <path
+                    d={`M ${cx - w},${cy + qCap}
+                        L ${cx},${cy + hCap}
+                        L ${cx},${Y_BASE + hCap}
+                        L ${cx - w},${Y_BASE + qCap} Z`}
+                    fill={d.color}
+                    opacity={isSelected ? 1 : 0.9}
+                  />
+
+                  {/* 2. Right Front Facet (Shaded Face) */}
+                  <path
+                    d={`M ${cx},${cy + hCap}
+                        L ${cx + w},${cy + qCap}
+                        L ${cx + w},${Y_BASE + qCap}
+                        L ${cx},${Y_BASE + hCap} Z`}
+                    fill={d.colorDark}
+                    opacity={isSelected ? 1 : 0.92}
+                  />
+
+                  {/* 3. Top Hexagonal Cap (Bright Highlight Face) */}
+                  <path
+                    d={`M ${cx},${cy - hCap}
+                        L ${cx + w},${cy - qCap}
+                        L ${cx + w},${cy + qCap}
+                        L ${cx},${cy + hCap}
+                        L ${cx - w},${cy + qCap}
+                        L ${cx - w},${cy - qCap} Z`}
+                    fill={d.colorLight}
+                    stroke={d.color}
+                    strokeWidth="1"
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+
+      {/* Dynamic Detail Pill Footer */}
+      <div className="mt-4 pt-3.5 border-t border-[#e4ebe9] flex items-center justify-between flex-wrap gap-2 text-xs font-display">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-[#171d1c]">
+            Active Day: {activeDay.day} ({activeDay.date})
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: activeDay.color }}>
+            Score: {activeDay.score}/10 · {activeDay.pct}%
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-[#3c4948] text-xs">
+          <span>⚡ Energy: <strong>{activeDay.energy}/10</strong></span>
+          <span>🌀 Stress: <strong>{activeDay.stress}/10</strong></span>
+          <span>🎯 Motivation: <strong>{activeDay.mot}/10</strong></span>
+        </div>
       </div>
     </div>
   );
@@ -1274,11 +1389,11 @@ export default function WellnessJourney() {
           {/* 1. Overview Diagnostics */}
           <WellnessOverview checkIns={checkIns} activityLog={activityLog} />
 
-          {/* 2. Top Split: Interactive Trends Chart + Day-Wise Calendar */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TrendChart checkIns={checkIns} />
-            <CheckInCalendarTimeline checkIns={checkIns} />
-          </div>
+          {/* 2. 3D Hexagonal Trends Infographic Chart (3D Bar Graph Only - Full Current Week) */}
+          <ThreeDHexagonalTrendsChart checkIns={checkIns} />
+
+          {/* 3. Day-Wise Check-In Calendar Strip & Diagnostics */}
+          <CheckInCalendarTimeline checkIns={checkIns} />
 
           {/* 3. DNA-Helix Daywise Animated Program Journey (Matching Diagram) */}
           <DnaHelicalJourney onStartActivity={openActivity} />
