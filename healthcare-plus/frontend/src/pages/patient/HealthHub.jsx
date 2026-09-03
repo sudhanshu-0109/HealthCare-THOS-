@@ -15,6 +15,7 @@ import {
 import useAuthStore from '../../store/authStore';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../../components/notifications/NotificationBell';
+import { getCurrentWeekStreakStatus } from '../../data/wellnessMockData';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getGreeting() {
@@ -44,9 +45,6 @@ const HEALTH_STATS = [
   { emoji: '🌙', value: '7h 15m', unit: '',   label: 'Sleep',      status: 'Good',    sc: 'text-purple-600' },
   { emoji: '🔥', value: '420', unit: 'kcal',  label: 'Calories',   status: 'Burned',  sc: 'text-orange-500' },
 ];
-
-const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const STREAK_DONE = [true, true, true, true, true, true, false];
 
 const PASSPORT_ITEMS = [
   { icon: FileText,     label: 'Medical Records', sub: 'Secure access' },
@@ -101,6 +99,7 @@ export default function HealthHub() {
   const [selectedLocation, setSelectedLocation] = useState(user?.city || 'Vadodara, Gujarat');
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [streakData, setStreakData] = useState(() => getCurrentWeekStreakStatus());
   const profileRef = useRef(null);
   const locationRef = useRef(null);
 
@@ -109,6 +108,23 @@ export default function HealthHub() {
 
   const handleLogout = async () => { await logout(); navigate('/', { replace: true }); };
   const handleSOS = () => navigate('/patient/dashboard');
+
+  // Real-time synchronization with Mental Wellness check-ins
+  useEffect(() => {
+    const handleSync = () => {
+      setStreakData(getCurrentWeekStreakStatus());
+    };
+
+    window.addEventListener('mw-checkin-updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+
+    return () => {
+      window.removeEventListener('mw-checkin-updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -327,7 +343,7 @@ export default function HealthHub() {
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-slate-900 text-sm">Mental Wellness Streak</h2>
                 <button
-                  onClick={() => navigate('/health-hub/mental-wellness')}
+                  onClick={() => navigate('/health-hub/mental-wellness/journey')}
                   className="flex items-center gap-1 text-xs text-teal-600 font-semibold hover:underline cursor-pointer"
                 >
                   View Details <ArrowRight className="w-3 h-3" />
@@ -338,23 +354,39 @@ export default function HealthHub() {
                   <div className="w-9 h-9 sm:w-10 sm:h-10 bg-green-50 border border-green-100/80 rounded-xl flex items-center justify-center text-lg sm:text-xl shadow-2xs">🌿</div>
                   <div>
                     <div className="flex items-baseline gap-1.5">
-                      <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">7</p>
+                      <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                        {streakData.streak}
+                      </p>
                       <p className="text-xs font-bold text-slate-700">Days Streak</p>
                     </div>
-                    <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">🔥 Great going!</p>
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                      {streakData.streak >= 4 ? '🔥 Great going!' : '🌿 Active journey'}
+                    </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-7 gap-1 sm:flex sm:items-center sm:gap-2 flex-1 max-w-full justify-between pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                  {DAYS.map((day, i) => (
-                    <div key={day} className="flex flex-col items-center gap-1">
-                      {STREAK_DONE[i] ? (
-                        <div className="w-6 h-6 sm:w-7 sm:h-7 bg-teal-500 rounded-full flex items-center justify-center shadow-2xs">
+                  {streakData.weekDays.map((d) => (
+                    <div key={d.day} className="flex flex-col items-center gap-1">
+                      {d.isChecked ? (
+                        <div
+                          className={`w-6 h-6 sm:w-7 sm:h-7 bg-teal-500 rounded-full flex items-center justify-center shadow-2xs ${
+                            d.isToday ? 'ring-2 ring-teal-400 ring-offset-1' : ''
+                          }`}
+                          title={`${d.day}: Checked In`}
+                        >
                           <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                         </div>
                       ) : (
-                        <div className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-slate-200 rounded-full" />
+                        <div
+                          className={`w-6 h-6 sm:w-7 sm:h-7 border-2 ${
+                            d.isToday ? 'border-teal-400 border-dashed bg-teal-50/50' : 'border-slate-200'
+                          } rounded-full flex items-center justify-center`}
+                          title={`${d.day}: ${d.isToday ? 'Today (Pending)' : 'No check-in'}`}
+                        />
                       )}
-                      <span className="text-[9px] text-slate-500 font-medium">{day}</span>
+                      <span className={`text-[9px] font-medium ${d.isToday ? 'text-teal-700 font-bold' : 'text-slate-500'}`}>
+                        {d.day}
+                      </span>
                     </div>
                   ))}
                 </div>
