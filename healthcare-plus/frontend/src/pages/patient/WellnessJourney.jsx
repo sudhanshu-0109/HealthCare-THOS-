@@ -31,6 +31,7 @@ import {
   appendActivityLog,
   getLocalDateStr,
   ensureLiveStreakData,
+  calculateCompositeMoodScore,
 } from '../../data/wellnessMockData';
 
 // ── 14-Day Evidence-Based Neuroplasticity & Mindfulness DNA Pathway ───────────
@@ -200,14 +201,21 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
       const todayLiveCI = tmpl.isToday ? loadTodayCheckIn() : null;
       const activeRecord = (tmpl.isToday && todayLiveCI) ? { ...ci, ...todayLiveCI } : ci;
 
-      const mScore = Number(activeRecord?.moodScore ?? (MOODS.find(m => m.id === activeRecord?.mood)?.score) ?? 5);
-      const score10 = Number(((mScore / 6) * 10).toFixed(1));
-      const pct = Math.min(100, Math.max(16, Math.round((mScore / 6) * 100)));
       const energy = Number(activeRecord?.energy ?? (tmpl.isToday ? 6 : 7));
       const stress = Number(activeRecord?.stressLevel ?? activeRecord?.stress ?? (tmpl.isToday ? 3 : 5));
       const mot = Number(activeRecord?.motivation ?? (tmpl.isToday ? 3 : 6));
       const moodObj = MOODS.find(m => m.id === activeRecord?.mood || m.score === activeRecord?.moodScore);
       const moodLabel = moodObj?.label || (typeof activeRecord?.mood === 'string' ? activeRecord.mood : 'Good');
+
+      // General formula based on all details: (feeling + energy + (10 - stress) + motivation) / 4
+      const score10 = calculateCompositeMoodScore({
+        ...activeRecord,
+        energy,
+        stress,
+        stressLevel: stress,
+        motivation: mot,
+      });
+      const pct = Math.min(100, Math.max(16, Math.round((score10 / 10) * 100)));
 
       const dateObj = new Date(tmpl.date + 'T12:00:00');
       const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

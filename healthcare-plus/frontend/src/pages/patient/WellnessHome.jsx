@@ -33,6 +33,7 @@ import {
   loadProgressCache,
   calculateStreak,
   loadActivityLog,
+  calculateCompositeMoodScore,
 } from '../../data/wellnessMockData';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -264,7 +265,14 @@ export default function WellnessHome() {
   const todayLiveCI = loadTodayCheckIn();
   const currentMood = MOODS.find(m => m.id === selectedMood) || MOODS.find(m => m.id === todayLiveCI?.mood) || MOODS[2];
   const activeMoodScore = currentMood?.score ?? todayLiveCI?.moodScore ?? 5;
-  const moodScore10 = Number(((activeMoodScore / 6) * 10).toFixed(1));
+  const moodScore10 = calculateCompositeMoodScore({
+    mood: selectedMood || todayLiveCI?.mood,
+    moodScore: activeMoodScore,
+    energy,
+    stress,
+    stressLevel: stress,
+    motivation,
+  });
 
   // Keep synced on focus, storage, & live check-in updates
   useEffect(() => {

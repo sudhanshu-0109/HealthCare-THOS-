@@ -942,6 +942,45 @@ export function loadCheckInHistory() {
 }
 
 /**
+ * General formula to calculate composite holistic mood score (1-10)
+ * based on all check-in details: Primary Feeling, Energy, Stress, and Motivation.
+ * - Feeling: Level 1-6 scaled to 10 -> (moodScore / 6) * 10
+ * - Energy: Positive as entered (1-10)
+ * - Stress: Inverted positive -> (10 - stress) (e.g., stress 3 => positive 7)
+ * - Motivation: Positive as entered (1-10)
+ *
+ * Formula: (Feeling + Energy + (10 - Stress) + Motivation) / 4
+ *
+ * @param {{ moodScore?: number, mood?: string, energy?: number, stress?: number, stressLevel?: number, motivation?: number }} ci
+ * @returns {number} Score from 1.0 to 10.0 (rounded to 1 decimal place)
+ */
+export function calculateCompositeMoodScore(ci) {
+  if (!ci) return 5.0;
+
+  // 1. Feeling / Mood level (1-6 scaled to 10-point scale)
+  let mScore = ci.moodScore;
+  if (mScore === undefined || mScore === null) {
+    const found = MOODS.find(m => m.id === ci.mood);
+    mScore = found?.score ?? 4;
+  }
+  const feeling10 = (Number(mScore) / 6) * 10;
+
+  // 2. Energy: positive as entered (1-10)
+  const energy10 = Number(ci.energy ?? 5);
+
+  // 3. Stress: inverted positive (10 - stress, e.g., stress 3 => positive 7)
+  const rawStress = Number(ci.stressLevel ?? ci.stress ?? 5);
+  const stressPositive10 = Math.max(0, Math.min(10, 10 - rawStress));
+
+  // 4. Motivation: positive as entered (1-10)
+  const motivation10 = Number(ci.motivation ?? 5);
+
+  // General formula: Equal-weight composite average across all 4 details
+  const composite = (feeling10 + energy10 + stressPositive10 + motivation10) / 4;
+  return Number(Math.max(1, Math.min(10, composite)).toFixed(1));
+}
+
+/**
  * Calculates aggregate stats on a 10-point scale from real check-in records.
  * @param {Array} checkIns
  */
@@ -985,17 +1024,17 @@ export function calculateCheckInStats(checkIns = []) {
   let sumMotivation = 0;
 
   effectiveRecords.forEach(ci => {
-    const mScore = Number(ci.moodScore ?? (MOODS.find(m => m.id === ci.mood)?.score) ?? 5);
-    sumMoodScore += (mScore / 6) * 10;
+    // Each record's mood score is calculated via the general composite formula
+    const compScore = calculateCompositeMoodScore(ci);
+    sumMoodScore += compScore;
     sumEnergy += Number(ci.energy ?? 6);
     sumStress += Number(ci.stressLevel ?? ci.stress ?? 3);
     sumMotivation += Number(ci.motivation ?? 3);
   });
 
-  // Harmonize avgMood10 with today's live check-in so Daily State Log, Wellness Diagnostics,
-  // and the 3D Graph for today display the exact same number
+  // Today's composite mood score derived from all given details (feeling, energy, stress, motivation)
   const todayScore10 = todayCI
-    ? Number(((Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 5) / 6) * 10).toFixed(1))
+    ? calculateCompositeMoodScore(todayCI)
     : Number((sumMoodScore / total).toFixed(1));
 
   return {
