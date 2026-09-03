@@ -214,15 +214,18 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
         return cDate === tmpl.date || (tmpl.isToday && (c.isToday || c.dateKey === new Date().toDateString()));
       });
 
-      // Scale to 10: moodScore 4 corresponds to 6.7/10
-      const mScore = Number(ci?.moodScore ?? (MOODS.find(m => m.id === ci?.mood)?.score) ?? 4);
+      // Today's live check-in from localStorage takes priority so user changes are instantly reflected!
+      const todayLiveCI = tmpl.isToday ? loadTodayCheckIn() : null;
+      const activeRecord = (tmpl.isToday && todayLiveCI) ? { ...ci, ...todayLiveCI } : ci;
+
+      const mScore = Number(activeRecord?.moodScore ?? (MOODS.find(m => m.id === activeRecord?.mood)?.score) ?? 4);
       const score10 = Number(((mScore / 6) * 10).toFixed(1));
-      const pct = Math.min(100, Math.max(20, Math.round((mScore / 6) * 100)));
-      const energy = Number(ci?.energy ?? (tmpl.isToday ? 10 : 7));
-      const stress = Number(ci?.stressLevel ?? ci?.stress ?? (tmpl.isToday ? 6 : 5));
-      const mot = Number(ci?.motivation ?? (tmpl.isToday ? 5 : 6));
-      const moodObj = MOODS.find(m => m.id === ci?.mood || m.score === ci?.moodScore);
-      const moodLabel = moodObj?.label || (typeof ci?.mood === 'string' ? ci.mood : 'Okay');
+      const pct = Math.min(100, Math.max(16, Math.round((mScore / 6) * 100)));
+      const energy = Number(activeRecord?.energy ?? (tmpl.isToday ? 10 : 7));
+      const stress = Number(activeRecord?.stressLevel ?? activeRecord?.stress ?? (tmpl.isToday ? 6 : 5));
+      const mot = Number(activeRecord?.motivation ?? (tmpl.isToday ? 5 : 6));
+      const moodObj = MOODS.find(m => m.id === activeRecord?.mood || m.score === activeRecord?.moodScore);
+      const moodLabel = moodObj?.label || (typeof activeRecord?.mood === 'string' ? activeRecord.mood : 'Okay');
 
       const dateObj = new Date(tmpl.date + 'T12:00:00');
       const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -1502,7 +1505,7 @@ export default function WellnessJourney() {
     refreshRuntimeData();
   }, [refreshRuntimeData]);
 
-  // Keep synced on focus & visibility
+  // Keep synced on focus, storage, & live check-in updates
   useEffect(() => {
     const handleSync = () => {
       setCheckIns(loadCheckInHistory());
@@ -1510,9 +1513,11 @@ export default function WellnessJourney() {
     };
     window.addEventListener('storage', handleSync);
     window.addEventListener('focus', handleSync);
+    window.addEventListener('mw-checkin-updated', handleSync);
     return () => {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('focus', handleSync);
+      window.removeEventListener('mw-checkin-updated', handleSync);
     };
   }, []);
 

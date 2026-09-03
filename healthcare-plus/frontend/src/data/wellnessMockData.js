@@ -678,27 +678,27 @@ export function ensureLiveStreakData() {
       localStorage.setItem(DATES_KEY, JSON.stringify(dates));
     }
 
-    // 2. CHECKIN_KEY: Today's check-in (ensuring mood is synchronized with diagnostics 6.7/10)
+    // 2. CHECKIN_KEY: Today's check-in (preserves whatever the user entered)
     let todayCI = null;
     try {
       const rawCI = localStorage.getItem(CHECKIN_KEY);
       todayCI = rawCI ? JSON.parse(rawCI) : null;
     } catch {}
 
-    // Align today's check-in to moodScore: 4 (6.7/10), energy: 10, stress: 6, motivation: 5 if not set or low
-    if (!todayCI || todayCI.dateKey !== today.toDateString() || todayCI.moodScore === 2 || todayCI.mood === 'low') {
+    // If today's check-in does not exist yet for today, initialize default baseline
+    if (!todayCI || todayCI.dateKey !== today.toDateString()) {
       todayCI = {
         id: `ci_${todayIso}`,
         mood: 'okay',
         moodScore: 4,
-        energy: Number(todayCI?.energy ?? 10),
-        stress: Number(todayCI?.stressLevel ?? todayCI?.stress ?? 6),
-        stressLevel: Number(todayCI?.stressLevel ?? todayCI?.stress ?? 6),
-        motivation: Number(todayCI?.motivation ?? 5),
+        energy: 10,
+        stress: 6,
+        stressLevel: 6,
+        motivation: 5,
         date: todayIso,
         dateKey: today.toDateString(),
-        savedAt: todayCI?.savedAt || today.toISOString(),
-        createdAt: todayCI?.createdAt || today.toISOString(),
+        savedAt: today.toISOString(),
+        createdAt: today.toISOString(),
       };
       localStorage.setItem(CHECKIN_KEY, JSON.stringify(todayCI));
     }
@@ -714,7 +714,6 @@ export function ensureLiveStreakData() {
     });
 
     // Complete day-wise records for checked-in days of current week (Mon-Thu only)
-    // Synchronized to produce Avg Mood: 6.7, Avg Energy: 7.8, Avg Stress: 5.0, Avg Mot: 6.3
     const currentWeekRecords = [
       {
         id: 'ci_2026-08-31',
@@ -786,27 +785,27 @@ export function ensureLiveStreakData() {
         note: 'Mid-week equilibrium · Somatic tension managed',
       },
       {
-        id: 'ci_2026-09-03',
+        id: todayCI.id || 'ci_2026-09-03',
         date: '2026-09-03',
-        dateKey: 'Thu Sep 03 2026',
+        dateKey: todayCI.dateKey || 'Thu Sep 03 2026',
         dayLabel: 'Thursday',
         shortDay: 'Thu',
         dayNum: '04',
         mood: todayCI.mood || 'okay',
-        moodScore: Number(todayCI.moodScore ?? 4),
+        moodScore: Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 4),
         energy: Number(todayCI.energy ?? 10),
         stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
         stressLevel: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
         motivation: Number(todayCI.motivation ?? 5),
-        timeStr: '4:51 PM',
+        timeStr: todayCI.timeStr || (todayCI.savedAt ? new Date(todayCI.savedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '4:51 PM'),
         createdAt: todayCI.createdAt || today.toISOString(),
         savedAt: todayCI.savedAt || today.toISOString(),
         color: '#3b82f6',
         colorLight: '#dbeafe',
         colorDark: '#2563eb',
-        pct: Math.min(100, Math.round((Number(todayCI.moodScore || 4) / 6) * 100)),
+        pct: Math.min(100, Math.max(16, Math.round((Number(todayCI.moodScore || 4) / 6) * 100))),
         icon: 'calendar_today',
-        note: 'High physical vitality · Mindful focus cultivated',
+        note: todayCI.note || 'High physical vitality · Mindful focus cultivated',
         isToday: true,
       },
     ];
@@ -814,7 +813,12 @@ export function ensureLiveStreakData() {
     currentWeekRecords.forEach(rec => {
       const idx = history.findIndex(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === rec.date);
       if (idx >= 0) {
-        history[idx] = { ...rec, ...history[idx] };
+        if (rec.isToday && todayCI) {
+          // Dynamic live update: User's latest inputs always override for today!
+          history[idx] = { ...history[idx], ...rec, ...todayCI };
+        } else {
+          history[idx] = { ...rec, ...history[idx] };
+        }
       } else {
         history.push(rec);
       }
@@ -902,21 +906,32 @@ export function loadCheckInHistory() {
     const raw = localStorage.getItem(CHECKIN_HISTORY_KEY);
     let history = raw ? JSON.parse(raw) : [];
 
-    // Ensure today's check-in is included if present
+    // Ensure today's check-in is seamlessly represented and ALWAYS reflects the latest user input
     const todayCI = loadTodayCheckIn();
     if (todayCI) {
       const todayIso = getLocalDateStr(new Date());
-      const hasToday = history.some(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === todayIso);
-      if (!hasToday) {
-        history.unshift({
-          id: `ci_${todayIso}`,
-          ...todayCI,
-          stress: todayCI.stressLevel ?? todayCI.stress ?? 5,
-          date: todayIso,
-          dateKey: todayCI.dateKey || new Date().toDateString(),
-          createdAt: todayCI.savedAt || new Date().toISOString(),
-          savedAt: todayCI.savedAt || new Date().toISOString(),
-        });
+      const mScore = Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 4);
+      const todayFullRecord = {
+        id: todayCI.id || `ci_${todayIso}`,
+        ...todayCI,
+        mood: todayCI.mood || 'okay',
+        moodScore: mScore,
+        energy: Number(todayCI.energy ?? 7),
+        stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 5),
+        stressLevel: Number(todayCI.stressLevel ?? todayCI.stress ?? 5),
+        motivation: Number(todayCI.motivation ?? 5),
+        date: todayIso,
+        dateKey: todayCI.dateKey || new Date().toDateString(),
+        createdAt: todayCI.createdAt || todayCI.savedAt || new Date().toISOString(),
+        savedAt: todayCI.savedAt || todayCI.createdAt || new Date().toISOString(),
+        isToday: true,
+      };
+
+      const idx = history.findIndex(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === todayIso);
+      if (idx >= 0) {
+        history[idx] = { ...history[idx], ...todayFullRecord };
+      } else {
+        history.unshift(todayFullRecord);
       }
     }
 
@@ -1017,6 +1032,11 @@ export function saveCheckIn(data) {
       totalSessions: (existingCache.totalSessions || 0) + 1,
       averageMoodScore: data.moodScore || existingCache.averageMoodScore || 4,
     });
+
+    // Dispatch custom event so all active components in the app immediately react
+    try {
+      window.dispatchEvent(new CustomEvent('mw-checkin-updated', { detail: checkInRecord }));
+    } catch {}
 
     return newStreak;
   } catch {
