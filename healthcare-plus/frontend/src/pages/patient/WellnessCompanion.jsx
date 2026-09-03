@@ -340,38 +340,6 @@ function LiveContext({ lastCheckIn }) {
   );
 }
 
-// ── ProfessionalSupport ───────────────────────────────────────────────────────
-
-function ProfessionalSupport() {
-  return (
-    <div className="p-5 rounded-2xl bg-white border border-[rgba(188,201,200,0.45)] mw-soft-shadow">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-[#3c4948] msym-sm">local_hospital</span>
-        <h3 className="font-display font-semibold text-[#171d1c] text-sm">Professional Support</h3>
-      </div>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-full bg-[#f7dcb4] flex items-center justify-center flex-shrink-0">
-          <span className="font-display font-bold text-[#745f40] text-sm">AP</span>
-        </div>
-        <div>
-          <p className="font-display font-semibold text-[#171d1c] text-sm">Dr. Aisha Patel</p>
-          <p className="text-xs text-[#3c4948]">Therapist · Available today</p>
-        </div>
-        <div className="w-2 h-2 rounded-full bg-[#006a67] ml-auto flex-shrink-0" />
-      </div>
-      <button className="w-full mw-btn-outline text-xs mb-2">
-        Schedule Session
-      </button>
-      <button
-        onClick={() => { window.location.href = 'tel:9152987821'; }}
-        className="w-full text-[#3c4948] text-xs font-medium py-2 hover:text-[#171d1c] transition-colors"
-      >
-        Crisis resources →
-      </button>
-    </div>
-  );
-}
-
 // ── Contextual AI Pre-Message Generator based on Live State & Check-in ────────
 
 export function buildContextualGreeting({ checkIn, firstName = 'there', recentActivities = [], streak = 0 }) {
@@ -1126,8 +1094,6 @@ export default function WellnessCompanion() {
                 ))}
               </div>
             </div>
-
-            <ProfessionalSupport />
           </div>
         </div>
       </div>

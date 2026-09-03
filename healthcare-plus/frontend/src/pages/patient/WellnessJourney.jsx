@@ -180,16 +180,13 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [selectedIdx, setSelectedIdx] = useState(3); // Default to Thursday (Today, index 3)
 
-  // 7 days of the full current week
+  // Only the 4 days of the current week that have occurred & checked in (Mon Aug 31 - Thu Sep 3)
   const weekDays = useMemo(() => {
     const days = [
       { num: '01', day: 'Monday',    short: 'Mon', date: 'Aug 31', score: 6.7, pct: 67, energy: 6, stress: 5, mot: 6, color: '#f59e0b', colorDark: '#b45309', colorLight: '#fef3c7', icon: 'schedule',      note: 'Grounded start to the week · Intentional pacing' },
       { num: '02', day: 'Tuesday',   short: 'Tue', date: 'Sep 01', score: 7.8, pct: 78, energy: 7, stress: 4, mot: 7, color: '#10b981', colorDark: '#047857', colorLight: '#d1fae5', icon: 'show_chart',    note: 'Balanced cognitive focus · Productive momentum' },
       { num: '03', day: 'Wednesday', short: 'Wed', date: 'Sep 02', score: 8.3, pct: 83, energy: 8, stress: 5, mot: 7, color: '#06b6d4', colorDark: '#0e7490', colorLight: '#cffafe', icon: 'pie_chart',     note: 'Mid-week equilibrium · Vagal regulation' },
       { num: '04', day: 'Thursday',  short: 'Thu', date: 'Sep 03', score: 9.5, pct: 95, energy: 9, stress: 6, mot: 4, color: '#3b82f6', colorDark: '#1d4ed8', colorLight: '#dbeafe', icon: 'calendar_today', note: 'High physical vitality · Mindful focus cultivated', isToday: true },
-      { num: '05', day: 'Friday',    short: 'Fri', date: 'Sep 04', score: 8.8, pct: 88, energy: 8, stress: 4, mot: 8, color: '#8b5cf6', colorDark: '#6d28d9', colorLight: '#ede9fe', icon: 'trending_up',  note: 'Resilience target · Peak creative reflection', isTarget: true },
-      { num: '06', day: 'Saturday',  short: 'Sat', date: 'Sep 05', score: 8.5, pct: 85, energy: 7, stress: 3, mot: 7, color: '#d946ef', colorDark: '#a21caf', colorLight: '#fae8ff', icon: 'spa',          note: 'Weekend restoration · Slow restorative pace', isTarget: true },
-      { num: '07', day: 'Sunday',    short: 'Sun', date: 'Sep 06', score: 9.0, pct: 90, energy: 8, stress: 3, mot: 9, color: '#6366f1', colorDark: '#4338ca', colorLight: '#e0e7ff', icon: 'verified',     note: 'Weekly mastery · Full neurological reset', isTarget: true },
     ];
 
     // Merge live check-in values if available
@@ -209,22 +206,22 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
   const activeIdx = hoveredIdx ?? selectedIdx;
   const activeDay = weekDays[activeIdx] || weekDays[3];
 
-  // SVG 3D Hexagonal Dimensions
-  const W = 640;
+  // SVG 3D Hexagonal Dimensions for 4 Columns
+  const W = 580;
   const H = 410;
   const Y_BASE = 330;
-  const w = 21; // half-width of column
-  const hCap = 12;
-  const qCap = 6;
+  const w = 26; // half-width of wider column
+  const hCap = 14;
+  const qCap = 7;
 
-  // Stepped trendline connecting the tops of the pillars
+  // Stepped trendline connecting the tops of the 4 pillars
   const stepLinePath = useMemo(() => {
     return weekDays.map((d, i) => {
-      const cx = 50 + i * 88;
-      const cy = Y_BASE - (45 + (d.pct / 100) * 180);
+      const cx = 75 + i * 130;
+      const cy = Y_BASE - (50 + (d.pct / 100) * 175);
       const py = cy - 22;
       if (i === 0) return `M ${cx},${py}`;
-      const prevCx = 50 + (i - 1) * 88;
+      const prevCx = 75 + (i - 1) * 130;
       const midX = (prevCx + cx) / 2;
       return `H ${midX} V ${py} H ${cx}`;
     }).join(' ');
@@ -240,17 +237,17 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
           </div>
           <div>
             <h3 className="font-display font-bold text-[#171d1c] text-base leading-tight">
-              Wellness Trends (Full Current Week)
+              Wellness Trends (Mon – Thu Checked-In)
             </h3>
             <p className="text-[11px] text-[#3c4948]">
-              3D Prismatic columns & daily biomarker infographic flow
+              3D Prismatic columns & daily biomarker infographic flow · Active 4-day streak
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-3 py-1 rounded-full font-display flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#006a67] animate-pulse" />
-            <span>Mon Aug 31 – Sun Sep 06</span>
+            <span>Mon Aug 31 – Thu Sep 03 (4 Days Sealed)</span>
           </span>
         </div>
       </div>
@@ -357,14 +354,14 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
 
             {/* Ground Shadows beneath 3D Columns (drawn first) */}
             {weekDays.map((d, i) => {
-              const cx = 50 + i * 88;
+              const cx = 75 + i * 130;
               return (
                 <path
                   key={`shadow_${d.num}`}
                   d={`M ${cx - w - 4},${Y_BASE + qCap}
                       L ${cx + w},${Y_BASE + qCap}
-                      L ${cx + w + 30},${Y_BASE - 14}
-                      L ${cx + 6},${Y_BASE - 14} Z`}
+                      L ${cx + w + 36},${Y_BASE - 14}
+                      L ${cx + 8},${Y_BASE - 14} Z`}
                   fill="rgba(15, 23, 42, 0.12)"
                 />
               );
@@ -375,15 +372,15 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
               d={stepLinePath}
               fill="none"
               stroke="#94a3b8"
-              strokeWidth="2"
+              strokeWidth="2.2"
               strokeLinejoin="round"
-              opacity="0.7"
+              opacity="0.75"
             />
 
-            {/* 3D Hexagonal Columns */}
+            {/* 3D Hexagonal Columns (Mon - Thu) */}
             {weekDays.map((d, i) => {
-              const cx = 50 + i * 88;
-              const colHeight = 45 + (d.pct / 100) * 180;
+              const cx = 75 + i * 130;
+              const colHeight = 50 + (d.pct / 100) * 175;
               const cy = Y_BASE - colHeight;
               const isSelected = i === activeIdx;
 
@@ -669,9 +666,9 @@ function CheckInCalendarTimeline({ checkIns }) {
 
 function DnaHelicalJourney({ onStartActivity }) {
   ensureLiveStreakData();
-  const currentStreak = calculateStreak(); // returns 2 for live streak
-  const completedDaysCount = Math.max(2, currentStreak);
-  const activeDayNum = completedDaysCount + 1; // Day 3 is Active Today!
+  const currentStreak = calculateStreak(); // returns 4 for live streak (Mon - Thu)
+  const completedDaysCount = Math.max(4, currentStreak);
+  const activeDayNum = Math.min(14, completedDaysCount + 1); // Day 5 is Next Target!
 
   // Tab selector for 14-day pathway (Cycle 1: Days 1-7, Cycle 2: Days 8-14)
   const [activeCycle, setActiveCycle] = useState(1);
@@ -692,7 +689,7 @@ function DnaHelicalJourney({ onStartActivity }) {
 
   return (
     <div className="mw-card rounded-2xl p-6 relative overflow-hidden bg-gradient-to-b from-white via-[#fcfbfd] to-[#f8f6fc] border border-[#e6e2f0]">
-      {/* ── Header: Diagram Title & 2-Day Live Streak ── */}
+      {/* ── Header: Diagram Title & 4-Day Live Streak ── */}
       <div className="text-center mb-6 max-w-xl mx-auto">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#58519e]/10 text-[#58519e] text-xs font-semibold uppercase tracking-wider mb-2 font-display">
           <span className="material-symbols-outlined text-[15px]">biotech</span>
@@ -709,17 +706,17 @@ function DnaHelicalJourney({ onStartActivity }) {
         <div className="inline-flex items-center gap-2 mt-3 px-3.5 py-1.5 rounded-full bg-white border border-[#dcd7ea] shadow-2xs text-xs font-semibold text-[#171d1c] font-display flex-wrap justify-center">
           <span className="flex items-center gap-1 text-amber-600 font-bold">
             <span>🔥</span>
-            <span>2-Day Live Streak Active</span>
+            <span>4-Day Live Streak Active</span>
           </span>
           <span className="text-[#bcc9c8]">•</span>
           <span className="text-emerald-700 font-bold flex items-center gap-0.5">
             <span className="material-symbols-outlined text-[14px]">verified</span>
-            <span>Days 1 & 2 Sealed</span>
+            <span>Days 1 to 4 Sealed</span>
           </span>
           <span className="text-[#bcc9c8]">•</span>
           <span className="text-[#58519e] font-bold flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#58519e] animate-ping" />
-            <span>Day 3 Active Today</span>
+            <span>Day 5 Next Target</span>
           </span>
         </div>
 

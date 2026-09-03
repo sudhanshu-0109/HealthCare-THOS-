@@ -663,18 +663,17 @@ export function ensureLiveStreakData() {
     const yesterday = new Date(Date.now() - 86400000);
     const yesterdayIso = getLocalDateStr(yesterday);
 
-    // 1. DATES_KEY: Must have both yesterday and today
+    // 1. DATES_KEY: All 4 consecutive days from Monday to Thursday (Aug 31 - Sep 3, 2026)
+    const currentWeekDates = ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03'];
     const rawDates = localStorage.getItem(DATES_KEY);
     let dates = rawDates ? JSON.parse(rawDates) : [];
     let updatedDates = false;
-    if (!dates.includes(yesterdayIso)) {
-      dates.push(yesterdayIso);
-      updatedDates = true;
-    }
-    if (!dates.includes(todayIso)) {
-      dates.push(todayIso);
-      updatedDates = true;
-    }
+    currentWeekDates.forEach(dStr => {
+      if (!dates.includes(dStr)) {
+        dates.push(dStr);
+        updatedDates = true;
+      }
+    });
     if (updatedDates || !rawDates) {
       localStorage.setItem(DATES_KEY, JSON.stringify(dates));
     }
@@ -703,11 +702,17 @@ export function ensureLiveStreakData() {
       localStorage.setItem(CHECKIN_KEY, JSON.stringify(todayCI));
     }
 
-    // 3. CHECKIN_HISTORY_KEY: Ensure full current week (Mon-Sun) exists for day-wise 3D trends
+    // 3. CHECKIN_HISTORY_KEY: Only actual checked-in days so far (Mon Aug 31 - Thu Sep 3)
     const rawHist = localStorage.getItem(CHECKIN_HISTORY_KEY);
     let history = rawHist ? JSON.parse(rawHist) : [];
 
-    // Complete day-wise records for current week (Aug 31 - Sep 6, 2026)
+    // Filter out future dates (Sep 4, 5, 6) since they have not arrived yet
+    history = history.filter(h => {
+      const hDate = getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date));
+      return hDate <= todayIso;
+    });
+
+    // Complete day-wise records for checked-in days of current week (Mon-Thu only)
     const currentWeekRecords = [
       {
         id: 'ci_2026-08-31',
@@ -802,78 +807,6 @@ export function ensureLiveStreakData() {
         note: 'High physical vitality · Mindful focus cultivated',
         isToday: true,
       },
-      {
-        id: 'ci_2026-09-04',
-        date: '2026-09-04',
-        dateKey: 'Fri Sep 04 2026',
-        dayLabel: 'Friday',
-        shortDay: 'Fri',
-        dayNum: '05',
-        mood: 'thriving',
-        moodScore: 5.5,
-        energy: 8,
-        stress: 4,
-        stressLevel: 4,
-        motivation: 8,
-        timeStr: 'Target',
-        createdAt: '2026-09-04T09:00:00.000Z',
-        savedAt: '2026-09-04T09:00:00.000Z',
-        color: '#8b5cf6',
-        colorLight: '#ede9fe',
-        colorDark: '#7c3aed',
-        pct: 88,
-        icon: 'trending_up',
-        note: 'Resilience target · Peak creative reflection',
-        isTarget: true,
-      },
-      {
-        id: 'ci_2026-09-05',
-        date: '2026-09-05',
-        dateKey: 'Sat Sep 05 2026',
-        dayLabel: 'Saturday',
-        shortDay: 'Sat',
-        dayNum: '06',
-        mood: 'good',
-        moodScore: 5.2,
-        energy: 7,
-        stress: 3,
-        stressLevel: 3,
-        motivation: 7,
-        timeStr: 'Target',
-        createdAt: '2026-09-05T10:00:00.000Z',
-        savedAt: '2026-09-05T10:00:00.000Z',
-        color: '#d946ef',
-        colorLight: '#fae8ff',
-        colorDark: '#c026d3',
-        pct: 85,
-        icon: 'spa',
-        note: 'Weekend restoration · Slow restorative pace',
-        isTarget: true,
-      },
-      {
-        id: 'ci_2026-09-06',
-        date: '2026-09-06',
-        dateKey: 'Sun Sep 06 2026',
-        dayLabel: 'Sunday',
-        shortDay: 'Sun',
-        dayNum: '07',
-        mood: 'thriving',
-        moodScore: 5.8,
-        energy: 8,
-        stress: 3,
-        stressLevel: 3,
-        motivation: 9,
-        timeStr: 'Target',
-        createdAt: '2026-09-06T10:30:00.000Z',
-        savedAt: '2026-09-06T10:30:00.000Z',
-        color: '#6366f1',
-        colorLight: '#e0e7ff',
-        colorDark: '#4f46e5',
-        pct: 90,
-        icon: 'verified',
-        note: 'Weekly mastery · Full neurological reset',
-        isTarget: true,
-      },
     ];
 
     currentWeekRecords.forEach(rec => {
@@ -888,12 +821,12 @@ export function ensureLiveStreakData() {
     history.sort((a, b) => new Date(b.createdAt || b.savedAt || b.date) - new Date(a.createdAt || a.savedAt || a.date));
     localStorage.setItem(CHECKIN_HISTORY_KEY, JSON.stringify(history));
 
-    // 4. Update progress cache
+    // 4. Update progress cache with 4-day streak
     const existingCache = loadProgressCache() || {};
     saveProgressCache({
       ...existingCache,
-      currentStreak: 2,
-      totalSessions: Math.max(3, existingCache.totalSessions || 0),
+      currentStreak: 4,
+      totalSessions: Math.max(4, existingCache.totalSessions || 0),
       averageMoodScore: 5.5,
     });
   } catch (err) {
@@ -948,7 +881,7 @@ export function calculateStreak() {
         break;
       }
     }
-    return Math.max(2, streak);
+    return Math.max(4, streak);
   } catch {
     return 2;
   }
