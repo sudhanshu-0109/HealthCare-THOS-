@@ -175,9 +175,9 @@ function WellnessOverview({ checkIns, activityLog }) {
   );
 }
 
-// ── 2. 3D Hexagonal Trends Chart & Daily Infographic Flow (Full Current Week) ─
+// ── 2. 2D Wellness Trends Chart & Daily Infographic Flow (Full Current Week) ──
 
-function ThreeDHexagonalTrendsChart({ checkIns }) {
+function WellnessTrendsChart({ checkIns }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [selectedIdx, setSelectedIdx] = useState(3); // Default to Thursday (Today, index 3)
 
@@ -309,7 +309,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
                     : 'hover:bg-white hover:shadow-xs'
                 }`}
               >
-                {/* 3D Curled Ribbon Corner effect */}
+                {/* Curled Ribbon Corner effect */}
                 <div
                   className="absolute -left-2 top-1.5 bottom-1.5 w-2 rounded-l-sm opacity-60"
                   style={{ backgroundColor: item.colorDark }}
@@ -368,11 +368,11 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
           })}
         </div>
 
-        {/* ── Right Side: 2D Dimensional Columns SVG Graph with 3D Look-Alike Box Shadows ── */}
+        {/* ── Right Side: 2D Dimensional Columns SVG Graph with Box Shadows ── */}
         <div className="lg:col-span-7 relative flex justify-center items-center bg-gradient-to-b from-[#fbfdfd] to-[#eef6f5]/50 rounded-2xl p-4 border border-[#dce8e6] shadow-inner">
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[440px] overflow-visible select-none">
             <defs>
-              {/* Rich multi-layer 3D look-alike box shadow filter for 2D bars */}
+              {/* Rich multi-layer box shadow filter for 2D bars */}
               <filter id="barBoxShadow" x="-35%" y="-20%" width="170%" height="150%">
                 <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="#0c2e2c" floodOpacity="0.22" />
                 <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.08" />
@@ -408,7 +408,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
               opacity="0.75"
             />
 
-            {/* 2D Columns with 3D Look-Alike Box Shadows (Mon - Thu) */}
+            {/* 2D Columns with Box Shadows (Mon - Thu) */}
             {weekDays.map((d, i) => {
               const cx = 75 + i * 130;
               const colHeight = 50 + (d.pct / 100) * 175;
@@ -458,7 +458,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
                     </text>
                   </g>
 
-                  {/* 2D Vertical Bar with 3D Look-Alike Box Shadow */}
+                  {/* 2D Vertical Bar with Box Shadow */}
                   <rect
                     x={cx - barW / 2}
                     y={cy}
@@ -472,7 +472,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
                     strokeWidth="1"
                   />
 
-                  {/* Subtle Top Bevel Highlight (mimicking 3D surface light) */}
+                  {/* Subtle Top Bevel Highlight */}
                   <rect
                     x={cx - barW / 2 + 2}
                     y={cy + 1.5}
@@ -483,7 +483,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
                     opacity={isSelected ? 0.6 : 0.4}
                   />
 
-                  {/* Subtle Left Edge Specular Highlight (mimicking 3D facet light) */}
+                  {/* Subtle Left Edge Specular Highlight */}
                   <rect
                     x={cx - barW / 2 + 2.5}
                     y={cy + 7}
@@ -722,7 +722,7 @@ function DnaHelicalJourney({ onStartActivity }) {
       : DNA_JOURNEY_DAYS.slice(7, 14);
   }, [activeCycle]);
 
-  // Dimensions for 3D Helical Ribbon
+  // Dimensions for Helical Ribbon
   // ViewBox: 0 0 900 1060
   // Left Crest X = 330, Right Crest X = 550, Center = 440
   // Crest Y coordinates: 120, 255, 390, 525, 660, 795, 930
@@ -789,7 +789,7 @@ function DnaHelicalJourney({ onStartActivity }) {
         </div>
       </div>
 
-      {/* ── Desktop & Tablet View: 3D Helical Ribbon with Crest Tasks ── */}
+      {/* ── Desktop & Tablet View: Helical Ribbon with Crest Tasks ── */}
       <div className="hidden md:block relative w-full overflow-x-auto pb-4">
         <svg viewBox="0 0 900 1060" className="w-full h-auto min-w-[840px] select-none" style={{ maxHeight: '1180px' }}>
           <defs>
@@ -929,7 +929,7 @@ function DnaHelicalJourney({ onStartActivity }) {
             />
           </g>
 
-          {/* 4. CREST TURNS & 3D FOLD RINGS (Seamlessly wrapping around the crest curves) */}
+          {/* 4. CREST TURNS & FOLD RINGS (Seamlessly wrapping around the crest curves) */}
           {crestYs.map((y, idx) => {
             const isRight = idx % 2 === 0;
             const x = isRight ? XR : XL;
@@ -1432,8 +1432,8 @@ export default function WellnessJourney() {
           {/* 1. Overview Diagnostics */}
           <WellnessOverview checkIns={checkIns} activityLog={activityLog} />
 
-          {/* 2. 3D Hexagonal Trends Infographic Chart (3D Bar Graph Only - Full Current Week) */}
-          <ThreeDHexagonalTrendsChart checkIns={checkIns} />
+          {/* 2. Wellness Trends Infographic Chart (2D Bar Graph - Full Current Week) */}
+          <WellnessTrendsChart checkIns={checkIns} />
 
           {/* 3. Day-Wise Check-In Calendar Strip & Diagnostics */}
           <CheckInCalendarTimeline checkIns={checkIns} />
