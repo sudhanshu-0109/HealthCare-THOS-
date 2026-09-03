@@ -791,19 +791,19 @@ export function ensureLiveStreakData() {
         dayLabel: 'Thursday',
         shortDay: 'Thu',
         dayNum: '04',
-        mood: todayCI.mood || 'okay',
-        moodScore: Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 4),
-        energy: Number(todayCI.energy ?? 10),
-        stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
-        stressLevel: Number(todayCI.stressLevel ?? todayCI.stress ?? 6),
-        motivation: Number(todayCI.motivation ?? 5),
+        mood: todayCI.mood || 'good',
+        moodScore: Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 5),
+        energy: Number(todayCI.energy ?? 6),
+        stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 3),
+        stressLevel: Number(todayCI.stressLevel ?? todayCI.stress ?? 3),
+        motivation: Number(todayCI.motivation ?? 3),
         timeStr: todayCI.timeStr || (todayCI.savedAt ? new Date(todayCI.savedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '4:51 PM'),
         createdAt: todayCI.createdAt || today.toISOString(),
         savedAt: todayCI.savedAt || today.toISOString(),
         color: '#3b82f6',
         colorLight: '#dbeafe',
         colorDark: '#2563eb',
-        pct: Math.min(100, Math.max(16, Math.round((Number(todayCI.moodScore || 4) / 6) * 100))),
+        pct: Math.min(100, Math.max(16, Math.round((Number(todayCI.moodScore || 5) / 6) * 100))),
         icon: 'calendar_today',
         note: todayCI.note || 'High physical vitality · Mindful focus cultivated',
         isToday: true,
@@ -946,7 +946,29 @@ export function loadCheckInHistory() {
  * @param {Array} checkIns
  */
 export function calculateCheckInStats(checkIns = []) {
-  if (!checkIns || checkIns.length === 0) {
+  const todayCI = loadTodayCheckIn();
+  let effectiveRecords = Array.isArray(checkIns) ? [...checkIns] : [];
+
+  if (todayCI) {
+    const todayIso = getLocalDateStr(new Date());
+    const mScore = Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 5);
+    const todayRec = {
+      ...todayCI,
+      moodScore: mScore,
+      energy: Number(todayCI.energy ?? 6),
+      stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 3),
+      motivation: Number(todayCI.motivation ?? 3),
+      isToday: true,
+    };
+    const idx = effectiveRecords.findIndex(c => getLocalDateStr(new Date(c.savedAt || c.createdAt || c.date)) === todayIso);
+    if (idx >= 0) {
+      effectiveRecords[idx] = { ...effectiveRecords[idx], ...todayRec };
+    } else {
+      effectiveRecords.unshift(todayRec);
+    }
+  }
+
+  if (effectiveRecords.length === 0) {
     return {
       avgMood10: '0.0',
       avgEnergy: '0.0',
@@ -956,26 +978,33 @@ export function calculateCheckInStats(checkIns = []) {
     };
   }
 
-  const total = checkIns.length;
+  const total = effectiveRecords.length;
   let sumMoodScore = 0;
   let sumEnergy = 0;
   let sumStress = 0;
   let sumMotivation = 0;
 
-  checkIns.forEach(ci => {
-    // moodScore is 1-6; scaled to 10 is (score / 6) * 10
-    const mScore = Number(ci.moodScore ?? (MOODS.find(m => m.id === ci.mood)?.score) ?? 3);
+  effectiveRecords.forEach(ci => {
+    const mScore = Number(ci.moodScore ?? (MOODS.find(m => m.id === ci.mood)?.score) ?? 5);
     sumMoodScore += (mScore / 6) * 10;
-    sumEnergy += Number(ci.energy ?? 5);
-    sumStress += Number(ci.stressLevel ?? ci.stress ?? 5);
-    sumMotivation += Number(ci.motivation ?? 5);
+    sumEnergy += Number(ci.energy ?? 6);
+    sumStress += Number(ci.stressLevel ?? ci.stress ?? 3);
+    sumMotivation += Number(ci.motivation ?? 3);
   });
 
+  // Harmonize avgMood10 with today's live check-in so Daily State Log, Wellness Diagnostics,
+  // and the 3D Graph for today display the exact same number
+  const todayScore10 = todayCI
+    ? Number(((Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 5) / 6) * 10).toFixed(1))
+    : Number((sumMoodScore / total).toFixed(1));
+
   return {
-    avgMood10: (sumMoodScore / total).toFixed(1),
-    avgEnergy: (sumEnergy / total).toFixed(1),
-    avgStress: (sumStress / total).toFixed(1),
-    avgMotivation: (sumMotivation / total).toFixed(1),
+    avgMood10: todayScore10.toFixed(1),
+    todayMood10: todayScore10.toFixed(1),
+    weeklyAvgMood10: (sumMoodScore / total).toFixed(1),
+    avgEnergy: todayCI ? Number(todayCI.energy ?? 6).toFixed(1) : (sumEnergy / total).toFixed(1),
+    avgStress: todayCI ? Number(todayCI.stressLevel ?? todayCI.stress ?? 3).toFixed(1) : (sumStress / total).toFixed(1),
+    avgMotivation: todayCI ? Number(todayCI.motivation ?? 3).toFixed(1) : (sumMotivation / total).toFixed(1),
     totalCount: total,
   };
 }
