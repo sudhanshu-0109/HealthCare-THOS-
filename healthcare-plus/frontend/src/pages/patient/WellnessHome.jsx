@@ -261,7 +261,30 @@ export default function WellnessHome() {
   }, [selectedMood, energy, stress, motivation]);
 
   const rec = recommendations[recIndex % recommendations.length] || recommendations[0];
-  const currentMood = MOODS.find(m => m.id === selectedMood);
+  const todayLiveCI = loadTodayCheckIn();
+  const currentMood = MOODS.find(m => m.id === selectedMood) || MOODS.find(m => m.id === todayLiveCI?.mood) || MOODS[2];
+  const activeMoodScore = currentMood?.score ?? todayLiveCI?.moodScore ?? 5;
+  const moodScore10 = Number(((activeMoodScore / 6) * 10).toFixed(1));
+
+  // Keep synced on focus, storage, & live check-in updates
+  useEffect(() => {
+    const handleSync = () => {
+      const today = loadTodayCheckIn();
+      if (today) {
+        setSelectedMood(today.mood);
+        setEnergy(today.energy ?? 6);
+        setStress(today.stressLevel ?? today.stress ?? 3);
+        setMotivation(today.motivation ?? 3);
+        setCheckedIn(true);
+      }
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('mw-checkin-updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('mw-checkin-updated', handleSync);
+    };
+  }, []);
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -338,12 +361,18 @@ export default function WellnessHome() {
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#006a67] font-display">Primary State</span>
-                        <span className="text-[10px] text-[#3c4948]">· Level {currentMood?.score || 3}/6</span>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#006a67] font-display">Primary State</span>
+                          <span className="text-[10px] text-[#3c4948]">· Level {currentMood?.score || 5}/6</span>
+                        </div>
+                        <span className="text-[11px] font-bold text-[#006a67] bg-[#006a67]/10 border border-[#006a67]/20 px-2.5 py-0.5 rounded-full font-display flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px] text-[#006a67]">mood</span>
+                          <span>Avg Mood: {moodScore10}/10</span>
+                        </span>
                       </div>
                       <h4 className="font-display font-bold text-base text-[#171d1c] truncate">
-                        {currentMood?.label || 'Neutral'}
+                        {currentMood?.label || 'Good'}
                       </h4>
                       <p className="text-xs text-[#3c4948] truncate">
                         {currentMood?.description || 'Centered equilibrium and steady perspective'}
@@ -351,8 +380,28 @@ export default function WellnessHome() {
                     </div>
                   </div>
 
-                  {/* 3. Biomarkers / Metrics Matrix */}
-                  <div className="grid grid-cols-3 gap-2.5 mb-4">
+                  {/* 3. Biomarkers / Metrics Matrix (4 Columns: Avg Mood, Energy, Stress, Motivation) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+                    {/* Avg Mood Metric */}
+                    <div className="p-3 rounded-xl bg-[#f8faf9] border border-[#e4e9e8] flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-medium text-[#3c4948]">Avg Mood</span>
+                        <span className="material-symbols-outlined text-[16px] text-teal-600">mood</span>
+                      </div>
+                      <p className="font-display font-bold text-sm text-[#171d1c] mb-1.5">
+                        {moodScore10}<span className="text-[11px] font-normal text-[#6c7a78]">/10</span>
+                      </p>
+                      <div className="w-full bg-[#e4e9e8] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-teal-600 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(10, (moodScore10 / 10) * 100))}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-[#3c4948] mt-1 font-medium truncate">
+                        {currentMood?.label || 'Good'}
+                      </span>
+                    </div>
+
                     {/* Energy Metric */}
                     <div className="p-3 rounded-xl bg-[#f8faf9] border border-[#e4e9e8] flex flex-col justify-between">
                       <div className="flex items-center justify-between mb-1.5">

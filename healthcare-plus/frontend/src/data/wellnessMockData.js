@@ -685,16 +685,16 @@ export function ensureLiveStreakData() {
       todayCI = rawCI ? JSON.parse(rawCI) : null;
     } catch {}
 
-    // If today's check-in does not exist yet for today, initialize default baseline
+    // If today's check-in does not exist yet for today, initialize default baseline (Good, 5/6, energy 6, stress 3, mot 3)
     if (!todayCI || todayCI.dateKey !== today.toDateString()) {
       todayCI = {
         id: `ci_${todayIso}`,
-        mood: 'okay',
-        moodScore: 4,
-        energy: 10,
-        stress: 6,
-        stressLevel: 6,
-        motivation: 5,
+        mood: 'good',
+        moodScore: 5,
+        energy: 6,
+        stress: 3,
+        stressLevel: 3,
+        motivation: 3,
         date: todayIso,
         dateKey: today.toDateString(),
         savedAt: today.toISOString(),

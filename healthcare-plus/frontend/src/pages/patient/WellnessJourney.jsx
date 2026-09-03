@@ -221,11 +221,11 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
       const mScore = Number(activeRecord?.moodScore ?? (MOODS.find(m => m.id === activeRecord?.mood)?.score) ?? 4);
       const score10 = Number(((mScore / 6) * 10).toFixed(1));
       const pct = Math.min(100, Math.max(16, Math.round((mScore / 6) * 100)));
-      const energy = Number(activeRecord?.energy ?? (tmpl.isToday ? 10 : 7));
-      const stress = Number(activeRecord?.stressLevel ?? activeRecord?.stress ?? (tmpl.isToday ? 6 : 5));
-      const mot = Number(activeRecord?.motivation ?? (tmpl.isToday ? 5 : 6));
+      const energy = Number(activeRecord?.energy ?? (tmpl.isToday ? 6 : 7));
+      const stress = Number(activeRecord?.stressLevel ?? activeRecord?.stress ?? (tmpl.isToday ? 3 : 5));
+      const mot = Number(activeRecord?.motivation ?? (tmpl.isToday ? 3 : 6));
       const moodObj = MOODS.find(m => m.id === activeRecord?.mood || m.score === activeRecord?.moodScore);
-      const moodLabel = moodObj?.label || (typeof activeRecord?.mood === 'string' ? activeRecord.mood : 'Okay');
+      const moodLabel = moodObj?.label || (typeof activeRecord?.mood === 'string' ? activeRecord.mood : 'Good');
 
       const dateObj = new Date(tmpl.date + 'T12:00:00');
       const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -378,7 +378,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
                 { label: 'Mon', targetH: 67, color: '#f59e0b', dark: '#b45309' },
                 { label: 'Tue', targetH: 67, color: '#10b981', dark: '#047857' },
                 { label: 'Wed', targetH: 67, color: '#06b6d4', dark: '#0e7490' },
-                { label: 'Thu', targetH: 67, color: '#3b82f6', dark: '#1d4ed8' },
+                { label: 'Thu', targetH: weekDays[3]?.pct || 83, color: '#3b82f6', dark: '#1d4ed8' },
               ].map((c) => {
                 const currentH = Math.min(c.targetH, Math.round((c.targetH * (loadingProgress / 100))));
                 return (
