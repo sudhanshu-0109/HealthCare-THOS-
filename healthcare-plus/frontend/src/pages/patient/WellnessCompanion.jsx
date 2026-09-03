@@ -15,12 +15,15 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as mhService from '../../services/mentalHealth.service';
 import ActivityPlayer from '../../components/mentalWellness/ActivityPlayer';
 import {
+  MOODS,
   SUGGESTION_CHIPS,
   QUICK_TOOLS,
   CATEGORY_ICONS,
+  loadTodayCheckIn,
   appendActivityLog,
 } from '../../data/wellnessMockData';
 
@@ -190,36 +193,70 @@ function BreathingWidget() {
 // ── LiveContext ───────────────────────────────────────────────────────────────
 
 function LiveContext({ lastCheckIn }) {
-  const mood   = lastCheckIn?.mood   ?? 'Good';
-  const energy = lastCheckIn?.energy ?? 6;
-  const stress = lastCheckIn?.stressLevel ?? lastCheckIn?.stress ?? 7;
+  const navigate = useNavigate();
+
+  // Resolve mood details
+  const moodObj = MOODS.find(m =>
+    m.id === lastCheckIn?.mood ||
+    m.score === lastCheckIn?.moodScore ||
+    m.id === String(lastCheckIn?.mood || '').toLowerCase()
+  );
+
+  const moodLabel = moodObj?.label || (typeof lastCheckIn?.mood === 'string' ? lastCheckIn.mood : 'Good');
+  const moodEmoji = moodObj?.emoji || '😊';
+  const moodScore = moodObj?.score || lastCheckIn?.moodScore || 4;
+  const moodBar   = Math.min(100, Math.max(15, Math.round((moodScore / 6) * 100)));
+
+  const energy = Number(lastCheckIn?.energy ?? 5);
+  const stress = Number(lastCheckIn?.stressLevel ?? lastCheckIn?.stress ?? 5);
+  const hasCheckIn = !!lastCheckIn;
 
   return (
     <div className="p-5 rounded-2xl bg-white border border-[rgba(188,201,200,0.45)] mw-soft-shadow">
       <div className="flex items-center gap-2 mb-4">
         <span className="material-symbols-outlined text-[#006a67] msym-sm filled">radio_button_checked</span>
         <h3 className="font-display font-semibold text-[#171d1c] text-sm">Live Context</h3>
-        <span className="ml-auto text-[10px] text-[#3c4948] bg-[#e9efee] px-2 py-0.5 rounded-full">Today</span>
+        <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium ${
+          hasCheckIn ? 'text-[#006a67] bg-[#006a67]/10' : 'text-[#3c4948] bg-[#e9efee]'
+        }`}>
+          {hasCheckIn ? 'Today' : 'Pending'}
+        </span>
       </div>
-      <div className="space-y-3">
-        {[
-          { label: 'Mood',   value: mood,           icon: '😊', bar: 83,        color: 'bg-[#006a67]' },
-          { label: 'Energy', value: `${energy}/10`, icon: '⚡', bar: energy*10, color: 'bg-[#5bd9d3]' },
-          { label: 'Stress', value: `${stress}/10`, icon: '🌀', bar: stress*10, color: 'bg-[#ddc39c]' },
-        ].map((item) => (
-          <div key={item.label}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-[#3c4948]">{item.label}</span>
-              <span className="text-xs font-semibold text-[#171d1c] font-display">
-                {item.icon} {item.value}
-              </span>
+
+      {hasCheckIn ? (
+        <div className="space-y-3">
+          {[
+            { label: 'Mood',   value: moodLabel,          icon: moodEmoji, bar: moodBar,     color: 'bg-[#006a67]' },
+            { label: 'Energy', value: `${energy}/10`,     icon: '⚡',      bar: energy * 10, color: 'bg-[#5bd9d3]' },
+            { label: 'Stress', value: `${stress}/10`,     icon: '🌀',      bar: stress * 10, color: 'bg-[#ddc39c]' },
+          ].map((item) => (
+            <div key={item.label}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-[#3c4948]">{item.label}</span>
+                <span className="text-xs font-semibold text-[#171d1c] font-display">
+                  {item.icon} {item.value}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-[#e4e9e8] overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${item.color} transition-all duration-300`}
+                  style={{ width: `${item.bar}%` }}
+                />
+              </div>
             </div>
-            <div className="h-1 rounded-full bg-[#e4e9e8] overflow-hidden">
-              <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.bar}%` }} />
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-2">
+          <p className="text-xs text-[#3c4948] mb-2.5">No check-in completed yet today.</p>
+          <button
+            onClick={() => navigate('/health-hub/mental-wellness')}
+            className="text-xs text-[#006a67] font-semibold hover:underline font-display"
+          >
+            Check in on Home →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -263,7 +300,7 @@ export default function WellnessCompanion() {
   const [inputValue,    setInputValue]    = useState('');
   const [isTyping,      setIsTyping]      = useState(false);
   const [conversation,  setConversation]  = useState(null);
-  const [lastCheckIn,   setLastCheckIn]   = useState(null);
+  const [lastCheckIn,   setLastCheckIn]   = useState(() => loadTodayCheckIn());
   const [apiMode,       setApiMode]       = useState(false);
 
   // ActivityPlayer state
@@ -383,17 +420,39 @@ export default function WellnessCompanion() {
       setMessages([greeting]);
     })();
 
-    // Load last check-in for LiveContext
+    // Load last check-in for LiveContext (local first, then API sync)
+    const localCI = loadTodayCheckIn();
+    if (localCI) setLastCheckIn(localCI);
+
     (async () => {
       try {
         const res = await mhService.getCheckInHistory(1);
         const data = res?.data ?? res;
-        const history = Array.isArray(data) ? data : data?.checkIns ?? [];
-        if (history.length > 0) setLastCheckIn(history[0]);
+        const history = Array.isArray(data) ? data : (data?.checkIns ?? []);
+        const todayApi = data?.todaysCheckIn || (history.length > 0 ? history[0] : null);
+        if (todayApi) {
+          const todayStr = new Date().toDateString();
+          const apiDateStr = new Date(todayApi.createdAt || todayApi.date || '').toDateString();
+          if (apiDateStr === todayStr) {
+            setLastCheckIn(todayApi);
+          }
+        }
       } catch {
-        // keep null
+        // keep local state
       }
     })();
+
+    // Listen to focus and storage so checking in on the Home tab immediately updates Live Context here
+    const handleSync = () => {
+      const updated = loadTodayCheckIn();
+      if (updated) setLastCheckIn(updated);
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
   }, []);
 
   // ── Send message ─────────────────────────────────────────────────────────

@@ -123,14 +123,14 @@ class WellnessSoundEngine {
     }, 350);
   }
 
-  // ── 1. Gentle Rain & Soft Drizzle ──────────────────────────────────────────
+  // ── 1. Gentle Rain on Leaves (Warm, Velvety, Hypnotic) ───────────────────
   _playRain() {
     const ctx = this.ctx;
-    const bufferSize = ctx.sampleRate * 2;
+    const bufferSize = ctx.sampleRate * 3;
     const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
-    // Generate pink/brown noise
+    // True soft pink noise (1/f) using Kellet's refined 6-stage filter
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
@@ -140,173 +140,181 @@ class WellnessSoundEngine {
       b3 = 0.86650 * b3 + white * 0.3104856;
       b4 = 0.55000 * b4 + white * 0.5329522;
       b5 = -0.7616 * b5 - white * 0.0168980;
-      output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.07;
       b6 = white * 0.115926;
     }
 
-    const whiteNoise = ctx.createBufferSource();
-    whiteNoise.buffer = noiseBuffer;
-    whiteNoise.loop = true;
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.loop = true;
 
-    // Rain low-pass filter
-    const rainFilter = ctx.createBiquadFilter();
-    rainFilter.type = 'lowpass';
-    rainFilter.frequency.setValueAtTime(1100, ctx.currentTime);
+    // Gentle cascaded lowpass filters to cut all harshness (>500Hz)
+    const rainFilter1 = ctx.createBiquadFilter();
+    rainFilter1.type = 'lowpass';
+    rainFilter1.frequency.setValueAtTime(460, ctx.currentTime);
+    rainFilter1.Q.setValueAtTime(0.5, ctx.currentTime); // Low Q = no whistling peaks
 
-    // High sizzle layer for realistic drizzle
-    const sizzleFilter = ctx.createBiquadFilter();
-    sizzleFilter.type = 'bandpass';
-    sizzleFilter.frequency.setValueAtTime(3200, ctx.currentTime);
-    sizzleFilter.Q.setValueAtTime(1.5, ctx.currentTime);
+    const rainFilter2 = ctx.createBiquadFilter();
+    rainFilter2.type = 'lowpass';
+    rainFilter2.frequency.setValueAtTime(680, ctx.currentTime);
+    rainFilter2.Q.setValueAtTime(0.4, ctx.currentTime);
 
+    // Soft rain volume with subtle organic movement (no sudden noises)
     const rainGain = ctx.createGain();
-    rainGain.gain.setValueAtTime(0.7, ctx.currentTime);
+    rainGain.gain.setValueAtTime(0.45, ctx.currentTime);
 
-    const sizzleGain = ctx.createGain();
-    sizzleGain.gain.setValueAtTime(0.2, ctx.currentTime);
+    // Gentle 0.12Hz slow ambient swell (rain gently shifting in the breeze)
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(0.12, ctx.currentTime);
 
-    whiteNoise.connect(rainFilter);
-    rainFilter.connect(rainGain);
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.setValueAtTime(0.06, ctx.currentTime);
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(rainGain.gain);
+
+    noiseSource.connect(rainFilter1);
+    rainFilter1.connect(rainFilter2);
+    rainFilter2.connect(rainGain);
     rainGain.connect(this.masterGain);
 
-    whiteNoise.connect(sizzleFilter);
-    sizzleFilter.connect(sizzleGain);
-    sizzleGain.connect(this.masterGain);
+    noiseSource.start();
+    lfo.start();
 
-    whiteNoise.start();
-    this.activeNodes.push(whiteNoise, rainFilter, sizzleFilter, rainGain, sizzleGain);
-
-    // Distant subtle warm thunder rumble every 22 seconds
-    const triggerThunder = () => {
-      if (!this.isPlaying || this.currentSoundId !== 'rain') return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(55, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(35, ctx.currentTime + 3.5);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(80, ctx.currentTime);
-
-      gain.gain.setValueAtTime(0.001, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 1.2);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 4.5);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterGain);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 4.6);
-    };
-
-    const thunderInterval = setInterval(triggerThunder, 22000);
-    this.activeIntervals.push(thunderInterval);
+    this.activeNodes.push(noiseSource, rainFilter1, rainFilter2, rainGain, lfo, lfoGain);
   }
 
-  // ── 2. Peaceful Ocean Shore Waves ──────────────────────────────────────────
+  // ── 2. Peaceful Ocean Waves (Warm Coastal Shore) ───────────────────────────
   _playOcean() {
     const ctx = this.ctx;
-    const bufferSize = ctx.sampleRate * 2;
+    const bufferSize = ctx.sampleRate * 3;
     const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
+    // Soft brown-pink noise generator
+    let last = 0;
     for (let i = 0; i < bufferSize; i++) {
-      output[i] = Math.random() * 2 - 1;
+      const white = Math.random() * 2 - 1;
+      last = (last + 0.03 * white) / 1.03;
+      output[i] = last * 1.8;
     }
 
-    const whiteNoise = ctx.createBufferSource();
-    whiteNoise.buffer = noiseBuffer;
-    whiteNoise.loop = true;
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.loop = true;
 
-    // Resonant bandpass filter modulated by LFO to simulate surging swell
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(450, ctx.currentTime);
-    filter.Q.setValueAtTime(2.0, ctx.currentTime);
+    // Smooth lowpass filter for wave body (180Hz to 380Hz, Q=0.5 — strictly no whistle)
+    const waveFilter = ctx.createBiquadFilter();
+    waveFilter.type = 'lowpass';
+    waveFilter.frequency.setValueAtTime(260, ctx.currentTime);
+    waveFilter.Q.setValueAtTime(0.5, ctx.currentTime);
 
     const waveGain = ctx.createGain();
-    waveGain.gain.setValueAtTime(0.1, ctx.currentTime);
+    waveGain.gain.setValueAtTime(0.15, ctx.currentTime);
 
-    // LFO for wave rhythmic cycle (0.09 Hz = ~11-second wave breath rhythm)
-    const lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(0.09, ctx.currentTime);
+    // 11.5 second wave breath cycle (gentle swell & receding shore wash)
+    const lfoWave = ctx.createOscillator();
+    lfoWave.type = 'sine';
+    lfoWave.frequency.setValueAtTime(0.087, ctx.currentTime); // ~11.5s period
 
     const lfoGain = ctx.createGain();
-    lfoGain.gain.setValueAtTime(0.35, ctx.currentTime);
+    lfoGain.gain.setValueAtTime(0.18, ctx.currentTime);
 
-    // Modulate filter cutoff with wave swell
-    const lfoFilterGain = ctx.createGain();
-    lfoFilterGain.gain.setValueAtTime(400, ctx.currentTime);
+    const lfoFilter = ctx.createGain();
+    lfoFilter.gain.setValueAtTime(140, ctx.currentTime);
 
-    lfo.connect(lfoGain);
+    lfoWave.connect(lfoGain);
     lfoGain.connect(waveGain.gain);
 
-    lfo.connect(lfoFilterGain);
-    lfoFilterGain.connect(filter.frequency);
+    lfoWave.connect(lfoFilter);
+    lfoFilter.connect(waveFilter.frequency);
 
-    whiteNoise.connect(filter);
-    filter.connect(waveGain);
+    // Deep warm ocean undertone (72Hz sine grounding sub)
+    const subOsc = ctx.createOscillator();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(72, ctx.currentTime);
+
+    const subGain = ctx.createGain();
+    subGain.gain.setValueAtTime(0.04, ctx.currentTime);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.masterGain);
+
+    noiseSource.connect(waveFilter);
+    waveFilter.connect(waveGain);
     waveGain.connect(this.masterGain);
 
-    whiteNoise.start();
-    lfo.start();
+    noiseSource.start();
+    lfoWave.start();
+    subOsc.start();
 
-    this.activeNodes.push(whiteNoise, filter, waveGain, lfo, lfoGain, lfoFilterGain);
+    this.activeNodes.push(noiseSource, waveFilter, waveGain, lfoWave, lfoGain, lfoFilter, subOsc, subGain);
   }
 
-  // ── 3. Tibetan Singing Bowls & Zen Bell ────────────────────────────────────
+  // ── 3. Tibetan Singing Bowls & Zen Bell (Warm, Serene, Meditative) ─────────
   _playTibetanBowl() {
     const ctx = this.ctx;
 
-    // Deep continuous warm background drone (108Hz / 216Hz)
+    // Deep warm continuous Buddhist temple root drone (108Hz)
     const droneOsc = ctx.createOscillator();
     const droneGain = ctx.createGain();
+    const droneFilter = ctx.createBiquadFilter();
+
     droneOsc.type = 'sine';
     droneOsc.frequency.setValueAtTime(108, ctx.currentTime);
-    droneGain.gain.setValueAtTime(0.08, ctx.currentTime);
 
-    droneOsc.connect(droneGain);
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.setValueAtTime(280, ctx.currentTime);
+
+    droneGain.gain.setValueAtTime(0.04, ctx.currentTime);
+
+    droneOsc.connect(droneFilter);
+    droneFilter.connect(droneGain);
     droneGain.connect(this.masterGain);
     droneOsc.start();
-    this.activeNodes.push(droneOsc, droneGain);
+    this.activeNodes.push(droneOsc, droneFilter, droneGain);
 
-    // Multi-harmonic singing bowl strike generator
-    const strikeBowl = (fundamental = 216) => {
+    // Warm, soothing singing bowl bell strikes (NO screeching high frequencies)
+    const strikeBowl = (fundamental = 174) => {
       if (!this.isPlaying || this.currentSoundId !== 'bowl') return;
 
+      // Warm harmonic series: Root (174Hz), Soft Octave (348Hz), Warm Fifth (261Hz)
       const harmonics = [
-        { f: fundamental,        g: 0.35, decay: 9.0 },
-        { f: fundamental * 2.76, g: 0.15, decay: 6.5 },
-        { f: fundamental * 5.4,  g: 0.08, decay: 4.5 },
-        { f: fundamental * 8.9,  g: 0.03, decay: 3.0 },
+        { f: fundamental,        g: 0.22, decay: 13.0 },
+        { f: fundamental * 1.5,  g: 0.08, decay: 10.0 }, // Perfect 5th
+        { f: fundamental * 2.0,  g: 0.04, decay: 7.5 },  // Octave
       ];
 
       harmonics.forEach(h => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        // Soft pulsating acoustic beating (1.2 Hz)
         const tremolo = ctx.createOscillator();
         const tremoloGain = ctx.createGain();
 
         osc.type = 'sine';
         osc.frequency.setValueAtTime(h.f, ctx.currentTime);
 
-        // Subtle ~2.5Hz pulsating singing bowl modulation
-        tremolo.type = 'sine';
-        tremolo.frequency.setValueAtTime(2.5, ctx.currentTime);
-        tremoloGain.gain.setValueAtTime(0.02 * h.g, ctx.currentTime);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(520, ctx.currentTime); // Eliminates all harsh treble
 
+        tremolo.type = 'sine';
+        tremolo.frequency.setValueAtTime(1.2, ctx.currentTime);
+        tremoloGain.gain.setValueAtTime(0.015 * h.g, ctx.currentTime);
+
+        // Gentle felt-mallet attack (150ms gentle curve, no sharp snap)
         gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(h.g, ctx.currentTime + 0.08);
+        gain.gain.linearRampToValueAtTime(h.g, ctx.currentTime + 0.18);
         gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + h.decay);
 
         tremolo.connect(tremoloGain);
         tremoloGain.connect(gain.gain);
 
-        osc.connect(gain);
+        osc.connect(filter);
+        filter.connect(gain);
         gain.connect(this.masterGain);
 
         osc.start();
@@ -316,172 +324,169 @@ class WellnessSoundEngine {
       });
     };
 
-    // Initial strike right away
-    strikeBowl(216);
+    // First bell strike right away
+    strikeBowl(174);
 
-    // Recurring bell strike every 12 seconds
-    let strikeCount = 0;
-    const intervals = [216, 288, 324, 216];
+    // Spacious strikes every 15 seconds (giving generous quiet reflection between bells)
+    let strikeIndex = 0;
+    const strikeTones = [174, 216, 174, 261];
     const bowlInterval = setInterval(() => {
-      strikeCount++;
-      const f = intervals[strikeCount % intervals.length];
-      strikeBowl(f);
-    }, 12000);
+      strikeIndex++;
+      const tone = strikeTones[strikeIndex % strikeTones.length];
+      strikeBowl(tone);
+    }, 15000);
 
     this.activeIntervals.push(bowlInterval);
   }
 
-  // ── 4. Forest Stream & Nature ──────────────────────────────────────────────
+  // ── 4. Forest Stream & Peaceful Nature (Tranquil Mountain Brook) ───────────
   _playForest() {
     const ctx = this.ctx;
-    const bufferSize = ctx.sampleRate * 2;
+    const bufferSize = ctx.sampleRate * 3;
     const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
+    // Soft water noise
+    let last = 0;
     for (let i = 0; i < bufferSize; i++) {
-      output[i] = Math.random() * 2 - 1;
+      const white = Math.random() * 2 - 1;
+      last = (last + 0.04 * white) / 1.04;
+      output[i] = last * 1.5;
     }
 
-    const whiteNoise = ctx.createBufferSource();
-    whiteNoise.buffer = noiseBuffer;
-    whiteNoise.loop = true;
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.loop = true;
 
-    // Resonant water babble bandpass filter
+    // Gentle bubbling stream body (low-pass at 380Hz, Q=0.6 — warm, smooth trickling water)
     const streamFilter = ctx.createBiquadFilter();
-    streamFilter.type = 'bandpass';
-    streamFilter.frequency.setValueAtTime(950, ctx.currentTime);
-    streamFilter.Q.setValueAtTime(3.0, ctx.currentTime);
-
-    // Second filter for bubbling highs
-    const bubbleFilter = ctx.createBiquadFilter();
-    bubbleFilter.type = 'bandpass';
-    bubbleFilter.frequency.setValueAtTime(1800, ctx.currentTime);
-    bubbleFilter.Q.setValueAtTime(4.0, ctx.currentTime);
+    streamFilter.type = 'lowpass';
+    streamFilter.frequency.setValueAtTime(360, ctx.currentTime);
+    streamFilter.Q.setValueAtTime(0.6, ctx.currentTime);
 
     const streamGain = ctx.createGain();
-    streamGain.gain.setValueAtTime(0.4, ctx.currentTime);
+    streamGain.gain.setValueAtTime(0.35, ctx.currentTime);
 
-    const bubbleGain = ctx.createGain();
-    bubbleGain.gain.setValueAtTime(0.2, ctx.currentTime);
+    // Gentle slow modulation of water current
+    const lfoWater = ctx.createOscillator();
+    lfoWater.type = 'sine';
+    lfoWater.frequency.setValueAtTime(0.2, ctx.currentTime);
 
-    // Slow modulation for natural water current flow
-    const lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(0.35, ctx.currentTime);
+    const lfoWaterGain = ctx.createGain();
+    lfoWaterGain.gain.setValueAtTime(60, ctx.currentTime);
 
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.setValueAtTime(150, ctx.currentTime);
+    lfoWater.connect(lfoWaterGain);
+    lfoWaterGain.connect(streamFilter.frequency);
 
-    lfo.connect(lfoGain);
-    lfoGain.connect(streamFilter.frequency);
+    // Soft pine forest breeze in background (low-pass at 220Hz)
+    const breezeFilter = ctx.createBiquadFilter();
+    breezeFilter.type = 'lowpass';
+    breezeFilter.frequency.setValueAtTime(200, ctx.currentTime);
 
-    whiteNoise.connect(streamFilter);
+    const breezeGain = ctx.createGain();
+    breezeGain.gain.setValueAtTime(0.12, ctx.currentTime);
+
+    noiseSource.connect(streamFilter);
     streamFilter.connect(streamGain);
     streamGain.connect(this.masterGain);
 
-    whiteNoise.connect(bubbleFilter);
-    bubbleFilter.connect(bubbleGain);
-    bubbleGain.connect(this.masterGain);
+    noiseSource.connect(breezeFilter);
+    breezeFilter.connect(breezeGain);
+    breezeGain.connect(this.masterGain);
 
-    whiteNoise.start();
-    lfo.start();
+    noiseSource.start();
+    lfoWater.start();
 
-    this.activeNodes.push(whiteNoise, streamFilter, bubbleFilter, streamGain, bubbleGain, lfo, lfoGain);
-
-    // Gentle bird chirp every 8-15 seconds
-    const triggerBird = () => {
-      if (!this.isPlaying || this.currentSoundId !== 'forest') return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      const startFreq = 2800 + Math.random() * 800;
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(startFreq + 600, ctx.currentTime + 0.08);
-      osc.frequency.linearRampToValueAtTime(startFreq - 200, ctx.currentTime + 0.18);
-
-      gain.gain.setValueAtTime(0.001, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
-
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 0.25);
-    };
-
-    const birdInterval = setInterval(triggerBird, 9000);
-    this.activeIntervals.push(birdInterval);
+    this.activeNodes.push(noiseSource, streamFilter, streamGain, lfoWater, lfoWaterGain, breezeFilter, breezeGain);
   }
 
-  // ── 5. 432Hz Sound Bath & Ambient Chord Pad ───────────────────────────────
+  // ── 5. 432Hz Sacred Harmonic Sound Bath (Serene Ambient Pad) ───────────────
   _play432HzDrone() {
     const ctx = this.ctx;
-    // Harmonic series tuned around 432Hz (432Hz, 216Hz, 648Hz, 864Hz)
-    const freqs = [108, 216, 432, 648];
-    const gains = [0.12, 0.15, 0.10, 0.04];
 
-    freqs.forEach((f, idx) => {
+    // 432Hz Pythagorean harmonic series (warm pure sine tones)
+    const chords = [
+      { f: 108, g: 0.12 }, // Deep root foundation
+      { f: 216, g: 0.10 }, // Warm baritone octave
+      { f: 324, g: 0.06 }, // Harmonic fifth
+      { f: 432, g: 0.05 }, // 432Hz sacred healing tone
+    ];
+
+    // Master warm filter to ensure smooth, silky texture
+    const chordFilter = ctx.createBiquadFilter();
+    chordFilter.type = 'lowpass';
+    chordFilter.frequency.setValueAtTime(450, ctx.currentTime);
+
+    const chordMasterGain = ctx.createGain();
+    chordMasterGain.gain.setValueAtTime(0.85, ctx.currentTime);
+
+    chords.forEach((c, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
+
+      // Slow gentle meditative breathing movement (25s cycle)
       const lfo = ctx.createOscillator();
       const lfoGain = ctx.createGain();
 
-      osc.type = idx === 0 ? 'sine' : 'triangle';
-      osc.frequency.setValueAtTime(f, ctx.currentTime);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(c.f, ctx.currentTime);
 
-      // Slow breathing movement (0.05 Hz = 20s cycle)
       lfo.type = 'sine';
-      lfo.frequency.setValueAtTime(0.04 + idx * 0.015, ctx.currentTime);
-      lfoGain.gain.setValueAtTime(gains[idx] * 0.3, ctx.currentTime);
+      lfo.frequency.setValueAtTime(0.04 + idx * 0.012, ctx.currentTime);
+      lfoGain.gain.setValueAtTime(c.g * 0.25, ctx.currentTime);
 
-      gain.gain.setValueAtTime(gains[idx], ctx.currentTime);
+      gain.gain.setValueAtTime(c.g, ctx.currentTime);
 
       lfo.connect(lfoGain);
       lfoGain.connect(gain.gain);
 
       osc.connect(gain);
-      gain.connect(this.masterGain);
+      gain.connect(chordFilter);
 
       osc.start();
       lfo.start();
       this.activeNodes.push(osc, gain, lfo, lfoGain);
     });
+
+    chordFilter.connect(chordMasterGain);
+    chordMasterGain.connect(this.masterGain);
+    this.activeNodes.push(chordFilter, chordMasterGain);
   }
 
-  // ── 6. Deep Brown Noise (Sleep & Rest) ─────────────────────────────────────
+  // ── 6. Deep Rest (Velvety Soft Sleep Brown Noise) ───────────────────────────
   _playSleepBrownNoise() {
     const ctx = this.ctx;
-    const bufferSize = ctx.sampleRate * 2;
+    const bufferSize = ctx.sampleRate * 3;
     const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
-    let lastOut = 0.0;
+    // True soft 1/f² brown noise for deep nervous system calming
+    let last = 0.0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      output[i] = (lastOut + (0.02 * white)) / 1.02;
-      lastOut = output[i];
-      output[i] *= 3.5; // Gain compensation
+      last = (last + 0.018 * white) / 1.018;
+      output[i] = last * 2.2;
     }
 
-    const brownNoise = ctx.createBufferSource();
-    brownNoise.buffer = noiseBuffer;
-    brownNoise.loop = true;
+    const brownSource = ctx.createBufferSource();
+    brownSource.buffer = noiseBuffer;
+    brownSource.loop = true;
 
+    // Filtered at 220Hz — warm, cozy, womb-like calming tone
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(320, ctx.currentTime);
+    filter.frequency.setValueAtTime(220, ctx.currentTime);
+    filter.Q.setValueAtTime(0.4, ctx.currentTime);
 
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.65, ctx.currentTime);
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
 
-    brownNoise.connect(filter);
+    brownSource.connect(filter);
     filter.connect(gain);
     gain.connect(this.masterGain);
 
-    brownNoise.start();
-    this.activeNodes.push(brownNoise, filter, gain);
+    brownSource.start();
+    this.activeNodes.push(brownSource, filter, gain);
   }
 }
 

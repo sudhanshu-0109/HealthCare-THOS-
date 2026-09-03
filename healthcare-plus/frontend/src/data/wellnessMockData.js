@@ -85,7 +85,7 @@ export const SUGGESTION_CHIPS = [
   'Talk about stress',
 ];
 
-// ── Mood → recommended activity type mapping ──────────────────────────────────
+// ── Mood → recommended activity type mapping (fallback) ───────────────────────
 export const MOOD_TO_REC = {
   overwhelmed: { type: 'GROUNDING',   title: 'Grounding 5-4-3-2-1', durationMin: 3,  category: 'Anxiety',     icon: 'spa',              intensity: 'Gentle',     description: 'Anchor yourself in the present moment through your senses when everything feels too much.' },
   low:         { type: 'MINDFULNESS', title: 'Gentle Body Scan',    durationMin: 8,  category: 'Mindfulness', icon: 'self_improvement', intensity: 'Gentle',     description: 'Light, compassionate attention to how your body is feeling right now.' },
@@ -94,6 +94,290 @@ export const MOOD_TO_REC = {
   good:        { type: 'MEDITATION',  title: 'Morning Meditation',  durationMin: 10, category: 'Meditation',  icon: 'self_improvement', intensity: 'Moderate',   description: 'Deepen your positive state and set an intentional, grounded tone for the day.' },
   thriving:    { type: 'GRATITUDE',   title: 'Gratitude Practice',  durationMin: 7,  category: 'Journaling',  icon: 'edit_note',        intensity: 'Reflective', description: "Capture and amplify what is working — build on today's momentum." },
 };
+
+/**
+ * Multi-factor recommendation algorithm taking mood, energy, stress, and motivation into account.
+ * Returns an array of 3 tailored recommendations with reasons.
+ * @param {{ mood: string, energy: number, stress: number, motivation: number }} params
+ * @returns {Array<{ id: string, type: string, title: string, durationMin: number, category: string, icon: string, intensity: string, description: string, reason: string }>}
+ */
+export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, motivation = 5 }) {
+  const m = String(mood || 'neutral').toLowerCase();
+  const s = Number(stress || 5);
+  const e = Number(energy || 5);
+  const mot = Number(motivation || 5);
+
+  // 1. High Stress or Overwhelmed (Priority: Parasympathetic down-regulation & sensory grounding)
+  if (s >= 7 || m === 'overwhelmed') {
+    return [
+      {
+        id: 'rec_stress_1',
+        type: 'BREATHING',
+        title: '4-7-8 Breathing Reset',
+        durationMin: 4,
+        category: 'Breathwork',
+        icon: 'air',
+        intensity: 'Gentle',
+        reason: `Targeted for Stress ${s}/10`,
+        description: 'Activates the parasympathetic vagus nerve to rapidly slow heart rate and lower acute tension.',
+      },
+      {
+        id: 'rec_stress_2',
+        type: 'GROUNDING',
+        title: 'Grounding 5-4-3-2-1',
+        durationMin: 3,
+        category: 'Anxiety',
+        icon: 'spa',
+        intensity: 'Gentle',
+        reason: 'Sensory Anchor',
+        description: 'Anchors awareness into the physical present through sight, touch, and sound to halt stress spirals.',
+      },
+      {
+        id: 'rec_stress_3',
+        type: 'MINDFULNESS',
+        title: 'Shoulder & Jaw Release',
+        durationMin: 5,
+        category: 'Movement',
+        icon: 'fitness_center',
+        intensity: 'Gentle',
+        reason: 'Physical Decompression',
+        description: 'Releases stored cortisol and muscular tension in your neck, shoulders, and upper back.',
+      },
+    ];
+  }
+
+  // 2. Low Energy + High Stress (Exhausted / Burnout: Needs soothing deep rest)
+  if (e <= 4 && s >= 6) {
+    return [
+      {
+        id: 'rec_burnout_1',
+        type: 'MINDFULNESS',
+        title: 'Restorative Body Scan',
+        durationMin: 8,
+        category: 'Mindfulness',
+        icon: 'self_improvement',
+        intensity: 'Gentle',
+        reason: `Low Energy (${e}/10) & Stress (${s}/10)`,
+        description: 'A deeply resting guided scan to soothe emotional fatigue and replenish drained reserves.',
+      },
+      {
+        id: 'rec_burnout_2',
+        type: 'SLEEP_SOUND',
+        title: 'Nervous System Wind-down',
+        durationMin: 12,
+        category: 'Sleep',
+        icon: 'bedtime',
+        intensity: 'Restorative',
+        reason: 'Deep Recovery',
+        description: 'Warm soothing frequencies and ambient rain to quiet mental chatter and allow deep relaxation.',
+      },
+      {
+        id: 'rec_burnout_3',
+        type: 'MINDFULNESS',
+        title: 'Mindful Breathing Pause',
+        durationMin: 2,
+        category: 'Mindfulness',
+        icon: 'timer',
+        intensity: 'Light',
+        reason: 'Zero-Demand Reset',
+        description: 'A brief, effortless 2-minute breath pause that asks nothing of you except comfortable stillness.',
+      },
+    ];
+  }
+
+  // 3. Low Energy + Low/Moderate Stress (Fatigued / Foggy: Needs gentle oxygenation & renewal)
+  if (e <= 4 && s <= 5) {
+    return [
+      {
+        id: 'rec_lowe_1',
+        type: 'BREATHING',
+        title: 'Energizing Breath Awakening',
+        durationMin: 4,
+        category: 'Breathwork',
+        icon: 'air',
+        intensity: 'Light',
+        reason: `Recharge Low Energy (${e}/10)`,
+        description: 'Gentle oxygenating breaths to lift sluggish afternoon fatigue and clear mental fog without strain.',
+      },
+      {
+        id: 'rec_lowe_2',
+        type: 'MINDFULNESS',
+        title: 'Gentle Morning Stretch',
+        durationMin: 5,
+        category: 'Movement',
+        icon: 'directions_walk',
+        intensity: 'Light',
+        reason: 'Circulation Boost',
+        description: 'Subtle fluid movements to awaken your spine, unfreeze joints, and boost natural vitality.',
+      },
+      {
+        id: 'rec_lowe_3',
+        type: 'GRATITUDE',
+        title: 'Quiet Reflection & Reset',
+        durationMin: 6,
+        category: 'Journaling',
+        icon: 'edit_note',
+        intensity: 'Reflective',
+        reason: 'Mindful Clarity',
+        description: 'Reflective micro-prompts to regain clarity and reconnect with your personal rhythm.',
+      },
+    ];
+  }
+
+  // 4. Low Mood / Sadness (Needs compassionate support)
+  if (m === 'low') {
+    return [
+      {
+        id: 'rec_lowm_1',
+        type: 'MEDITATION',
+        title: 'Self-Compassion Meditation',
+        durationMin: 8,
+        category: 'Meditation',
+        icon: 'self_improvement',
+        intensity: 'Gentle',
+        reason: 'Compassionate Care',
+        description: 'A gentle, validating guided session offering warmth, space, and kindness to difficult emotions.',
+      },
+      {
+        id: 'rec_lowm_2',
+        type: 'MINDFULNESS',
+        title: 'Comforting Body Scan',
+        durationMin: 7,
+        category: 'Mindfulness',
+        icon: 'spa',
+        intensity: 'Gentle',
+        reason: 'Gentle Check-in',
+        description: 'Soft somatic attention to ground yourself gently without forcing positive feelings.',
+      },
+      {
+        id: 'rec_lowm_3',
+        type: 'BREATHING',
+        title: 'Calm Ocean Breath',
+        durationMin: 4,
+        category: 'Breathwork',
+        icon: 'air',
+        intensity: 'Gentle',
+        reason: 'Emotional Ease',
+        description: 'Rhythmic, oceanic breath cycles that create space and steady emotional equilibrium.',
+      },
+    ];
+  }
+
+  // 5. High Energy (Channeling vitality & flow)
+  if (e >= 7 && s <= 6) {
+    return [
+      {
+        id: 'rec_highe_1',
+        type: 'FOCUS',
+        title: 'Focused Flow Session',
+        durationMin: 10,
+        category: 'Focus',
+        icon: 'target',
+        intensity: 'Moderate',
+        reason: `High Energy (${e}/10)`,
+        description: 'Lock into deep, uninterrupted focus and channel your high vitality into meaningful progress.',
+      },
+      {
+        id: 'rec_highe_2',
+        type: 'MEDITATION',
+        title: 'Clarity & Intention Meditation',
+        durationMin: 7,
+        category: 'Meditation',
+        icon: 'self_improvement',
+        intensity: 'Moderate',
+        reason: 'Peak Alignment',
+        description: 'Structure your day with razor-sharp mental alignment and purposeful intentionality.',
+      },
+      {
+        id: 'rec_highe_3',
+        type: 'MINDFULNESS',
+        title: 'Dynamic Mindful Movement',
+        durationMin: 8,
+        category: 'Movement',
+        icon: 'directions_walk',
+        intensity: 'Active',
+        reason: 'Physical Channeling',
+        description: 'Active movement flow to ground physical energy and elevate body awareness.',
+      },
+    ];
+  }
+
+  // 6. Good / Thriving Mood
+  if (m === 'thriving' || m === 'good') {
+    return [
+      {
+        id: 'rec_thrive_1',
+        type: 'GRATITUDE',
+        title: 'Gratitude Anchor Practice',
+        durationMin: 7,
+        category: 'Journaling',
+        icon: 'edit_note',
+        intensity: 'Reflective',
+        reason: 'Amplify Momentum',
+        description: 'Capture what is going right today to build resilience and anchor your positive momentum.',
+      },
+      {
+        id: 'rec_thrive_2',
+        type: 'MEDITATION',
+        title: 'Spacious Presence Meditation',
+        durationMin: 10,
+        category: 'Meditation',
+        icon: 'self_improvement',
+        intensity: 'Moderate',
+        reason: 'Deepen Joy',
+        description: 'An open-awareness practice to expand your state of wellbeing and inner harmony.',
+      },
+      {
+        id: 'rec_thrive_3',
+        type: 'RELAXATION_MUSIC',
+        title: '432Hz Sound Bath Resonance',
+        durationMin: 12,
+        category: 'Sound Bath',
+        icon: 'music_note',
+        intensity: 'Restorative',
+        reason: 'Harmonic Alignment',
+        description: 'Harmonic tuning frequencies to soak in feeling good and ground your day.',
+      },
+    ];
+  }
+
+  // 7. Balanced / Neutral State (Default)
+  return [
+    {
+      id: 'rec_balanced_1',
+      type: 'MINDFULNESS',
+      title: 'Mindful Equilibrium Reset',
+      durationMin: 5,
+      category: 'Mindfulness',
+      icon: 'self_improvement',
+      intensity: 'Light',
+      reason: 'Centered Balance',
+      description: 'A brief, centered reflection to harmonize your energy and focus for the rest of the day.',
+    },
+    {
+      id: 'rec_balanced_2',
+      type: 'BREATHING',
+      title: 'Box Breathing 4-4-4-4',
+      durationMin: 4,
+      category: 'Breathwork',
+      icon: 'air',
+      intensity: 'Light',
+      reason: 'Mental Clarity',
+      description: 'The proven 4-part breath cycle used by athletes and leaders to sharpen mental composure.',
+    },
+    {
+      id: 'rec_balanced_3',
+      type: 'GRATITUDE',
+      title: 'Daily Intentions Journal',
+      durationMin: 6,
+      category: 'Journaling',
+      icon: 'edit_note',
+      intensity: 'Reflective',
+      reason: 'Purposeful Focus',
+      description: 'Quick thoughtful prompts to define what truly matters today and let go of the rest.',
+    },
+  ];
+}
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 const LOG_KEY      = 'mw_activity_log';

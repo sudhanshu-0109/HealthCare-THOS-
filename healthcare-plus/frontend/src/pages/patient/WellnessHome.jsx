@@ -15,7 +15,7 @@
  *   - Each Quick Reset card drives its own timer via `durationMin` from the static config
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
 import * as mhService from '../../services/mentalHealth.service';
@@ -24,8 +24,8 @@ import {
   MOODS,
   QUICK_RESET,
   CATEGORIES,
-  MOOD_TO_REC,
   CATEGORY_ICONS,
+  getPersonalizedRecommendations,
   appendActivityLog,
   saveCheckIn,
   loadTodayCheckIn,
@@ -107,6 +107,7 @@ export default function WellnessHome() {
   // item.duration MUST be in MINUTES (ActivityPlayer multiplies by 60 internally)
   const [activeItem, setActiveItem] = useState(null);
   const activityStartRef = useRef(null); // ISO string of when player was opened
+  const [recIndex, setRecIndex] = useState(0);
 
   // ── Sync check-in state with API on mount ──────────────────────────────
   // localStorage is already loaded as initial state (survives refresh).
@@ -131,6 +132,7 @@ export default function WellnessHome() {
               mood:        found?.id ?? latest.mood,
               moodScore:   latest.moodScore,
               energy:      latest.energy ?? energy,
+              stress:      latest.stressLevel ?? latest.stress ?? stress,
               stressLevel: latest.stressLevel ?? latest.stress ?? stress,
               motivation:  latest.motivation ?? motivation,
             });
@@ -189,6 +191,7 @@ export default function WellnessHome() {
       mood:        selectedMood,
       moodScore:   MOODS.find(m => m.id === selectedMood)?.score ?? 3,
       energy,
+      stress,
       stressLevel: stress,
       motivation,
     };
@@ -247,8 +250,17 @@ export default function WellnessHome() {
     }).catch(() => {});
   };
 
-  // ── Derived ──────────────────────────────────────────────────────────────
-  const rec         = selectedMood ? MOOD_TO_REC[selectedMood] : null;
+  // ── Derived dynamic recommendations based on mood, energy, stress, motivation ──
+  const recommendations = useMemo(() => {
+    return getPersonalizedRecommendations({
+      mood: selectedMood || loadTodayCheckIn()?.mood || 'neutral',
+      energy,
+      stress,
+      motivation,
+    });
+  }, [selectedMood, energy, stress, motivation]);
+
+  const rec = recommendations[recIndex % recommendations.length] || recommendations[0];
   const currentMood = MOODS.find(m => m.id === selectedMood);
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -382,47 +394,87 @@ export default function WellnessHome() {
               </div>
             ) : (
               <>
-                <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-[#006a67]/5" />
-                <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full bg-[#ffdbca]/40" />
+                <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-[#006a67]/5 pointer-events-none" />
+                <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full bg-[#ffdbca]/40 pointer-events-none" />
 
-                <div className="relative">
-                  <p className="text-[10px] font-bold text-[#006a67] uppercase tracking-widest font-display mb-3">
-                    Recommended for you
-                  </p>
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-[#006a67]/10 flex items-center justify-center flex-shrink-0">
-                      <span className="material-symbols-outlined text-[#006a67]">{rec.icon}</span>
+                <div className="relative flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <p className="text-[10px] font-bold text-[#006a67] uppercase tracking-widest font-display">
+                        Recommended for you
+                      </p>
+                      {rec.reason && (
+                        <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-2.5 py-0.5 rounded-full font-display">
+                          {rec.reason}
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <h3 className="font-display font-bold text-[#171d1c] text-xl leading-tight">{rec.title}</h3>
-                      <p className="text-sm text-[#3c4948] mt-1 leading-relaxed">{rec.description}</p>
+
+                    <div className="flex items-start gap-4 mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-[#006a67]/10 flex items-center justify-center flex-shrink-0">
+                        <span className="material-symbols-outlined text-[#006a67]">{rec.icon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-display font-bold text-[#171d1c] text-xl leading-tight">{rec.title}</h3>
+                        <p className="text-sm text-[#3c4948] mt-1 leading-relaxed">{rec.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {[`${rec.durationMin} min`, rec.category, rec.intensity].map((tag) => (
+                        <span key={tag} className="text-xs font-medium text-[#3c4948] bg-[#e9efee] px-3 py-1.5 rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Mini alternative option selector pills */}
+                    <div className="mb-4">
+                      <p className="text-[11px] text-[#3c4948] font-medium mb-1.5">Tailored options for your state:</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {recommendations.map((item, idx) => {
+                          const isActive = (recIndex % recommendations.length) === idx;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => setRecIndex(idx)}
+                              className={`text-left p-2 rounded-xl transition-all border text-xs flex flex-col justify-between ${
+                                isActive
+                                  ? 'border-[#006a67] bg-[#006a67]/10 shadow-xs'
+                                  : 'border-[#e4e9e8] bg-white/70 hover:bg-[#e9efee]'
+                              }`}
+                            >
+                              <span className="font-display font-semibold text-[#171d1c] truncate">{item.title}</span>
+                              <span className="text-[10px] text-[#3c4948] mt-0.5">{item.durationMin}m · {item.category}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 mb-5">
-                    {[`${rec.durationMin} min`, rec.category, rec.intensity].map((tag) => (
-                      <span key={tag} className="text-xs font-medium text-[#3c4948] bg-[#e9efee] px-3 py-1.5 rounded-full">
-                        {tag}
-                      </span>
-                    ))}
+
+                  <div>
+                    <button
+                      onClick={() => openActivity({
+                        type:        rec.type,
+                        title:       rec.title,
+                        durationMin: rec.durationMin,
+                        category:    rec.category,
+                        icon:        rec.icon,
+                      })}
+                      className="w-full mw-btn-primary"
+                    >
+                      Begin Now · {rec.durationMin} min
+                    </button>
+                    <button
+                      onClick={() => setRecIndex((prev) => (prev + 1) % recommendations.length)}
+                      className="w-full mt-2 text-[#006a67] text-sm font-medium py-1.5 hover:underline font-display flex items-center justify-center gap-1"
+                    >
+                      <span>Show other options</span>
+                      <span className="text-xs text-[#3c4948]">({(recIndex % recommendations.length) + 1} of {recommendations.length})</span>
+                      <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => openActivity({
-                      type:        rec.type,
-                      title:       rec.title,
-                      durationMin: rec.durationMin,
-                      category:    rec.category,
-                      icon:        rec.icon,
-                    })}
-                    className="w-full mw-btn-primary"
-                  >
-                    Begin Now · {rec.durationMin} min
-                  </button>
-                  <button
-                    onClick={() => setSelectedMood(null)}
-                    className="w-full mt-2.5 text-[#006a67] text-sm font-medium py-2 hover:underline"
-                  >
-                    Show other options
-                  </button>
                 </div>
               </>
             )}
