@@ -421,11 +421,21 @@ export default function WellnessHome() {
                     </span>
                     <p className="text-xs text-[#204a48] leading-relaxed">
                       {stress >= 7
-                        ? 'Elevated tension detected. We prioritized vagal breathwork and somatic release on the right to decompress your body.'
+                        ? `Elevated tension (${stress}/10) detected. We prioritized vagal breathwork and somatic release on the right to decompress your body.`
+                        : (motivation <= 4 && energy >= 6)
+                        ? `High physical energy (${energy}/10) with low motivation (${motivation}/10) detected. We tailored your recommendations to break inertia with an effortless micro-step rather than demanding big tasks.`
+                        : (motivation <= 4 && stress >= 6)
+                        ? `Low motivation (${motivation}/10) paired with elevated stress (${stress}/10) detected. We prioritized tension relief first to remove the subconscious paralysis blocking your drive.`
+                        : (motivation <= 4 && energy <= 4)
+                        ? `Both energy (${energy}/10) and motivation (${motivation}/10) are depleted today. We selected zero-demand restorative care so you can recharge without pressure.`
+                        : motivation <= 4
+                        ? `Lower motivation (${motivation}/10) detected. We selected low-barrier momentum sessions to spark your drive without overwhelm.`
+                        : stress >= 6
+                        ? `Elevated stress (${stress}/10) detected. We prioritized parasympathetic down-regulation on the right to restore inner ease.`
                         : energy <= 4
-                        ? 'Low energy reserves detected. Prioritize gentle restorative recovery over high demands today.'
-                        : energy >= 7 && stress <= 5
-                        ? 'High vitality and steady calm. Ideal window for creative focus and intentional work.'
+                        ? `Low energy reserves (${energy}/10) detected. Prioritize gentle restorative pauses over high demands today.`
+                        : energy >= 7 && motivation >= 6 && stress <= 5
+                        ? `High vitality (${energy}/10) and steady motivation (${motivation}/10)! Prime window for deep creative focus and intentional progress.`
                         : 'Your daily state has been recorded. Personal recommendations on the right are aligned with your balance.'}
                     </p>
                   </div>

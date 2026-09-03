@@ -32,24 +32,48 @@ import {
 
 // ── Smart fallback intent & exercise recommendation matcher ──────────────────
 
-function getExerciseRecommendation(userText) {
+function getExerciseRecommendation(userText, checkIn) {
   const text = (userText || '').toLowerCase();
-  if (text.includes('anxious') || text.includes('anxiety') || text.includes('panic') || text.includes('overwhelm') || text.includes('stress') || text.includes('nervous')) {
+  const mot = Number(checkIn?.motivation ?? 5);
+  const str = Number(checkIn?.stressLevel ?? checkIn?.stress ?? 5);
+  const ene = Number(checkIn?.energy ?? 5);
+
+  // 1. Motivation / Procrastination / Inertia / Stuck
+  if (text.includes('motivat') || text.includes('procrastinat') || text.includes('lazy') || text.includes('stuck') || text.includes('inertia') || text.includes('drive') || text.includes('start')) {
+    const prefix = checkIn ? `I hear you completely. Looking at your live check-in, your motivation is currently sitting at **${mot}/10**${ene >= 6 ? ` while your physical energy is high (${ene}/10)` : ''}. When motivation is low, demanding big results triggers cognitive resistance.` : "When motivation drops, forcing yourself to take on massive tasks only creates resistance.";
     return {
-      reply: "I understand how overwhelming stress and anxiety can feel. You don't have to carry this alone. Grounding yourself in the immediate present can help interrupt the spiral — I've prepared a 3-minute exercise for you below.",
+      reply: `${prefix}\n\nThe secret is taking one low-barrier micro-step to dissolve inertia and spark dopamine. I've set up this 5-minute momentum reset for you below:`,
       recommendations: [{
-        id: 'rec_gr',
-        title: 'Grounding 5-4-3-2-1',
-        type: 'GROUNDING',
-        durationMin: 3,
-        category: 'Anxiety',
-        icon: 'spa',
+        id: 'rec_mot_ignite',
+        title: 'Overcoming Inertia: Micro-Momentum',
+        type: 'FOCUS',
+        durationMin: 5,
+        category: 'Focus',
+        icon: 'target',
       }],
     };
   }
-  if (text.includes('sleep') || text.includes('insomnia') || text.includes('tired') || text.includes('night') || text.includes('bed')) {
+
+  // 2. Anxiety / Stress / Overwhelm / Panic
+  if (text.includes('anxious') || text.includes('anxiety') || text.includes('panic') || text.includes('overwhelm') || text.includes('stress') || text.includes('nervous') || text.includes('tension')) {
+    const stressNote = checkIn ? ` I see your tension level is logged at **${str}/10** today, which can trigger fight-or-flight reactions that cloud clarity.` : '';
     return {
-      reply: "Winding down before sleep is so important. Giving your nervous system a signal that it's safe to power down can help quiet racing thoughts.",
+      reply: `I understand how exhausting stress and anxiety can feel.${stressNote} You don't have to carry this alone. Grounding your nervous system right now will help stop the cortisol spiral — try this exercise below:`,
+      recommendations: [{
+        id: 'rec_gr',
+        title: str >= 7 ? '4-7-8 Breathing Reset' : 'Grounding 5-4-3-2-1',
+        type: str >= 7 ? 'BREATHING' : 'GROUNDING',
+        durationMin: str >= 7 ? 4 : 3,
+        category: str >= 7 ? 'Breathwork' : 'Anxiety',
+        icon: str >= 7 ? 'air' : 'spa',
+      }],
+    };
+  }
+
+  // 3. Sleep / Tired / Night
+  if (text.includes('sleep') || text.includes('insomnia') || text.includes('tired') || text.includes('night') || text.includes('bed') || text.includes('rest')) {
+    return {
+      reply: "Winding down before sleep is essential for nervous system restoration. Giving your mind a signal that it's safe to power down can quiet racing thoughts.",
       recommendations: [{
         id: 'rec_sl',
         title: 'Sleep Wind-down Session',
@@ -60,6 +84,8 @@ function getExerciseRecommendation(userText) {
       }],
     };
   }
+
+  // 4. Breathwork / Reset / Box breathing
   if (text.includes('breath') || text.includes('reset') || text.includes('calm') || text.includes('box') || text.includes('inhale')) {
     return {
       reply: "Controlled breathing is one of the fastest ways to activate your body's relaxation response. Let's do a 4-7-8 breathing session together.",
@@ -73,7 +99,9 @@ function getExerciseRecommendation(userText) {
       }],
     };
   }
-  if (text.includes('meditat') || text.includes('mindful') || text.includes('focus') || text.includes('peace')) {
+
+  // 5. Meditation / Mindfulness / Peace
+  if (text.includes('meditat') || text.includes('mindful') || text.includes('peace') || text.includes('center')) {
     return {
       reply: "Taking even a few quiet minutes creates space between what you feel and how you respond. Here is a centered 10-minute meditation session.",
       recommendations: [{
@@ -86,12 +114,14 @@ function getExerciseRecommendation(userText) {
       }],
     };
   }
-  if (text.includes('journal') || text.includes('gratitude') || text.includes('write') || text.includes('reflect') || text.includes('week')) {
+
+  // 6. Journaling / Gratitude / Purpose / Reflect
+  if (text.includes('journal') || text.includes('gratitude') || text.includes('write') || text.includes('reflect') || text.includes('purpose')) {
     return {
-      reply: "Reflecting on small positive anchors can shift how you carry your day. Try this guided 7-minute gratitude reflection.",
+      reply: "Reflecting on small positive anchors can shift how you carry your day and reconnect you with your intrinsic purpose. Try this guided 7-minute practice.",
       recommendations: [{
         id: 'rec_grt',
-        title: 'Gratitude Reflection',
+        title: 'Gratitude & Purpose Reflection',
         type: 'GRATITUDE',
         durationMin: 7,
         category: 'Journaling',
@@ -99,9 +129,11 @@ function getExerciseRecommendation(userText) {
       }],
     };
   }
-  if (text.includes('stretch') || text.includes('tension') || text.includes('body') || text.includes('shoulder') || text.includes('walk')) {
+
+  // 7. Movement / Stretch / Shoulder
+  if (text.includes('stretch') || text.includes('body') || text.includes('shoulder') || text.includes('walk') || text.includes('exercise')) {
     return {
-      reply: "Physical tension often mirrors emotional strain. Taking 5 minutes for a gentle physical release will help unburden your body.",
+      reply: "Physical tension often mirrors emotional strain. Taking 5 minutes for gentle somatic movement will help release accumulated stress.",
       recommendations: [{
         id: 'rec_mv',
         title: 'Shoulder & Body Release',
@@ -115,12 +147,32 @@ function getExerciseRecommendation(userText) {
   return null;
 }
 
-// Fallback general responses
-const GENERAL_AI_RESPONSES = [
-  "Thank you for sharing that with me. Acknowledging how you feel is always the first step. Would you like to try a calming breathing exercise together right now?",
-  "I hear you. Whatever you're experiencing is completely valid. Taking a mindful moment can help bring balance back.",
-  "Your awareness of what's going on inside is powerful. Small, consistent moments of rest help rebuild resilience.",
-];
+// State-aware fallback general AI responses
+function getGeneralAiResponse(checkIn, idx = 0) {
+  const mot = Number(checkIn?.motivation ?? 5);
+  const str = Number(checkIn?.stressLevel ?? checkIn?.stress ?? 5);
+  const ene = Number(checkIn?.energy ?? 5);
+
+  if (mot <= 4 && ene >= 6) {
+    return `Thank you for sharing that with me. I see you have high physical energy (${ene}/10) today, but motivation is feeling low (${mot}/10). When you're feeling unmotivated, break your next task down to the absolute smallest 2-minute step. Would you like to try a quick focus reset below?`;
+  }
+  if (mot <= 4) {
+    return `I hear you. With your motivation logged at ${mot}/10 today, remember that you don't need to force peak productivity. Doing just one micro-task is more than enough to maintain momentum. How can I support you right now?`;
+  }
+  if (str >= 6) {
+    return `Thank you for checking in with me. Your stress level is elevated today (${str}/10). Remember that taking a slow, deep breath right now will signal to your nervous system that you are safe. Let's do a quick breathing reset whenever you are ready.`;
+  }
+  if (ene <= 4) {
+    return `I hear you. With energy at ${ene}/10 today, giving your mind and body permission to rest is the most productive choice you can make. How are you feeling physically?`;
+  }
+
+  const responses = [
+    "Thank you for sharing that with me. Acknowledging how you feel is always the first step. Would you like to try a calming breathing exercise together right now?",
+    "I hear you. Whatever you're experiencing is completely valid. Taking a mindful moment can help bring balance back.",
+    "Your awareness of what's going on inside is powerful. Small, consistent moments of rest help rebuild resilience.",
+  ];
+  return responses[idx % responses.length];
+}
 
 // ── BreathingWidget ───────────────────────────────────────────────────────────
 
@@ -206,12 +258,12 @@ function LiveContext({ lastCheckIn }) {
   );
 
   const moodLabel = moodObj?.label || (typeof lastCheckIn?.mood === 'string' ? lastCheckIn.mood : 'Good');
-  const moodEmoji = moodObj?.emoji || '😊';
   const moodScore = moodObj?.score || lastCheckIn?.moodScore || 4;
   const moodBar   = Math.min(100, Math.max(15, Math.round((moodScore / 6) * 100)));
 
   const energy = Number(lastCheckIn?.energy ?? 5);
   const stress = Number(lastCheckIn?.stressLevel ?? lastCheckIn?.stress ?? 5);
+  const motivation = Number(lastCheckIn?.motivation ?? 5);
   const hasCheckIn = !!lastCheckIn;
 
   return (
@@ -229,9 +281,10 @@ function LiveContext({ lastCheckIn }) {
       {hasCheckIn ? (
         <div className="space-y-3">
           {[
-            { label: 'Mood',   value: moodLabel,      icon: moodObj?.icon || 'balance', isMat: true,  bar: moodBar,     color: 'bg-[#006a67]' },
-            { label: 'Energy', value: `${energy}/10`, icon: 'bolt',                     isMat: true,  bar: energy * 10, color: 'bg-[#5bd9d3]' },
-            { label: 'Stress', value: `${stress}/10`, icon: 'cyclone',                  isMat: true,  bar: stress * 10, color: 'bg-[#ddc39c]' },
+            { label: 'Mood',       value: moodLabel,          icon: moodObj?.icon || 'balance', isMat: true,  bar: moodBar,          color: 'bg-[#006a67]' },
+            { label: 'Energy',     value: `${energy}/10`,     icon: 'bolt',                     isMat: true,  bar: energy * 10,      color: 'bg-amber-500' },
+            { label: 'Stress',     value: `${stress}/10`,     icon: 'cyclone',                  isMat: true,  bar: stress * 10,      color: 'bg-rose-500' },
+            { label: 'Motivation', value: `${motivation}/10`, icon: 'target',                   isMat: true,  bar: motivation * 10,  color: 'bg-teal-600' },
           ].map((item) => (
             <div key={item.label}>
               <div className="flex items-center justify-between mb-1">
@@ -251,6 +304,26 @@ function LiveContext({ lastCheckIn }) {
               </div>
             </div>
           ))}
+
+          {/* Dynamic Need & Target Focus Banner */}
+          <div className="mt-3.5 pt-3 border-t border-[#e4e9e8]">
+            <div className="flex items-start gap-2 p-2.5 rounded-xl bg-[#eef7f6] border border-[#d3ebe8]">
+              <span className="material-symbols-outlined text-[#006a67] text-[16px] mt-0.5 flex-shrink-0">
+                psychology
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#006a67] font-display">Target Focus</p>
+                <p className="text-xs text-[#204a48] font-medium leading-tight mt-0.5">
+                  {stress >= 7 ? 'High Stress Decompression'
+                    : (motivation <= 4 && energy >= 6) ? 'Dissolving Inertia & Sparking Drive'
+                    : (motivation <= 4 && stress >= 6) ? 'Stress & Avoidance Reset'
+                    : motivation <= 4 ? 'Gentle Motivation Spark'
+                    : energy <= 4 ? 'Restorative Energy Recharge'
+                    : 'Peak Flow & Alignment'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="text-center py-2">
@@ -320,6 +393,7 @@ export function buildContextualGreeting({ checkIn, firstName = 'there', recentAc
     const moodId = (moodObj?.id || String(checkIn.mood || '')).toLowerCase();
     const stress = Number(checkIn.stressLevel ?? checkIn.stress ?? 5);
     const energy = Number(checkIn.energy ?? 5);
+    const motivation = Number(checkIn.motivation ?? 5);
 
     // Case 1A: High Stress or Overwhelmed
     if (stress >= 7 || moodId === 'overwhelmed') {
@@ -339,7 +413,97 @@ export function buildContextualGreeting({ checkIn, firstName = 'there', recentAc
       };
     }
 
-    // Case 1B: Low Energy + Moderate/High Stress (Burnout/Depleted)
+    // Case 1B: Low Motivation with High Energy (Kinetic Restlessness / Inertia — e.g. Energy 9/10, Motivation 4/10)
+    if (motivation <= 4 && energy >= 6) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Good ${timeOfDay}, ${firstName}! ✨ I reviewed your live check-in: you have strong physical vitality (**${energy}/10**), but your motivation is currently running low (**${motivation}/10**) alongside some tension (**${stress}/10**).\n\nWhen your body has kinetic energy but your mental drive feels resistant or blocked, forcing large tasks creates friction. I've set up this 5-minute Micro-Momentum reset to dissolve inertia and channel your energy into gentle, effortless focus:`,
+        recommendations: [{
+          id: 'rec_inertia_init',
+          title: 'Overcoming Inertia: Micro-Momentum',
+          type: 'FOCUS',
+          durationMin: 5,
+          category: 'Focus',
+          icon: 'target',
+        }],
+      };
+    }
+
+    // Case 1C: Low Motivation with Moderate/High Stress (Stress-induced Avoidance / Freeze)
+    if (motivation <= 4 && stress >= 6) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Hello ${firstName}. Looking at your check-in, stress is elevated (**${stress}/10**) while your motivation is low (**${motivation}/10**). When nervous tension is high, the brain often enters a subconscious avoidance freeze that blocks motivation.\n\nLet's not force high productivity right now. Let's first decompress the stress so your natural drive can return:`,
+        recommendations: [{
+          id: 'rec_stress_mot_init',
+          title: '4-7-8 Breathing & Stress Relief',
+          type: 'BREATHING',
+          durationMin: 4,
+          category: 'Breathwork',
+          icon: 'air',
+        }],
+      };
+    }
+
+    // Case 1D: Low Motivation with Low Energy (Depleted / Burnout)
+    if (motivation <= 4 && energy <= 4) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Good ${timeOfDay}, ${firstName} 🌿. Both your energy (**${energy}/10**) and motivation (**${motivation}/10**) are depleted right now. That's a clear signal from your body that you need genuine restoration, not self-criticism.\n\nHere is a zero-pressure mindful pause that asks nothing of you:`,
+        recommendations: [{
+          id: 'rec_depleted_init',
+          title: 'Zero-Pressure Mindful Pause',
+          type: 'MINDFULNESS',
+          durationMin: 3,
+          category: 'Mindfulness',
+          icon: 'timer',
+        }],
+      };
+    }
+
+    // Case 1E: Low Motivation alone
+    if (motivation <= 4) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Hi ${firstName}. Your check-in shows your motivation is sitting lower today (**${motivation}/10**). Overcoming a motivation dip is all about taking one tiny, frictionless step without big expectations. Let's spark your momentum with this 5-minute session:`,
+        recommendations: [{
+          id: 'rec_mot_init',
+          title: 'Sparking Motivation: 1-Step Reset',
+          type: 'FOCUS',
+          durationMin: 5,
+          category: 'Focus',
+          icon: 'target',
+        }],
+      };
+    }
+
+    // Case 1F: Elevated Stress alone
+    if (stress >= 6) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Good ${timeOfDay}, ${firstName}. You're carrying an elevated stress level today (**${stress}/10**). Taking 4 minutes now to down-regulate your nervous system will relieve physical tension and clear your mind:`,
+        recommendations: [{
+          id: 'rec_stress_relief_init',
+          title: '4-7-8 Breathing Reset',
+          type: 'BREATHING',
+          durationMin: 4,
+          category: 'Breathwork',
+          icon: 'air',
+        }],
+      };
+    }
+
+    // Case 1G: Low Energy + Moderate/High Stress (Burnout/Depleted)
     if (energy <= 4 && stress >= 6) {
       return {
         id: 'greeting_contextual',
@@ -357,7 +521,7 @@ export function buildContextualGreeting({ checkIn, firstName = 'there', recentAc
       };
     }
 
-    // Case 1C: Low Energy + Low/Moderate Stress (Fatigued / Sleepy)
+    // Case 1H: Low Energy + Low/Moderate Stress (Fatigued / Sleepy)
     if (energy <= 4 && stress <= 5) {
       return {
         id: 'greeting_contextual',
@@ -375,7 +539,7 @@ export function buildContextualGreeting({ checkIn, firstName = 'there', recentAc
       };
     }
 
-    // Case 1D: Low Mood (Sadness / Heavy Heart)
+    // Case 1I: Low Mood (Sadness / Heavy Heart)
     if (moodId === 'low') {
       return {
         id: 'greeting_contextual',
@@ -393,13 +557,13 @@ export function buildContextualGreeting({ checkIn, firstName = 'there', recentAc
       };
     }
 
-    // Case 1E: High Energy & Balanced Stress (Vitality & Flow)
-    if (energy >= 7 && stress <= 5) {
+    // Case 1J: High Energy & High Motivation (Vitality & Flow)
+    if (energy >= 7 && motivation >= 6 && stress <= 5) {
       return {
         id: 'greeting_contextual',
         role: 'ai',
         time,
-        text: `Good ${timeOfDay}, ${firstName}! ⚡ I see great vitality in your check-in today — energy at **${energy}/10** with calm composure. You have fantastic momentum for creative focus or meaningful reflection.\n\nWhat would you like to explore or focus on together? Or tap below to lock into a deep focus flow:`,
+        text: `Good ${timeOfDay}, ${firstName}! ⚡ I see great vitality in your check-in today — energy at **${energy}/10** and motivation at **${motivation}/10** with calm composure. You have fantastic momentum for deep focus.\n\nWhat would you like to accomplish together? Or tap below to lock into a deep focus flow:`,
         recommendations: [{
           id: 'rec_highe_init',
           title: 'Focused Flow Session',
@@ -411,13 +575,13 @@ export function buildContextualGreeting({ checkIn, firstName = 'there', recentAc
       };
     }
 
-    // Case 1F: Good / Thriving
-    if (moodId === 'good' || moodId === 'thriving') {
+    // Case 1K: Good / Thriving
+    if ((moodId === 'good' || moodId === 'thriving') && stress <= 5 && motivation >= 5) {
       return {
         id: 'greeting_contextual',
         role: 'ai',
         time,
-        text: `Welcome back ${firstName}! ✨ Your check-in reflects a **${moodLabel}** state with positive energy (${energy}/10). Anchoring the moments that lift you up creates lasting resilience.\n\nWhat has brought lightness to your day so far? You can also ground this positive state with a quick gratitude reflection:`,
+        text: `Welcome back ${firstName}! ✨ Your check-in reflects a **${moodLabel}** state with positive energy (${energy}/10) and steady motivation (${motivation}/10). Anchoring the moments that lift you up creates lasting resilience.\n\nWhat has brought lightness to your day so far? You can also ground this positive state with a quick gratitude reflection:`,
         recommendations: [{
           id: 'rec_thrive_init',
           title: 'Gratitude Anchor Practice',
@@ -429,12 +593,12 @@ export function buildContextualGreeting({ checkIn, firstName = 'there', recentAc
       };
     }
 
-    // Case 1G: Neutral / Steady (Default with check-in)
+    // Case 1L: Neutral / Steady (Default with check-in)
     return {
       id: 'greeting_contextual',
       role: 'ai',
       time,
-      text: `Hi ${firstName} 🌿. I reviewed your state log: you're in a **${moodLabel}** equilibrium today (Energy: ${energy}/10, Stress: ${stress}/10).\n\nI'm ready whenever you are — whether you'd like to reflect on your day, process a thought, or take a quick mental reset:`,
+      text: `Hi ${firstName} 🌿. I reviewed your state log: you're in a **${moodLabel}** equilibrium today (Energy: ${energy}/10, Stress: ${stress}/10, Motivation: ${motivation}/10).\n\nI'm ready whenever you are — whether you'd like to reflect on your day, process a thought, or take a quick mental reset:`,
       recommendations: [{
         id: 'rec_neutral_init',
         title: 'Mindful Equilibrium Reset',
@@ -689,7 +853,7 @@ export default function WellnessCompanion() {
         setMessages(prev => [...prev, {
           id:   `a${Date.now()}`,
           role: 'ai',
-          text: aiText || GENERAL_AI_RESPONSES[responseIdx.current % GENERAL_AI_RESPONSES.length],
+          text: aiText || getGeneralAiResponse(lastCheckIn, responseIdx.current),
           recommendations: Array.isArray(recs) ? recs : [],
           time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         }]);
@@ -703,8 +867,8 @@ export default function WellnessCompanion() {
     // Smart fallback mode with interactive exercise recommendations
     setTimeout(() => {
       setIsTyping(false);
-      const match = getExerciseRecommendation(trimmedText);
-      const replyText = match?.reply ?? GENERAL_AI_RESPONSES[responseIdx.current % GENERAL_AI_RESPONSES.length];
+      const match = getExerciseRecommendation(trimmedText, lastCheckIn);
+      const replyText = match?.reply ?? getGeneralAiResponse(lastCheckIn, responseIdx.current);
       const recs = match?.recommendations ?? [{
         id: `rec_fallback_${Date.now()}`,
         title: '4-7-8 Breathing',

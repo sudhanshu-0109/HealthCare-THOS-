@@ -151,17 +151,18 @@ export const MOOD_TO_REC = {
 
 /**
  * Multi-factor recommendation algorithm taking mood, energy, stress, and motivation into account.
+ * Prioritizes resolving suboptimal states (low motivation, high stress, low energy) with tailored exercises.
  * Returns an array of 3 tailored recommendations with reasons.
  * @param {{ mood: string, energy: number, stress: number, motivation: number }} params
  * @returns {Array<{ id: string, type: string, title: string, durationMin: number, category: string, icon: string, intensity: string, description: string, reason: string }>}
  */
 export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, motivation = 5 }) {
   const m = String(mood || 'neutral').toLowerCase();
-  const s = Number(stress || 5);
-  const e = Number(energy || 5);
-  const mot = Number(motivation || 5);
+  const s = Number(stress ?? 5);
+  const e = Number(energy ?? 5);
+  const mot = Number(motivation ?? 5);
 
-  // 1. High Stress or Overwhelmed (Priority: Parasympathetic down-regulation & sensory grounding)
+  // 1. Acute Stress or Overwhelm (s >= 7 or mood overwhelmed)
   if (s >= 7 || m === 'overwhelmed') {
     return [
       {
@@ -200,7 +201,205 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
     ];
   }
 
-  // 2. Low Energy + High Stress (Exhausted / Burnout: Needs soothing deep rest)
+  // 2. Low Motivation with High Energy (Kinetic Restlessness / Inertia: mot <= 4 & e >= 6)
+  // (e.g. Energy 9/10, Motivation 4/10 — Body has energy, but mental drive is blocked or overwhelmed)
+  if (mot <= 4 && e >= 6) {
+    return [
+      {
+        id: 'rec_inertia_1',
+        type: 'FOCUS',
+        title: 'Overcoming Inertia: Micro-Momentum Reset',
+        durationMin: 5,
+        category: 'Focus',
+        icon: 'target',
+        intensity: 'Light',
+        reason: `Low Motivation (${mot}/10) · High Energy (${e}/10)`,
+        description: 'Channels physical vitality into one effortless micro-action, dissolving mental resistance without pressure.',
+      },
+      {
+        id: 'rec_inertia_2',
+        type: 'GRATITUDE',
+        title: 'Purpose & Momentum Journal',
+        durationMin: 6,
+        category: 'Journaling',
+        icon: 'edit_note',
+        intensity: 'Reflective',
+        reason: 'Ignite Intrinsic Motivation',
+        description: '3 guided prompts to reconnect with your genuine purpose and spark motivation from the inside out.',
+      },
+      {
+        id: 'rec_inertia_3',
+        type: 'MINDFULNESS',
+        title: s >= 6 ? 'Stress Release & Breath Pause' : 'Kinetic Stretch & Reset',
+        durationMin: s >= 6 ? 4 : 5,
+        category: s >= 6 ? 'Breathwork' : 'Movement',
+        icon: s >= 6 ? 'air' : 'fitness_center',
+        intensity: 'Gentle',
+        reason: s >= 6 ? `Decompress Stress (${s}/10)` : 'Channel Physical Energy',
+        description: s >= 6
+          ? 'Down-regulates nervous system tension that may be subconsciously blocking your motivation.'
+          : 'Shakes off mental stagnation through active stretching to awaken your focus.',
+      },
+    ];
+  }
+
+  // 3. Low Motivation with Moderate/High Stress (Stress-Induced Avoidance / Freeze: mot <= 4 & s >= 6)
+  if (mot <= 4 && s >= 6) {
+    return [
+      {
+        id: 'rec_stress_mot_1',
+        type: 'BREATHING',
+        title: '4-7-8 Breathing & Stress Relief',
+        durationMin: 4,
+        category: 'Breathwork',
+        icon: 'air',
+        intensity: 'Gentle',
+        reason: `Relieve Stress (${s}/10) to Unlock Motivation (${mot}/10)`,
+        description: 'Calms sympathetic cortisol spikes to remove the subconscious avoidance paralysis blocking your drive.',
+      },
+      {
+        id: 'rec_stress_mot_2',
+        type: 'GROUNDING',
+        title: 'Grounding 5-4-3-2-1',
+        durationMin: 3,
+        category: 'Anxiety',
+        icon: 'spa',
+        intensity: 'Gentle',
+        reason: 'Clear Mental Fog',
+        description: 'Soothes sensory overload so your mind can regain clarity without overwhelming to-do lists.',
+      },
+      {
+        id: 'rec_stress_mot_3',
+        type: 'MINDFULNESS',
+        title: 'Zero-Pressure Mindful Pause',
+        durationMin: 3,
+        category: 'Mindfulness',
+        icon: 'timer',
+        intensity: 'Light',
+        reason: 'Remove Demands',
+        description: 'Takes away all expectations for 3 minutes, giving your motivation space to reboot naturally.',
+      },
+    ];
+  }
+
+  // 4. Low Motivation with Low Energy (Depletion & Burnout: mot <= 4 & e <= 4)
+  if (mot <= 4 && e <= 4) {
+    return [
+      {
+        id: 'rec_depleted_1',
+        type: 'MINDFULNESS',
+        title: 'Zero-Pressure Mindful Pause',
+        durationMin: 3,
+        category: 'Mindfulness',
+        icon: 'timer',
+        intensity: 'Light',
+        reason: `Low Energy (${e}/10) & Motivation (${mot}/10)`,
+        description: 'Gives your nervous system complete permission to rest without needing to perform or accomplish anything.',
+      },
+      {
+        id: 'rec_depleted_2',
+        type: 'MEDITATION',
+        title: 'Gentle Dopamine Reset',
+        durationMin: 5,
+        category: 'Meditation',
+        icon: 'self_improvement',
+        intensity: 'Gentle',
+        reason: 'Restore Natural Drive',
+        description: 'Quiet, peaceful contemplation to reset your overstimulated receptors and gently revive your spark.',
+      },
+      {
+        id: 'rec_depleted_3',
+        type: 'MINDFULNESS',
+        title: 'Restorative Body Scan',
+        durationMin: 8,
+        category: 'Mindfulness',
+        icon: 'spa',
+        intensity: 'Restorative',
+        reason: 'Somatic Recovery',
+        description: 'A comforting guided body scan that supports physical recovery and releases lingering exhaustion.',
+      },
+    ];
+  }
+
+  // 5. Low Motivation alone (mot <= 4)
+  if (mot <= 4) {
+    return [
+      {
+        id: 'rec_mot_boost_1',
+        type: 'FOCUS',
+        title: 'Sparking Motivation: 1-Step Momentum',
+        durationMin: 5,
+        category: 'Focus',
+        icon: 'target',
+        intensity: 'Light',
+        reason: `Boost Low Motivation (${mot}/10)`,
+        description: 'A friendly, zero-friction session that breaks daunting tasks into a single easy step to build momentum.',
+      },
+      {
+        id: 'rec_mot_boost_2',
+        type: 'GRATITUDE',
+        title: 'Daily Intentions & Purpose',
+        durationMin: 6,
+        category: 'Journaling',
+        icon: 'edit_note',
+        intensity: 'Reflective',
+        reason: 'Reconnect with What Matters',
+        description: 'Clarify what brings you genuine joy and meaning to reignite your intrinsic motivation.',
+      },
+      {
+        id: 'rec_mot_boost_3',
+        type: 'MINDFULNESS',
+        title: 'Gentle Body Stretch & Shakeout',
+        durationMin: 5,
+        category: 'Movement',
+        icon: 'fitness_center',
+        intensity: 'Light',
+        reason: 'Physical Momentum',
+        description: 'Invigorate blood flow and release mental stagnation with effortless mindful body movements.',
+      },
+    ];
+  }
+
+  // 6. Elevated Stress alone (s >= 6)
+  if (s >= 6) {
+    return [
+      {
+        id: 'rec_stress_relief_1',
+        type: 'BREATHING',
+        title: '4-7-8 Breathing Reset',
+        durationMin: 4,
+        category: 'Breathwork',
+        icon: 'air',
+        intensity: 'Gentle',
+        reason: `Manage Elevated Stress (${s}/10)`,
+        description: 'Gently resets your autonomic nervous system to release built-up stress and restore inner calm.',
+      },
+      {
+        id: 'rec_stress_relief_2',
+        type: 'MINDFULNESS',
+        title: 'Shoulder & Neck Tension Release',
+        durationMin: 5,
+        category: 'Movement',
+        icon: 'fitness_center',
+        intensity: 'Gentle',
+        reason: 'Physical Decompression',
+        description: 'Somatic stretching specifically targeting tension accumulated in the neck, traps, and upper spine.',
+      },
+      {
+        id: 'rec_stress_relief_3',
+        type: 'RELAXATION_MUSIC',
+        title: 'Ocean Shore Soundscape',
+        durationMin: 10,
+        category: 'Sleep',
+        icon: 'water_drop',
+        intensity: 'Restorative',
+        reason: 'Acoustic Soothing',
+        description: 'Gentle rolling ocean swells and harmonic tones to wash away anxiety and nervous pressure.',
+      },
+    ];
+  }
+
+  // 7. Low Energy + High Stress (e <= 4 & s >= 6)
   if (e <= 4 && s >= 6) {
     return [
       {
@@ -239,7 +438,7 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
     ];
   }
 
-  // 3. Low Energy + Low/Moderate Stress (Fatigued / Foggy: Needs gentle oxygenation & renewal)
+  // 8. Low Energy + Low/Moderate Stress (e <= 4 & s <= 5)
   if (e <= 4 && s <= 5) {
     return [
       {
@@ -278,7 +477,7 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
     ];
   }
 
-  // 4. Low Mood / Sadness (Needs compassionate support)
+  // 9. Low Mood (Sadness / Heavy heart)
   if (m === 'low') {
     return [
       {
@@ -317,8 +516,8 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
     ];
   }
 
-  // 5. High Energy (Channeling vitality & flow)
-  if (e >= 7 && s <= 6) {
+  // 10. High Vitality & High Motivation with Manageable Stress (e >= 7 & mot >= 6 & s <= 5)
+  if (e >= 7 && mot >= 6 && s <= 5) {
     return [
       {
         id: 'rec_highe_1',
@@ -328,7 +527,7 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
         category: 'Focus',
         icon: 'target',
         intensity: 'Moderate',
-        reason: `High Energy (${e}/10)`,
+        reason: `High Energy (${e}/10) & Motivation (${mot}/10)`,
         description: 'Lock into deep, uninterrupted focus and channel your high vitality into meaningful progress.',
       },
       {
@@ -356,8 +555,8 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
     ];
   }
 
-  // 6. Good / Thriving Mood
-  if (m === 'thriving' || m === 'good') {
+  // 11. Good / Thriving Mood with Balanced Metrics
+  if ((m === 'thriving' || m === 'good') && s <= 5 && mot >= 5) {
     return [
       {
         id: 'rec_thrive_1',
@@ -367,7 +566,7 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
         category: 'Journaling',
         icon: 'edit_note',
         intensity: 'Reflective',
-        reason: 'Amplify Momentum',
+        reason: 'Amplify Positive Momentum',
         description: 'Capture what is going right today to build resilience and anchor your positive momentum.',
       },
       {
@@ -395,10 +594,10 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
     ];
   }
 
-  // 7. Balanced / Neutral State (Default)
+  // 12. Default: Centered Equilibrium
   return [
     {
-      id: 'rec_balanced_1',
+      id: 'rec_def_1',
       type: 'MINDFULNESS',
       title: 'Mindful Equilibrium Reset',
       durationMin: 5,
@@ -406,29 +605,29 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
       icon: 'self_improvement',
       intensity: 'Light',
       reason: 'Centered Balance',
-      description: 'A brief, centered reflection to harmonize your energy and focus for the rest of the day.',
+      description: 'A brief guided pause to tune into your mind and body and sustain balanced calm.',
     },
     {
-      id: 'rec_balanced_2',
+      id: 'rec_def_2',
       type: 'BREATHING',
       title: 'Box Breathing 4-4-4-4',
       durationMin: 4,
       category: 'Breathwork',
       icon: 'air',
       intensity: 'Light',
-      reason: 'Mental Clarity',
-      description: 'The proven 4-part breath cycle used by athletes and leaders to sharpen mental composure.',
+      reason: 'Focus & Centering',
+      description: 'Even four-sided breath cycles to clear mental clutter and stabilize cognitive energy.',
     },
     {
-      id: 'rec_balanced_3',
+      id: 'rec_def_3',
       type: 'GRATITUDE',
-      title: 'Daily Intentions Journal',
+      title: 'Midday Clarity Reflection',
       durationMin: 6,
       category: 'Journaling',
       icon: 'edit_note',
       intensity: 'Reflective',
-      reason: 'Purposeful Focus',
-      description: 'Quick thoughtful prompts to define what truly matters today and let go of the rest.',
+      reason: 'Daily Alignment',
+      description: 'Reflective check-in prompts to organize your thoughts and choose your next intention.',
     },
   ];
 }
