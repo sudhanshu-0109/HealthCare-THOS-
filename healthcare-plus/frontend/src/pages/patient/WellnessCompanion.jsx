@@ -643,6 +643,8 @@ export default function WellnessCompanion() {
   // Update greeting with real user name or updated check-in once available
   useEffect(() => {
     setMessages(prev => {
+      // NEVER overwrite or touch messages if user has typed or sent any messages
+      if (prev.some(m => m.role === 'user')) return prev;
       if (prev.length <= 1 && (!prev[0] || prev[0].id?.startsWith('greeting'))) {
         return [buildContextualGreeting({
           checkIn: lastCheckIn || loadTodayCheckIn(),
@@ -737,26 +739,33 @@ export default function WellnessCompanion() {
           const msgRes = await mhService.getConversation(data.id);
           const msgData = msgRes?.data ?? msgRes;
           const msgs = msgData?.messages ?? [];
-          if (msgs.length > 0) {
-            setMessages(msgs.map(m => ({
-              id:   m.id ?? `m${Math.random()}`,
-              role: m.role === 'PATIENT' ? 'user' : 'ai',
-              text: m.content ?? m.text ?? '',
-              recommendations: m.recommendations ?? [],
-              time: new Date(m.createdAt || Date.now()).toLocaleTimeString('en-US', {
-                hour: 'numeric', minute: '2-digit',
-              }),
-            })));
-          } else {
-            setMessages([contextualGreeting]);
-          }
+          setMessages(prev => {
+            // If user already sent messages, preserve ALL of them!
+            const hasUserMsgs = prev.some(m => m.role === 'user');
+            if (hasUserMsgs) return prev;
+            if (msgs.length > 0) {
+              return msgs.map(m => ({
+                id:   m.id ?? `m${Math.random()}`,
+                role: m.role === 'PATIENT' || m.role === 'user' ? 'user' : 'ai',
+                text: m.content ?? m.text ?? '',
+                recommendations: m.recommendations ?? [],
+                time: new Date(m.createdAt || Date.now()).toLocaleTimeString('en-US', {
+                  hour: 'numeric', minute: '2-digit',
+                }),
+              }));
+            }
+            return [contextualGreeting];
+          });
           return;
         }
       } catch {
         // fall through to mock mode
       }
-      // Mock mode — show dynamic contextual greeting with interactive exercise card
-      setMessages([contextualGreeting]);
+      // Mock mode — show dynamic contextual greeting without wiping user's messages
+      setMessages(prev => {
+        if (prev.some(m => m.role === 'user')) return prev;
+        return [contextualGreeting];
+      });
     })();
 
     // Load last check-in for LiveContext (local first, then API sync)
@@ -811,9 +820,15 @@ export default function WellnessCompanion() {
     setIsTyping(true);
 
     if (apiMode && conversation?.id) {
-      // Real API path
+      // Real API path with a 4.5-second timeout race for snappy responsiveness
       try {
-        const res  = await mhService.sendMessage(conversation.id, trimmedText);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('AI response timed out')), 4500)
+        );
+        const res = await Promise.race([
+          mhService.sendMessage(conversation.id, trimmedText),
+          timeoutPromise,
+        ]);
         const data = res?.data ?? res;
         const aiText = data?.message?.content ?? data?.reply;
         const recs   = data?.recommendations ?? [];
@@ -827,12 +842,13 @@ export default function WellnessCompanion() {
         }]);
         responseIdx.current++;
         return;
-      } catch {
-        // fall through to smart mock
+      } catch (err) {
+        console.warn('[AI Companion] Fast smart fallback engaged:', err.message);
+        // fall through to fast smart fallback
       }
     }
 
-    // Smart fallback mode with interactive exercise recommendations
+    // Fast, responsive smart fallback mode (400ms delay feels natural and snappy)
     setTimeout(() => {
       setIsTyping(false);
       const match = getExerciseRecommendation(trimmedText, lastCheckIn);
@@ -854,7 +870,7 @@ export default function WellnessCompanion() {
         time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       }]);
       responseIdx.current++;
-    }, 1200);
+    }, 450);
   };
 
   const handleKeyDown = (e) => {

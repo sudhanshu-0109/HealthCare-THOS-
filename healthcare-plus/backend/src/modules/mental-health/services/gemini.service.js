@@ -88,6 +88,17 @@ function parseGeminiJSON(text) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+const GEMINI_TIMEOUT_MS = 5500;
+
+function withTimeout(promise, ms = GEMINI_TIMEOUT_MS) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Gemini API call timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 /**
  * Generate a structured wellness response from the AI Companion.
  * @param {Array} conversationHistory - Array of {role, parts} objects (Gemini format)
@@ -108,7 +119,7 @@ export async function generateWellnessResponse(conversationHistory, userMessage)
     });
 
     const chat = model.startChat({ history: conversationHistory });
-    const result = await chat.sendMessage(userMessage);
+    const result = await withTimeout(chat.sendMessage(userMessage));
     const text = result.response.text();
 
     let raw;
@@ -156,7 +167,7 @@ export async function classifyRisk(userMessage, contextSummary = '') {
       ? `Recent context: "${contextSummary}"\n\nNew message to classify: "${userMessage}"`
       : `Message to classify: "${userMessage}"`;
 
-    const result = await model.generateContent(prompt);
+    const result = await withTimeout(model.generateContent(prompt), 3500);
     const text = result.response.text();
 
     let raw;

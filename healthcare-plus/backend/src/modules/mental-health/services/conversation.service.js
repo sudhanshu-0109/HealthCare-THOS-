@@ -103,8 +103,12 @@ export async function sendMessage(profileId, conversationId, userMessage) {
     .map((m) => `${m.role}: ${m.content}`)
     .join(' | ');
 
-  // ── SAFETY GATE (always runs first, never skipped) ─────────────────────────
-  const safety = await assessRisk(conversationId, userMessage, recentText);
+  // ── Execute Safety Assessment & Wellness Response in Parallel for maximum speed ──
+  const history = buildConversationHistory(conversation.messages);
+  const [safety, wellnessResult] = await Promise.all([
+    assessRisk(conversationId, userMessage, recentText),
+    generateWellnessResponse(history, userMessage),
+  ]);
 
   // Store the user message regardless of outcome
   await prisma.aIConversationMessage.create({
@@ -130,12 +134,8 @@ export async function sendMessage(profileId, conversationId, userMessage) {
     return buildCrisisScreen();
   }
 
-  // ── SAFE PATH: Generate wellness response ──────────────────────────────────
-  const history = buildConversationHistory(conversation.messages);
-  const { parsed: aiResponse, promptVersion, modelVersion } = await generateWellnessResponse(
-    history,
-    userMessage,
-  );
+  // ── SAFE PATH: Process wellness response ───────────────────────────────────
+  const { parsed: aiResponse, promptVersion, modelVersion } = wellnessResult;
 
   const mood = extractMoodMetadata(aiResponse);
   const intent = extractIntent(aiResponse);
