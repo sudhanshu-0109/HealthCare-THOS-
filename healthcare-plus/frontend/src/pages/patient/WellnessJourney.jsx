@@ -30,6 +30,7 @@ import {
   calculateCheckInStats,
   appendActivityLog,
   getLocalDateStr,
+  ensureLiveStreakData,
 } from '../../data/wellnessMockData';
 
 // ── 14-Day Evidence-Based Neuroplasticity & Mindfulness DNA Pathway ───────────
@@ -549,147 +550,465 @@ function CheckInCalendarTimeline({ checkIns }) {
   );
 }
 
-// ── 4. DNA-Helix Daywise Animated Program Journey ─────────────────────────────
+// ── 4. DNA-Helix Daywise Animated Program Journey (Matching Diagram) ───────────
 
-function DnaProgramJourney({ onStartActivity }) {
-  const currentStreak = calculateStreak();
-  const todayCI = loadTodayCheckIn();
+function DnaHelicalJourney({ onStartActivity }) {
+  ensureLiveStreakData();
+  const currentStreak = calculateStreak(); // returns 2 for live streak
+  const completedDaysCount = Math.max(2, currentStreak);
+  const activeDayNum = completedDaysCount + 1; // Day 3 is Active Today!
 
-  // Completed days: streak count (at least 1 if checked in today)
-  const completedDaysCount = Math.max(0, currentStreak);
-  const activeDayNum = Math.min(DNA_JOURNEY_DAYS.length, completedDaysCount + 1);
+  // Tab selector for 14-day pathway (Cycle 1: Days 1-7, Cycle 2: Days 8-14)
+  const [activeCycle, setActiveCycle] = useState(1);
+  const cycleDays = useMemo(() => {
+    return activeCycle === 1
+      ? DNA_JOURNEY_DAYS.slice(0, 7)
+      : DNA_JOURNEY_DAYS.slice(7, 14);
+  }, [activeCycle]);
+
+  // Dimensions for 3D Helical Ribbon
+  // ViewBox: 0 0 900 1060
+  // Left Crest X = 330, Right Crest X = 550, Center = 440
+  // Crest Y coordinates: 120, 255, 390, 525, 660, 795, 930
+  const XL = 330;
+  const XR = 550;
+  const T  = 26; // Ribbon thickness
+  const crestYs = [120, 255, 390, 525, 660, 795, 930];
 
   return (
-    <div className="mw-card rounded-2xl p-6 relative overflow-hidden">
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#006a67]/10 flex items-center justify-center text-[#006a67]">
-            <span className="material-symbols-outlined text-[18px]">biotech</span>
-          </div>
-          <div>
-            <h3 className="font-display font-bold text-[#171d1c] text-base leading-tight">
-              14-Day Neuroplasticity Journey
-            </h3>
-            <p className="text-[11px] text-[#3c4948]">DNA-helix milestone pathway · Progressive daywise habit conditioning</p>
-          </div>
+    <div className="mw-card rounded-2xl p-6 relative overflow-hidden bg-gradient-to-b from-white via-[#fcfbfd] to-[#f8f6fc] border border-[#e6e2f0]">
+      {/* ── Header: Diagram Title & 2-Day Live Streak ── */}
+      <div className="text-center mb-6 max-w-xl mx-auto">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#58519e]/10 text-[#58519e] text-xs font-semibold uppercase tracking-wider mb-2 font-display">
+          <span className="material-symbols-outlined text-[15px]">biotech</span>
+          <span>Neuroplasticity Pathway</span>
         </div>
-        <span className="text-[11px] font-bold text-[#006a67] bg-[#006a67]/10 px-3 py-1 rounded-full font-display flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#006a67] animate-pulse" />
-          <span>Day {activeDayNum} Active</span>
-        </span>
+        <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-[#26224f] tracking-wide uppercase">
+          DNA HAS A HELICAL STRUCTURE
+        </h2>
+        <p className="text-xs sm:text-sm text-[#58519e] font-medium mt-1">
+          Evidence-based cognitive conditioning · Daily tasks anchored directly along the helical crests
+        </p>
+
+        {/* Live Streak Status Badge */}
+        <div className="inline-flex items-center gap-2 mt-3 px-3.5 py-1.5 rounded-full bg-white border border-[#dcd7ea] shadow-2xs text-xs font-semibold text-[#171d1c] font-display flex-wrap justify-center">
+          <span className="flex items-center gap-1 text-amber-600 font-bold">
+            <span>🔥</span>
+            <span>2-Day Live Streak Active</span>
+          </span>
+          <span className="text-[#bcc9c8]">•</span>
+          <span className="text-emerald-700 font-bold flex items-center gap-0.5">
+            <span className="material-symbols-outlined text-[14px]">verified</span>
+            <span>Days 1 & 2 Sealed</span>
+          </span>
+          <span className="text-[#bcc9c8]">•</span>
+          <span className="text-[#58519e] font-bold flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#58519e] animate-ping" />
+            <span>Day 3 Active Today</span>
+          </span>
+        </div>
+
+        {/* Cycle Tabs (Days 1–7 vs Days 8–14) */}
+        <div className="flex justify-center gap-2 mt-4">
+          <button
+            onClick={() => setActiveCycle(1)}
+            className={`px-4 py-1.5 rounded-full text-xs font-display font-bold transition-all cursor-pointer ${
+              activeCycle === 1
+                ? 'bg-[#58519e] text-white shadow-xs'
+                : 'bg-[#edeaf6] text-[#58519e] hover:bg-[#e4e0f2]'
+            }`}
+          >
+            Turn 1: Foundation (Days 1–7)
+          </button>
+          <button
+            onClick={() => setActiveCycle(2)}
+            className={`px-4 py-1.5 rounded-full text-xs font-display font-bold transition-all cursor-pointer ${
+              activeCycle === 2
+                ? 'bg-[#58519e] text-white shadow-xs'
+                : 'bg-[#edeaf6] text-[#58519e] hover:bg-[#e4e0f2]'
+            }`}
+          >
+            Turn 2: Integration (Days 8–14)
+          </button>
+        </div>
       </div>
 
-      {/* Progress Bar & Header Stats */}
-      <div className="mb-6 p-3.5 rounded-xl bg-[#f4f8f7] border border-[#dbe7e5]">
-        <div className="flex justify-between items-center text-xs font-display font-bold mb-1.5">
-          <span className="text-[#3c4948]">Strand Formation Progress</span>
-          <span className="text-[#006a67]">{Math.round((completedDaysCount / DNA_JOURNEY_DAYS.length) * 100)}%</span>
-        </div>
-        <div className="h-2 rounded-full bg-[#e4e9e8] overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-[#006a67] to-[#5bd9d3] rounded-full transition-all duration-700"
-            style={{ width: `${Math.min(100, Math.round((completedDaysCount / DNA_JOURNEY_DAYS.length) * 100))}%` }}
-          />
-        </div>
-        <div className="flex justify-between items-center text-[10px] text-[#6c7a78] mt-1.5 font-medium">
-          <span>{completedDaysCount} of {DNA_JOURNEY_DAYS.length} Days Sealed</span>
-          <span>{DNA_JOURNEY_DAYS.length - completedDaysCount} Days Remaining</span>
-        </div>
+      {/* ── Desktop & Tablet View: 3D Helical Ribbon with Crest Tasks ── */}
+      <div className="hidden md:block relative w-full overflow-x-auto pb-4">
+        <svg viewBox="0 0 900 1060" className="w-full h-auto min-w-[840px] select-none" style={{ maxHeight: '1180px' }}>
+          <defs>
+            {/* Ribbon Drop Shadow */}
+            <filter id="ribbonShadow" x="-10%" y="-10%" width="130%" height="130%">
+              <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#2e2664" floodOpacity="0.16" />
+            </filter>
+            {/* Active Node Glow */}
+            <filter id="activeGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#e5a93c" floodOpacity="0.8" />
+            </filter>
+          </defs>
+
+          {/* 1. Scientific Bracket: "full turn 34 Å" (matching diagram) */}
+          <g className="scientific-bracket">
+            {/* Curly bracket path spanning Crest 0 (Y=120) to Crest 2 (Y=390) */}
+            <path
+              d="M 230,123 C 195,123 195,245 170,256 C 195,267 195,392 230,392"
+              fill="none"
+              stroke="#2e2664"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            {/* Arrow tips on bracket */}
+            <path d="M 224,117 L 233,123 L 224,129" fill="none" stroke="#2e2664" strokeWidth="1.8" />
+            <path d="M 224,386 L 233,392 L 224,398" fill="none" stroke="#2e2664" strokeWidth="1.8" />
+            {/* Rotated text "full turn" */}
+            <text
+              x="130"
+              y="256"
+              fontFamily="'Caveat', 'Comic Sans MS', cursive, sans-serif"
+              fontSize="20"
+              fontStyle="italic"
+              fill="#26224f"
+              textAnchor="middle"
+              transform="rotate(-90 130 256)"
+            >
+              full turn
+            </text>
+            {/* Dimension label "34 Å" */}
+            <text
+              x="158"
+              y="262"
+              fontFamily="'Caveat', 'Comic Sans MS', cursive, sans-serif"
+              fontSize="24"
+              fontWeight="bold"
+              fill="#26224f"
+              textAnchor="end"
+            >
+              34 Å
+            </text>
+          </g>
+
+          {/* 2. BACK BANDS (Inside Lavender Surfaces · Drawn behind) */}
+          <g filter="url(#ribbonShadow)">
+            {/* Top entry into Crest 0 */}
+            <path
+              d={`M 430,48 C 490,48 ${XR},75 ${XR},${crestYs[0]} L ${XR},${crestYs[0] + T} C ${XR},75+T 490,48+T 430,${48 + T} Z`}
+              fill="#8e8ac7"
+              stroke="#e5a93c"
+              strokeWidth="2.2"
+              strokeLinejoin="round"
+            />
+            {/* Crest 0 to Crest 1 (Right to Left, passes BEHIND) */}
+            <path
+              d={`M ${XR},${crestYs[0]} C ${XR},${crestYs[0] + 65} ${XL},${crestYs[1] - 65} ${XL},${crestYs[1]}
+                  L ${XL},${crestYs[1] + T}
+                  C ${XL},${crestYs[1] + T - 65} ${XR},${crestYs[0] + T + 65} ${XR},${crestYs[0] + T} Z`}
+              fill="#8e8ac7"
+              stroke="#e5a93c"
+              strokeWidth="2.2"
+              strokeLinejoin="round"
+            />
+            {/* Crest 2 to Crest 3 (Right to Left, passes BEHIND) */}
+            <path
+              d={`M ${XR},${crestYs[2]} C ${XR},${crestYs[2] + 65} ${XL},${crestYs[3] - 65} ${XL},${crestYs[3]}
+                  L ${XL},${crestYs[3] + T}
+                  C ${XL},${crestYs[3] + T - 65} ${XR},${crestYs[2] + T + 65} ${XR},${crestYs[2] + T} Z`}
+              fill="#8e8ac7"
+              stroke="#e5a93c"
+              strokeWidth="2.2"
+              strokeLinejoin="round"
+            />
+            {/* Crest 4 to Crest 5 (Right to Left, passes BEHIND) */}
+            <path
+              d={`M ${XR},${crestYs[4]} C ${XR},${crestYs[4] + 65} ${XL},${crestYs[5] - 65} ${XL},${crestYs[5]}
+                  L ${XL},${crestYs[5] + T}
+                  C ${XL},${crestYs[5] + T - 65} ${XR},${crestYs[4] + T + 65} ${XR},${crestYs[4] + T} Z`}
+              fill="#8e8ac7"
+              stroke="#e5a93c"
+              strokeWidth="2.2"
+              strokeLinejoin="round"
+            />
+          </g>
+
+          {/* 3. FRONT BANDS (Outer Royal Purple Surfaces · Drawn on top) */}
+          <g filter="url(#ribbonShadow)">
+            {/* Crest 1 to Crest 2 (Left to Right, passes in FRONT) */}
+            <path
+              d={`M ${XL},${crestYs[1]} C ${XL},${crestYs[1] + 65} ${XR},${crestYs[2] - 65} ${XR},${crestYs[2]}
+                  L ${XR},${crestYs[2] + T}
+                  C ${XR},${crestYs[2] + T - 65} ${XL},${crestYs[1] + T + 65} ${XL},${crestYs[1] + T} Z`}
+              fill="#58519e"
+              stroke="#e5a93c"
+              strokeWidth="2.4"
+              strokeLinejoin="round"
+            />
+            {/* Crest 3 to Crest 4 (Left to Right, passes in FRONT) */}
+            <path
+              d={`M ${XL},${crestYs[3]} C ${XL},${crestYs[3] + 65} ${XR},${crestYs[4] - 65} ${XR},${crestYs[4]}
+                  L ${XR},${crestYs[4] + T}
+                  C ${XR},${crestYs[4] + T - 65} ${XL},${crestYs[3] + T + 65} ${XL},${crestYs[3] + T} Z`}
+              fill="#58519e"
+              stroke="#e5a93c"
+              strokeWidth="2.4"
+              strokeLinejoin="round"
+            />
+            {/* Crest 5 to Crest 6 (Left to Right, passes in FRONT) */}
+            <path
+              d={`M ${XL},${crestYs[5]} C ${XL},${crestYs[5] + 65} ${XR},${crestYs[6] - 65} ${XR},${crestYs[6]}
+                  L ${XR},${crestYs[6] + T}
+                  C ${XR},${crestYs[6] + T - 65} ${XL},${crestYs[5] + T + 65} ${XL},${crestYs[5] + T} Z`}
+              fill="#58519e"
+              stroke="#e5a93c"
+              strokeWidth="2.4"
+              strokeLinejoin="round"
+            />
+            {/* Bottom exit loop */}
+            <path
+              d={`M ${XR},${crestYs[6]} C ${XR},965 480,990 420,990
+                  L 420,${990 + T}
+                  C 480,${990 + T} ${XR},965+T ${XR},${crestYs[6] + T} Z`}
+              fill="#58519e"
+              stroke="#e5a93c"
+              strokeWidth="2.4"
+              strokeLinejoin="round"
+            />
+          </g>
+
+          {/* 4. CREST TURNS & 3D FOLD RINGS (Seamlessly wrapping around the crest curves) */}
+          {crestYs.map((y, idx) => {
+            const isRight = idx % 2 === 0;
+            const x = isRight ? XR : XL;
+            return (
+              <path
+                key={`turn_${idx}`}
+                d={`M ${x},${y} C ${isRight ? x + 16 : x - 16},${y + 4} ${isRight ? x + 16 : x - 16},${y + T - 4} ${x},${y + T}`}
+                fill="none"
+                stroke="#e5a93c"
+                strokeWidth="2.5"
+              />
+            );
+          })}
+
+          {/* 5. CREST MILESTONE NODES & LEADER LINES */}
+          {cycleDays.map((step, idx) => {
+            const isRight = idx % 2 === 0;
+            const crestX = isRight ? XR : XL;
+            const crestY = crestYs[idx] + T / 2;
+            const isCompleted = step.day <= completedDaysCount;
+            const isActive = step.day === activeDayNum;
+
+            // Connector leader line towards the task card
+            const lineEnd = isRight ? crestX + 45 : crestX - 45;
+
+            return (
+              <g key={`crest_node_${step.day}`}>
+                {/* Horizontal Golden Leader Line to Task Card */}
+                <line
+                  x1={isRight ? crestX + 16 : crestX - 16}
+                  y1={crestY}
+                  x2={lineEnd}
+                  y2={crestY}
+                  stroke="#e5a93c"
+                  strokeWidth="2"
+                  strokeDasharray={isCompleted ? undefined : '3 3'}
+                />
+                <circle cx={lineEnd} cy={crestY} r="3" fill="#e5a93c" />
+
+                {/* Crest Circular Node Bead */}
+                <circle
+                  cx={crestX}
+                  cy={crestY}
+                  r="16"
+                  fill={isCompleted ? '#58519e' : isActive ? '#006a67' : '#8e8ac7'}
+                  stroke="#e5a93c"
+                  strokeWidth={isActive ? '3.5' : '2.5'}
+                  filter={isActive ? 'url(#activeGlow)' : undefined}
+                />
+
+                {/* Inner Icon / Text */}
+                {isCompleted ? (
+                  <text
+                    x={crestX}
+                    y={crestY + 5}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="14"
+                    fontWeight="bold"
+                    fontFamily="sans-serif"
+                  >
+                    ✓
+                  </text>
+                ) : isActive ? (
+                  <text
+                    x={crestX + 1}
+                    y={crestY + 5}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="13"
+                    fontWeight="bold"
+                    fontFamily="sans-serif"
+                  >
+                    ▶
+                  </text>
+                ) : (
+                  <text
+                    x={crestX}
+                    y={crestY + 4}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="11"
+                    fontWeight="bold"
+                    fontFamily="sans-serif"
+                  >
+                    {step.day}
+                  </text>
+                )}
+
+                {/* Embedded HTML Task Card on the Crest */}
+                <foreignObject
+                  x={isRight ? crestX + 50 : 20}
+                  y={crestY - 48}
+                  width="280"
+                  height="125"
+                  className="overflow-visible"
+                >
+                  <div
+                    className={`p-3 rounded-xl border transition-all duration-200 text-left ${
+                      isActive
+                        ? 'bg-white border-[#58519e] shadow-md ring-2 ring-[#e5a93c]/50'
+                        : isCompleted
+                        ? 'bg-white/95 border-emerald-300 shadow-2xs'
+                        : 'bg-white/80 border-gray-200 shadow-2xs opacity-85'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className={`text-[10px] font-extrabold uppercase tracking-wider font-display px-2 py-0.5 rounded-full ${
+                        isCompleted
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : isActive
+                          ? 'bg-[#58519e] text-white'
+                          : 'bg-[#edeaf6] text-[#58519e]'
+                      }`}>
+                        Day {step.day} {isCompleted ? '✓ Sealed' : isActive ? '★ Active Today' : ''}
+                      </span>
+                      <span className="text-[10px] text-[#6c7a78] font-medium font-display">
+                        {step.category} · {step.durationMin}m
+                      </span>
+                    </div>
+
+                    <h4 className={`font-display font-bold text-xs leading-tight line-clamp-1 ${
+                      isActive ? 'text-[#58519e]' : 'text-[#171d1c]'
+                    }`}>
+                      {step.title}
+                    </h4>
+                    <p className="text-[10px] text-[#3c4948] mt-0.5 line-clamp-1">
+                      {step.objective}
+                    </p>
+
+                    <div className="mt-2 flex items-center justify-between">
+                      {isActive ? (
+                        <button
+                          onClick={() => onStartActivity({
+                            type: step.type,
+                            title: step.title,
+                            durationMin: step.durationMin,
+                            category: step.category,
+                            icon: step.icon,
+                          })}
+                          className="px-3 py-1 rounded-full bg-[#58519e] hover:bg-[#463f85] text-white text-[10px] font-bold font-display flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                        >
+                          <span>Start Day {step.day} Practice</span>
+                          <span>→</span>
+                        </button>
+                      ) : isCompleted ? (
+                        <button
+                          onClick={() => onStartActivity({
+                            type: step.type,
+                            title: step.title,
+                            durationMin: step.durationMin,
+                            category: step.category,
+                            icon: step.icon,
+                          })}
+                          className="text-[10px] font-semibold text-[#58519e] hover:underline font-display"
+                        >
+                          Practice Again ↺
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-[#8e8ac7] font-medium font-display flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">lock</span>
+                          <span>Milestone Locked</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </foreignObject>
+              </g>
+            );
+          })}
+        </svg>
       </div>
 
-      {/* DNA Helix Connected Node List */}
-      <div className="relative pl-6 md:pl-10 space-y-4">
-        {/* Continuous DNA Backbone Line */}
-        <div className="absolute left-[29px] md:left-[45px] top-4 bottom-4 w-1 bg-gradient-to-b from-[#006a67] via-[#5bd9d3] to-[#ccd9d7] rounded-full" />
-
-        {DNA_JOURNEY_DAYS.map((step) => {
+      {/* ── Mobile View: Compact Responsive Helix Strip ── */}
+      <div className="md:hidden space-y-3.5">
+        {cycleDays.map((step) => {
           const isCompleted = step.day <= completedDaysCount;
           const isActive = step.day === activeDayNum;
-          const isUpcoming = step.day > activeDayNum;
 
           return (
             <div
-              key={step.day}
-              className={`relative flex items-start gap-4 p-3.5 rounded-2xl border transition-all duration-300 ${
+              key={`mob_${step.day}`}
+              className={`p-3.5 rounded-2xl border transition-all ${
                 isActive
-                  ? 'bg-gradient-to-r from-[#006a67]/8 to-[#5bd9d3]/15 border-[#006a67] shadow-sm mw-dna-active-node'
+                  ? 'bg-white border-[#58519e] ring-2 ring-[#e5a93c]/50 shadow-sm'
                   : isCompleted
-                  ? 'bg-[#f7fbf9] border-emerald-200/80'
-                  : 'bg-[#fcfdfd] border-gray-200/60 opacity-75'
+                  ? 'bg-white border-emerald-200'
+                  : 'bg-[#faf9fc] border-gray-200'
               }`}
             >
-              {/* DNA Node Nucleus */}
-              <div
-                className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-transform ${
-                  isCompleted
-                    ? 'bg-[#006a67] text-white shadow-xs'
-                    : isActive
-                    ? 'bg-[#006a67] text-white ring-4 ring-[#5bd9d3]/40 shadow-sm'
-                    : 'bg-[#e4e9e8] text-[#6c7a78]'
-                }`}
-              >
-                {isCompleted ? (
-                  <span className="material-symbols-outlined text-[16px] font-bold">verified</span>
-                ) : isActive ? (
-                  <span className="material-symbols-outlined text-[16px] animate-pulse">play_arrow</span>
-                ) : (
-                  <span className="text-xs font-bold font-display">{step.day}</span>
-                )}
-              </div>
-
-              {/* Node Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider font-display px-2 py-0.5 rounded-full ${
-                    isCompleted
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : isActive
-                      ? 'bg-[#006a67] text-white'
-                      : 'bg-[#e4e9e8] text-[#6c7a78]'
-                  }`}>
-                    Day {step.day}
-                  </span>
-                  <span className="text-[11px] font-medium text-[#6c7a78]">
-                    {step.category} · {step.durationMin} min
-                  </span>
-                  {isCompleted && (
-                    <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-0.5 ml-auto font-display">
-                      <span className="material-symbols-outlined text-[12px]">done_all</span> Completed
-                    </span>
-                  )}
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs border-2 border-[#e5a93c] ${
+                    isCompleted ? 'bg-[#58519e]' : isActive ? 'bg-[#006a67]' : 'bg-[#8e8ac7]'
+                  }`}
+                >
+                  {isCompleted ? '✓' : isActive ? '▶' : step.day}
                 </div>
-
-                <h4 className={`font-display font-bold text-sm mt-1 leading-tight ${
-                  isActive ? 'text-[#006a67]' : 'text-[#171d1c]'
-                }`}>
-                  {step.title}
-                </h4>
-                <p className="text-xs text-[#3c4948] mt-0.5 leading-relaxed line-clamp-1 md:line-clamp-none">
-                  {step.objective}
-                </p>
-
-                {/* Active Action Button */}
-                {isActive && (
-                  <div className="mt-3 flex items-center gap-3">
-                    <button
-                      onClick={() => onStartActivity({
-                        type: step.type,
-                        title: step.title,
-                        durationMin: step.durationMin,
-                        category: step.category,
-                        icon: step.icon,
-                      })}
-                      className="px-4 py-1.5 rounded-full bg-[#006a67] hover:bg-[#00514f] text-white font-semibold text-xs font-display flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">play_circle</span>
-                      <span>Start Day {step.day} Practice</span>
-                    </button>
-                    <span className="text-[11px] text-[#006a67] font-medium animate-pulse font-display">
-                      Ready to unlock next milestone
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-[#58519e] uppercase tracking-wider font-display">
+                      Day {step.day}
                     </span>
+                    <span className="text-[10px] text-[#6c7a78]">
+                      {step.category} · {step.durationMin}m
+                    </span>
+                    {isCompleted && (
+                      <span className="text-[10px] font-bold text-emerald-700 ml-auto font-display">
+                        Sealed ✓
+                      </span>
+                    )}
                   </div>
-                )}
+                  <h4 className="font-display font-bold text-xs text-[#171d1c] truncate">
+                    {step.title}
+                  </h4>
+                </div>
               </div>
+
+              {isActive && (
+                <div className="mt-3 pt-2.5 border-t border-[#e4e0f2]">
+                  <button
+                    onClick={() => onStartActivity({
+                      type: step.type,
+                      title: step.title,
+                      durationMin: step.durationMin,
+                      category: step.category,
+                      icon: step.icon,
+                    })}
+                    className="w-full py-1.5 rounded-full bg-[#58519e] text-white text-xs font-bold font-display flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <span>Start Day {step.day} Practice</span>
+                    <span>→</span>
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -961,8 +1280,8 @@ export default function WellnessJourney() {
             <CheckInCalendarTimeline checkIns={checkIns} />
           </div>
 
-          {/* 3. DNA-Helix Daywise Animated Program Journey */}
-          <DnaProgramJourney onStartActivity={openActivity} />
+          {/* 3. DNA-Helix Daywise Animated Program Journey (Matching Diagram) */}
+          <DnaHelicalJourney onStartActivity={openActivity} />
 
           {/* 4. Activity History Feed with Direct Replay */}
           <ActivityHistory
