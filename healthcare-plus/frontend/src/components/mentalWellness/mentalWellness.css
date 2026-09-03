@@ -229,3 +229,44 @@
 }
 .mw-root .mw-btn-outline:hover  { background-color: rgba(0, 106, 103, 0.08); }
 .mw-root .mw-btn-outline:active { transform: scale(0.98); }
+
+/* ── DNA Helix Journey animations ────────────────────────────────────────── */
+@keyframes dna-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 106, 103, 0.45);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 106, 103, 0);
+    transform: scale(1.04);
+  }
+}
+
+@keyframes dna-flow {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes dna-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.mw-root .mw-dna-active-node {
+  animation: dna-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.mw-root .mw-dna-flow-line {
+  stroke-dasharray: 6 6;
+  animation: dna-flow 1.8s linear infinite;
+}
+
+.mw-root .mw-dna-shimmer {
+  background: linear-gradient(90deg, rgba(0,106,103,0.06) 0%, rgba(91,217,211,0.2) 50%, rgba(0,106,103,0.06) 100%);
+  background-size: 200% 100%;
+  animation: dna-shimmer 3s ease-in-out infinite;
+}

@@ -712,6 +712,85 @@ export function calculateStreak() {
  * Save today's check-in to localStorage, updates check-in date history, and calculates streak.
  * The entry is automatically considered stale after midnight.
  * @param {{ mood: string, moodScore: number, energy: number, stressLevel: number, motivation: number }} data
+export const CHECKIN_HISTORY_KEY = 'mw_checkin_history';
+
+/**
+ * Load full historical check-in records from runtime localStorage.
+ * Ensures today's check-in is seamlessly represented alongside past days.
+ * @returns {Array<{ id: string, date: string, dateKey: string, datetime: string, mood: string, moodScore: number, energy: number, stress: number, stressLevel: number, motivation: number, savedAt: string, createdAt: string }>}
+ */
+export function loadCheckInHistory() {
+  try {
+    const raw = localStorage.getItem(CHECKIN_HISTORY_KEY);
+    let history = raw ? JSON.parse(raw) : [];
+
+    // Ensure today's check-in is included if present
+    const todayCI = loadTodayCheckIn();
+    if (todayCI) {
+      const todayIso = getLocalDateStr(new Date());
+      const hasToday = history.some(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === todayIso);
+      if (!hasToday) {
+        history.unshift({
+          id: `ci_${todayIso}`,
+          ...todayCI,
+          stress: todayCI.stressLevel ?? todayCI.stress ?? 5,
+          date: todayIso,
+          dateKey: todayCI.dateKey || new Date().toDateString(),
+          createdAt: todayCI.savedAt || new Date().toISOString(),
+          savedAt: todayCI.savedAt || new Date().toISOString(),
+        });
+      }
+    }
+
+    return history.sort((a, b) => new Date(b.createdAt || b.savedAt || b.date) - new Date(a.createdAt || a.savedAt || a.date));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Calculates aggregate stats on a 10-point scale from real check-in records.
+ * @param {Array} checkIns
+ */
+export function calculateCheckInStats(checkIns = []) {
+  if (!checkIns || checkIns.length === 0) {
+    return {
+      avgMood10: '0.0',
+      avgEnergy: '0.0',
+      avgStress: '0.0',
+      avgMotivation: '0.0',
+      totalCount: 0,
+    };
+  }
+
+  const total = checkIns.length;
+  let sumMoodScore = 0;
+  let sumEnergy = 0;
+  let sumStress = 0;
+  let sumMotivation = 0;
+
+  checkIns.forEach(ci => {
+    // moodScore is 1-6; scaled to 10 is (score / 6) * 10
+    const mScore = Number(ci.moodScore ?? (MOODS.find(m => m.id === ci.mood)?.score) ?? 3);
+    sumMoodScore += (mScore / 6) * 10;
+    sumEnergy += Number(ci.energy ?? 5);
+    sumStress += Number(ci.stressLevel ?? ci.stress ?? 5);
+    sumMotivation += Number(ci.motivation ?? 5);
+  });
+
+  return {
+    avgMood10: (sumMoodScore / total).toFixed(1),
+    avgEnergy: (sumEnergy / total).toFixed(1),
+    avgStress: (sumStress / total).toFixed(1),
+    avgMotivation: (sumMotivation / total).toFixed(1),
+    totalCount: total,
+  };
+}
+
+/**
+ * Save today's check-in to localStorage, updates check-in date history, and calculates streak.
+ * The entry is automatically considered stale after midnight.
+ * @param {{ mood: string, moodScore: number, energy: number, stressLevel: number, motivation: number }} data
  * @returns {number} The updated streak count
  */
 export function saveCheckIn(data) {
@@ -719,12 +798,28 @@ export function saveCheckIn(data) {
     const now = new Date();
     const todayIso = getLocalDateStr(now);
     const dateKey = now.toDateString();
+    const fullStress = data.stressLevel ?? data.stress ?? 5;
 
-    localStorage.setItem(CHECKIN_KEY, JSON.stringify({
+    const checkInRecord = {
+      id: `ci_${todayIso}_${Date.now()}`,
       ...data,
+      stress: fullStress,
+      stressLevel: fullStress,
+      date: todayIso,
+      dateKey,
       savedAt: now.toISOString(),
-      dateKey, // e.g. "Wed Sep 02 2026"
-    }));
+      createdAt: now.toISOString(),
+    };
+
+    localStorage.setItem(CHECKIN_KEY, JSON.stringify(checkInRecord));
+
+    // Append / update in mw_checkin_history
+    const rawHist = localStorage.getItem(CHECKIN_HISTORY_KEY);
+    let history = rawHist ? JSON.parse(rawHist) : [];
+    // Remove any previous entry for today so we replace it with latest updated values
+    history = history.filter(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) !== todayIso);
+    history.unshift(checkInRecord);
+    localStorage.setItem(CHECKIN_HISTORY_KEY, JSON.stringify(history.slice(0, 90)));
 
     // Record today's date in streak date history
     const rawDates = localStorage.getItem(DATES_KEY);
