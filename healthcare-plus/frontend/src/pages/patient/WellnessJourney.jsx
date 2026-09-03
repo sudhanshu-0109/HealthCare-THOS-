@@ -180,27 +180,49 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [selectedIdx, setSelectedIdx] = useState(3); // Default to Thursday (Today, index 3)
 
-  // Only the 4 days of the current week that have occurred & checked in (Mon Aug 31 - Thu Sep 3)
+  // Dynamically compute days directly from checkIns records (Mon-Thu of current week)
   const weekDays = useMemo(() => {
-    const days = [
-      { num: '01', day: 'Monday',    short: 'Mon', date: 'Aug 31', score: 6.7, pct: 67, energy: 6, stress: 5, mot: 6, color: '#f59e0b', colorDark: '#b45309', colorLight: '#fef3c7', icon: 'schedule',      note: 'Grounded start to the week · Intentional pacing' },
-      { num: '02', day: 'Tuesday',   short: 'Tue', date: 'Sep 01', score: 7.8, pct: 78, energy: 7, stress: 4, mot: 7, color: '#10b981', colorDark: '#047857', colorLight: '#d1fae5', icon: 'show_chart',    note: 'Balanced cognitive focus · Productive momentum' },
-      { num: '03', day: 'Wednesday', short: 'Wed', date: 'Sep 02', score: 8.3, pct: 83, energy: 8, stress: 5, mot: 7, color: '#06b6d4', colorDark: '#0e7490', colorLight: '#cffafe', icon: 'pie_chart',     note: 'Mid-week equilibrium · Vagal regulation' },
-      { num: '04', day: 'Thursday',  short: 'Thu', date: 'Sep 03', score: 9.5, pct: 95, energy: 9, stress: 6, mot: 4, color: '#3b82f6', colorDark: '#1d4ed8', colorLight: '#dbeafe', icon: 'calendar_today', note: 'High physical vitality · Mindful focus cultivated', isToday: true },
+    const dayTemplates = [
+      { date: '2026-08-31', day: 'Monday',    short: 'Mon', num: '01', defaultColor: '#f59e0b', colorDark: '#b45309', colorLight: '#fef3c7', icon: 'schedule',      defaultNote: 'Grounded start to the week · Intentional pacing' },
+      { date: '2026-09-01', day: 'Tuesday',   short: 'Tue', num: '02', defaultColor: '#10b981', colorDark: '#047857', colorLight: '#d1fae5', icon: 'show_chart',    defaultNote: 'Balanced cognitive focus · Productive momentum' },
+      { date: '2026-09-02', day: 'Wednesday', short: 'Wed', num: '03', defaultColor: '#06b6d4', colorDark: '#0e7490', colorLight: '#cffafe', icon: 'pie_chart',     defaultNote: 'Mid-week equilibrium · Vagal regulation' },
+      { date: '2026-09-03', day: 'Thursday',  short: 'Thu', num: '04', defaultColor: '#3b82f6', colorDark: '#1d4ed8', colorLight: '#dbeafe', icon: 'calendar_today', defaultNote: 'High physical vitality · Mindful focus cultivated', isToday: true },
     ];
 
-    // Merge live check-in values if available
-    const todayCI = checkIns?.find(ci => ci.date === '2026-09-03' || ci.isToday);
-    if (todayCI) {
-      const mScore = Number(todayCI.moodScore ?? 6);
-      const m10 = Number(((mScore / 6) * 10).toFixed(1));
-      days[3].score = m10;
-      days[3].pct = Math.round((m10 / 10) * 100);
-      days[3].energy = Number(todayCI.energy ?? 9);
-      days[3].stress = Number(todayCI.stressLevel ?? todayCI.stress ?? 6);
-      days[3].mot = Number(todayCI.motivation ?? 4);
-    }
-    return days;
+    return dayTemplates.map((tmpl) => {
+      // Find actual check-in record in checkIns
+      const ci = (checkIns || []).find((c) => {
+        const cDate = getLocalDateStr(new Date(c.savedAt || c.createdAt || c.date));
+        return cDate === tmpl.date || (tmpl.isToday && (c.isToday || c.dateKey === new Date().toDateString()));
+      });
+
+      const mScore = Number(ci?.moodScore ?? (MOODS.find(m => m.id === ci?.mood)?.score) ?? 5);
+      const score10 = Number(((mScore / 6) * 10).toFixed(1));
+      const pct = Math.min(100, Math.max(20, Math.round((mScore / 6) * 100)));
+      const energy = Number(ci?.energy ?? (tmpl.isToday ? 9 : 7));
+      const stress = Number(ci?.stressLevel ?? ci?.stress ?? (tmpl.isToday ? 6 : 5));
+      const mot = Number(ci?.motivation ?? (tmpl.isToday ? 4 : 6));
+      const moodObj = MOODS.find(m => m.id === ci?.mood || m.score === ci?.moodScore);
+      const moodLabel = moodObj?.label || (typeof ci?.mood === 'string' ? ci.mood : 'Good');
+
+      const dateObj = new Date(tmpl.date + 'T12:00:00');
+      const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      return {
+        ...tmpl,
+        date: dateFormatted,
+        isoDate: tmpl.date,
+        score: score10,
+        pct,
+        energy,
+        stress,
+        mot,
+        color: tmpl.defaultColor,
+        moodLabel,
+        note: ci?.note || tmpl.defaultNote,
+        ci,
+      };
+    });
   }, [checkIns]);
 
   const activeIdx = hoveredIdx ?? selectedIdx;
@@ -399,7 +421,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
                   {/* Stepped line junction dot */}
                   <circle cx={cx} cy={cy - 22} r="3.5" fill="#64748b" />
 
-                  {/* Two-Tone Pill Badge above column (matching reference drawing) */}
+                  {/* Two-Tone Pill Badge above column (showing exact 10-scale score matching diagnostics) */}
                   <g transform={`translate(${cx - 38}, ${cy - 31})`}>
                     {/* Left neutral box */}
                     <rect x="0" y="0" width="38" height="18" rx="4" fill="#e2e8f0" />
@@ -409,7 +431,7 @@ function ThreeDHexagonalTrendsChart({ checkIns }) {
                     {/* Right colored box */}
                     <rect x="38" y="0" width="38" height="18" rx="4" fill={d.color} />
                     <text x="57" y="13" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
-                      {d.pct}%
+                      {d.score}
                     </text>
                   </g>
 
