@@ -16,6 +16,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../store/authStore';
 import * as mhService from '../../services/mentalHealth.service';
 import ActivityPlayer from '../../components/mentalWellness/ActivityPlayer';
 import {
@@ -24,6 +25,8 @@ import {
   QUICK_TOOLS,
   CATEGORY_ICONS,
   loadTodayCheckIn,
+  loadActivityLog,
+  calculateStreak,
   appendActivityLog,
 } from '../../data/wellnessMockData';
 
@@ -296,10 +299,201 @@ function ProfessionalSupport() {
   );
 }
 
+// ── Contextual AI Pre-Message Generator based on Live State & Check-in ────────
+
+export function buildContextualGreeting({ checkIn, firstName = 'there', recentActivities = [], streak = 0 }) {
+  const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+
+  const lastActivity = recentActivities?.[0];
+  const isRecentActivity = lastActivity && (Date.now() - new Date(lastActivity.startedAt).getTime() < 3 * 3600 * 1000);
+
+  // 1. If user HAS a check-in logged today
+  if (checkIn) {
+    const moodObj = MOODS.find(m =>
+      m.id === checkIn.mood ||
+      m.score === checkIn.moodScore ||
+      m.id === String(checkIn.mood || '').toLowerCase()
+    );
+    const moodLabel = moodObj?.label || (typeof checkIn.mood === 'string' ? checkIn.mood : 'balanced');
+    const moodId = (moodObj?.id || String(checkIn.mood || '')).toLowerCase();
+    const stress = Number(checkIn.stressLevel ?? checkIn.stress ?? 5);
+    const energy = Number(checkIn.energy ?? 5);
+
+    // Case 1A: High Stress or Overwhelmed
+    if (stress >= 7 || moodId === 'overwhelmed') {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Hello ${firstName}. I reviewed your daily check-in — I see your stress level is elevated at **${stress}/10** with a **${moodLabel}** state. That can feel heavy on your nervous system.\n\nI'm right here with you. Before we dive into conversation, let's pause and ground your body with this quick vagal reset:`,
+        recommendations: [{
+          id: 'rec_stress_init',
+          title: '4-7-8 Breathing Reset',
+          type: 'BREATHING',
+          durationMin: 4,
+          category: 'Breathwork',
+          icon: 'air',
+        }],
+      };
+    }
+
+    // Case 1B: Low Energy + Moderate/High Stress (Burnout/Depleted)
+    if (energy <= 4 && stress >= 6) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Good ${timeOfDay}, ${firstName} 🌿. Looking at your live check-in, your energy is running low (**${energy}/10**) while tension is high (**${stress}/10**).\n\nWhen reserves are depleted, demanding more of yourself only adds pressure. Here is a zero-effort restorative body scan to help you unburden and breathe freely:`,
+        recommendations: [{
+          id: 'rec_burnout_init',
+          title: 'Restorative Body Scan',
+          type: 'MINDFULNESS',
+          durationMin: 8,
+          category: 'Mindfulness',
+          icon: 'self_improvement',
+        }],
+      };
+    }
+
+    // Case 1C: Low Energy + Low/Moderate Stress (Fatigued / Sleepy)
+    if (energy <= 4 && stress <= 5) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Hi ${firstName}. Your check-in shows you're carrying a gentle, low-energy state today (**${energy}/10**).\n\nWhether you need to ease afternoon brain fog or simply want a calm space to rest, I'm here. If you'd like a gentle oxygenating lift without any strain, give this 4-minute flow a try:`,
+        recommendations: [{
+          id: 'rec_lowe_init',
+          title: 'Energizing Breath Awakening',
+          type: 'BREATHING',
+          durationMin: 4,
+          category: 'Breathwork',
+          icon: 'air',
+        }],
+      };
+    }
+
+    // Case 1D: Low Mood (Sadness / Heavy Heart)
+    if (moodId === 'low') {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Hello ${firstName} 🤍. I noticed in your check-in that your mood is feeling low today. Please remember that you don't have to carry this alone, and you never have to force a smile here.\n\nTake all the space you need. Would you like to share what's on your mind, or start with this soothing self-compassion practice?`,
+        recommendations: [{
+          id: 'rec_lowm_init',
+          title: 'Self-Compassion Meditation',
+          type: 'MEDITATION',
+          durationMin: 8,
+          category: 'Meditation',
+          icon: 'self_improvement',
+        }],
+      };
+    }
+
+    // Case 1E: High Energy & Balanced Stress (Vitality & Flow)
+    if (energy >= 7 && stress <= 5) {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Good ${timeOfDay}, ${firstName}! ⚡ I see great vitality in your check-in today — energy at **${energy}/10** with calm composure. You have fantastic momentum for creative focus or meaningful reflection.\n\nWhat would you like to explore or focus on together? Or tap below to lock into a deep focus flow:`,
+        recommendations: [{
+          id: 'rec_highe_init',
+          title: 'Focused Flow Session',
+          type: 'FOCUS',
+          durationMin: 10,
+          category: 'Focus',
+          icon: 'target',
+        }],
+      };
+    }
+
+    // Case 1F: Good / Thriving
+    if (moodId === 'good' || moodId === 'thriving') {
+      return {
+        id: 'greeting_contextual',
+        role: 'ai',
+        time,
+        text: `Welcome back ${firstName}! ✨ Your check-in reflects a **${moodLabel}** state with positive energy (${energy}/10). Anchoring the moments that lift you up creates lasting resilience.\n\nWhat has brought lightness to your day so far? You can also ground this positive state with a quick gratitude reflection:`,
+        recommendations: [{
+          id: 'rec_thrive_init',
+          title: 'Gratitude Anchor Practice',
+          type: 'GRATITUDE',
+          durationMin: 7,
+          category: 'Journaling',
+          icon: 'edit_note',
+        }],
+      };
+    }
+
+    // Case 1G: Neutral / Steady (Default with check-in)
+    return {
+      id: 'greeting_contextual',
+      role: 'ai',
+      time,
+      text: `Hi ${firstName} 🌿. I reviewed your state log: you're in a **${moodLabel}** equilibrium today (Energy: ${energy}/10, Stress: ${stress}/10).\n\nI'm ready whenever you are — whether you'd like to reflect on your day, process a thought, or take a quick mental reset:`,
+      recommendations: [{
+        id: 'rec_neutral_init',
+        title: 'Mindful Equilibrium Reset',
+        type: 'MINDFULNESS',
+        durationMin: 5,
+        category: 'Mindfulness',
+        icon: 'self_improvement',
+      }],
+    };
+  }
+
+  // 2. If user completed an activity earlier today
+  if (isRecentActivity) {
+    return {
+      id: 'greeting_contextual',
+      role: 'ai',
+      time,
+      text: `Welcome back, ${firstName} 🌿! I noticed you completed **${lastActivity.title}** (${lastActivity.durationMin} min) earlier today — wonderful dedication to your well-being.\n\nHow is your mind and body feeling since that session? Tell me what's on your mind, or we can continue with another gentle practice below:`,
+      recommendations: [{
+        id: 'rec_followup_init',
+        title: 'Daily Intentions Journal',
+        type: 'GRATITUDE',
+        durationMin: 6,
+        category: 'Journaling',
+        icon: 'edit_note',
+      }],
+    };
+  }
+
+  // 3. Fallback: User has NOT checked in yet today
+  const streakText = streak > 0 ? ` (your active streak is at **${streak} days** 🔥)` : '';
+  return {
+    id: 'greeting_contextual',
+    role: 'ai',
+    time,
+    text: `Hello ${firstName} 🌿 I'm your AI Wellness Companion — a safe, confidential space.\n\nI noticed you haven't completed your daily check-in yet today${streakText}. Logging your state helps me tailor every recommendation to how you feel.\n\nHow are you feeling right now? Tell me what's on your mind, or tap below to start with a calming reset:`,
+    recommendations: [{
+      id: 'rec_init_br',
+      title: '4-7-8 Breathing Reset',
+      type: 'BREATHING',
+      durationMin: 4,
+      category: 'Breathwork',
+      icon: 'air',
+    }],
+  };
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function WellnessCompanion() {
-  const [messages,      setMessages]      = useState([]);
+  const { user } = useAuthStore();
+  const firstName = user?.fullName?.split(' ')[0] || 'there';
+
+  const [messages,      setMessages]      = useState(() => {
+    const ci = loadTodayCheckIn();
+    const acts = loadActivityLog();
+    const strk = calculateStreak();
+    return [buildContextualGreeting({ checkIn: ci, firstName: 'there', recentActivities: acts, streak: strk })];
+  });
   const [inputValue,    setInputValue]    = useState('');
   const [isTyping,      setIsTyping]      = useState(false);
   const [conversation,  setConversation]  = useState(null);
@@ -313,6 +507,21 @@ export default function WellnessCompanion() {
   const chatContainerRef = useRef(null);
   const inputRef         = useRef(null);
   const responseIdx      = useRef(0);
+
+  // Update greeting with real user name or updated check-in once available
+  useEffect(() => {
+    setMessages(prev => {
+      if (prev.length <= 1 && (!prev[0] || prev[0].id?.startsWith('greeting'))) {
+        return [buildContextualGreeting({
+          checkIn: lastCheckIn || loadTodayCheckIn(),
+          firstName,
+          recentActivities: loadActivityLog(),
+          streak: calculateStreak(),
+        })];
+      }
+      return prev;
+    });
+  }, [firstName, lastCheckIn]);
 
   // Scroll ONLY the inner chat messages container to the bottom; the main browser page remains static
   useEffect(() => {
@@ -375,20 +584,15 @@ export default function WellnessCompanion() {
 
   // Init conversation and opening greeting
   useEffect(() => {
-    const greeting = {
-      id:   'greeting',
-      role: 'ai',
-      text: "Hello 🌿 I'm your AI Wellness Companion — a safe, confidential space.\n\nHow are you feeling right now? If you need a quick reset, feel free to try an exercise below or tell me what's on your mind.",
-      time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-      recommendations: [{
-        id: 'rec_init_br',
-        title: '4-7-8 Breathing Reset',
-        type: 'BREATHING',
-        durationMin: 4,
-        category: 'Breathwork',
-        icon: 'air',
-      }],
-    };
+    const ci = loadTodayCheckIn();
+    const acts = loadActivityLog();
+    const strk = calculateStreak();
+    const contextualGreeting = buildContextualGreeting({
+      checkIn: ci,
+      firstName,
+      recentActivities: acts,
+      streak: strk,
+    });
 
     (async () => {
       try {
@@ -412,15 +616,15 @@ export default function WellnessCompanion() {
               }),
             })));
           } else {
-            setMessages([greeting]);
+            setMessages([contextualGreeting]);
           }
           return;
         }
       } catch {
         // fall through to mock mode
       }
-      // Mock mode — show greeting with interactive exercise card
-      setMessages([greeting]);
+      // Mock mode — show dynamic contextual greeting with interactive exercise card
+      setMessages([contextualGreeting]);
     })();
 
     // Load last check-in for LiveContext (local first, then API sync)
