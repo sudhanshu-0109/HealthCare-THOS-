@@ -1244,6 +1244,7 @@ model MentalHealthCheckIn {
   id           String              @id @default(uuid())
   profileId    String
   profile      MentalHealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  checkInDate  String?             // YYYY-MM-DD local date string; null for legacy rows
   mood         Int                 // 1=Overwhelmed ... 5=Great
   stress       Int                 // 0-10
   energy       Int                 // 1-5
@@ -1252,11 +1253,17 @@ model MentalHealthCheckIn {
   note         String?             // safety-scanned before storage
   noteRiskLevel RiskLevel?         // risk level of the note scan
   createdAt    DateTime            @default(now())
+  updatedAt    DateTime?           @updatedAt
 
   @@index([profileId])
   @@index([createdAt])
+  // Compound unique: one authoritative check-in per user per calendar day.
+  // This is the DB-level enforcement of the one-per-day contract.
+  // Legacy rows with null checkInDate are excluded from the unique constraint.
+  @@unique([profileId, checkInDate])
   @@map("mental_health_check_ins")
 }
+
 
 // AI conversation session (Zone B - Section 4).
 model AIConversation {

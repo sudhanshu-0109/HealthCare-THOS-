@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { mockUser, mockHabits } from "../../data/physicalWellnessMockData.js";
+import { ArrowLeft, Shield, LogOut } from "lucide-react";
+import useAuthStore from "../../store/authStore.js";
+import { useAuth } from "../../hooks/useAuth.js";
 
 const HomeIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -42,8 +43,64 @@ const navItems = [
   { id: "assistant", label: "Assistant", icon: <BotIcon /> },
 ];
 
-export default function PWLayout({ currentPage, navigate, children }) {
+export default function PWLayout({ currentPage, navigate, children, streak = 0 }) {
   const routerNavigate = useNavigate();
+  const { user } = useAuthStore();
+  const { logout } = useAuth();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const profileMenuRef = useRef(null);
+  const profileTriggerRef = useRef(null);
+
+  // Close profile dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const handleClickOutside = (e) => {
+      const inMenu = profileMenuRef.current?.contains(e.target);
+      const inTrigger = profileTriggerRef.current?.contains(e.target);
+      if (!inMenu && !inTrigger) {
+        setShowProfileMenu(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setShowProfileMenu(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showProfileMenu]);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    setShowProfileMenu(false);
+    try {
+      await logout();
+    } catch (err) {
+      console.warn("[PWLayout] Logout error:", err);
+    } finally {
+      setIsLoggingOut(false);
+      routerNavigate("/login", { replace: true });
+    }
+  };
+
+  // Derive display name: prefer firstName from profile (pw_profile_v2), then auth user fullName
+  const displayName = (() => {
+    try {
+      const raw = localStorage.getItem("pw_profile_v2");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p.firstName) return p.firstName;
+      }
+    } catch {}
+    return user?.fullName?.split(' ')[0] || user?.name?.split(' ')[0] || 'User';
+  })();
+
+  const avatarLetter = displayName.charAt(0).toUpperCase();
+
   const mainNavIds = ["dashboard", "weekly-plan", "habits", "progress", "assistant"];
   const showNav = mainNavIds.includes(currentPage);
 
@@ -99,14 +156,84 @@ export default function PWLayout({ currentPage, navigate, children }) {
             <GearIcon />
             Settings
           </button>
-          <div className="mt-3 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-[var(--secondary)] flex items-center justify-center text-xs font-bold text-[var(--primary)] shrink-0">
-                {mockUser.name.charAt(0)}
+          <div className="relative mt-3">
+            {/* Profile Dropdown / Popover Menu */}
+            {showProfileMenu && (
+              <div
+                ref={profileMenuRef}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="absolute bottom-full left-0 mb-2 w-56 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-slate-900/15 py-2 z-50 animate-fadeIn divide-y divide-slate-100"
+              >
+                {/* User Info Header */}
+                <div className="px-3.5 py-2.5 flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[var(--secondary)] flex items-center justify-center text-xs font-bold text-[var(--primary)] shadow-xs shrink-0">
+                    {avatarLetter}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-slate-800 truncate">
+                      {user?.fullName || displayName}
+                    </p>
+                    <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                      {user?.email || "Patient"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Navigation Links */}
+                <div className="p-1.5 space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowProfileMenu(false);
+                      routerNavigate('/health-hub');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-medium text-slate-700 hover:text-[var(--accent)] hover:bg-slate-50 rounded-xl transition-colors text-left cursor-pointer"
+                  >
+                    <Shield className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Health Hub Dashboard</span>
+                  </button>
+                </div>
+
+                {/* Sign Out Action Button */}
+                <div className="p-1.5">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors text-left cursor-pointer"
+                  >
+                    {isLoggingOut ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-rose-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                        <span>Signing out...</span>
+                      </>
+                    ) : (
+                      <>
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        <span>Sign Out</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-[var(--foreground)]">{mockUser.name}</p>
-                <p className="text-xs text-[var(--muted-foreground)]">{mockHabits.streaks.current}-day streak 🔥</p>
+            )}
+
+            {/* Profile trigger card - UI preserved, interactive click opens menu */}
+            <div
+              ref={profileTriggerRef}
+              onClick={() => setShowProfileMenu(prev => !prev)}
+              className="px-3 py-2 rounded-xl hover:bg-[var(--muted)]/70 transition-colors cursor-pointer"
+              title="Account Options"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-[var(--secondary)] flex items-center justify-center text-xs font-bold text-[var(--primary)] shrink-0">
+                  {avatarLetter}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-[var(--foreground)] truncate">{displayName}</p>
+                  <p className="text-xs text-[var(--muted-foreground)] truncate">{streak}-day streak 🔥</p>
+                </div>
               </div>
             </div>
           </div>

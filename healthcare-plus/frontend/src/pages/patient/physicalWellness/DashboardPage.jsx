@@ -1,5 +1,10 @@
 import React from "react";
 import { computeAvgReadiness } from "../PhysicalHealth.jsx";
+import { localDateStr } from "../PhysicalHealth.jsx";
+import useAuthStore from "../../../store/authStore.js";
+
+/** Local today string — avoids UTC midnight shift for IST users. */
+function todayLocalStr() { return localDateStr(new Date()); }
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -62,7 +67,16 @@ export default function DashboardPage({
   profile, checkins, todayCheckin, streak, last4 = [], workouts,
   onStartCheckIn, onViewWorkout, onViewPlan, onViewProgress,
 }) {
-  const name = profile?.firstName || profile?.name || "there";
+  const { user } = useAuthStore();
+
+  // Name priority: onboarding profile firstName → auth user fullName first word → 'there'
+  const name =
+    profile?.firstName ||
+    profile?.name ||
+    user?.fullName?.split(' ')[0] ||
+    user?.name?.split(' ')[0] ||
+    'there';
+
   const primaryGoal = profile?.primaryGoal || "General Fitness";
   const workout = goalWorkoutSummary(primaryGoal);
   const commitment = profile?.commitment || "30 min";
@@ -89,8 +103,10 @@ export default function DashboardPage({
   // Completed workouts this week (Mon–today)
   const weekStart = (() => {
     const d = new Date();
-    d.setDate(d.getDate() - d.getDay() + 1);
-    return d.toISOString().slice(0, 10);
+    // Find Monday of this week using local dates
+    const dow = d.getDay(); // 0=Sun
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    return localDateStr(d);
   })();
   const completedThisWeek = workouts.filter(w => w.date >= weekStart && w.completed).length;
 
@@ -424,8 +440,9 @@ function GoalWeeklyStructure({ goal }) {
 function Last4DayDots({ last4, workouts }) {
   const weekStart = (() => {
     const d = new Date();
-    d.setDate(d.getDate() - d.getDay() + 1);
-    return d.toISOString().slice(0, 10);
+    const dow = d.getDay();
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    return localDateStr(d);
   })();
 
   // Build full week Mon–Sun
@@ -434,10 +451,11 @@ function Last4DayDots({ last4, workouts }) {
     const dayOfWeek = d.getDay(); // 0=Sun
     const diff = i - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
     d.setDate(d.getDate() + diff);
-    const date = d.toISOString().slice(0, 10);
+    const date = localDateStr(d);
     const done = workouts.some(w => w.date === date && w.completed);
-    const isPast = date < new Date().toISOString().slice(0, 10);
-    const isToday = date === new Date().toISOString().slice(0, 10);
+    const todayStr = todayLocalStr();
+    const isPast = date < todayStr;
+    const isToday = date === todayStr;
     return { date, done, isPast, isToday, label: ["Mo","Tu","We","Th","Fr","Sa","Su"][i] };
   });
 

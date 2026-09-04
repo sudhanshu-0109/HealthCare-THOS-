@@ -638,6 +638,112 @@ const CHECKIN_KEY  = 'mw_daily_checkin';
 const DATES_KEY    = 'mw_checkin_dates';
 const PROGRESS_KEY = 'mw_progress_cache';
 
+// ── Idempotent migration: remove auto-seeded data written by old code ─────────
+// Uses a localStorage-versioned key so it persists across page reloads and
+// re-runs whenever the app loads (not just once per session).
+// It is safe to run multiple times — it only removes entries that are PROVABLY
+// auto-seeded (no real timestamp, only the 4 exact demo dates).
+(function runStaleDataMigration() {
+  try {
+    const MIGRATION_VERSION = 'mw_seed_migration_v4';
+    // Re-run once per calendar day (not just once ever) so midnight transitions work
+    const migrationDayKey = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+    const storedDay = localStorage.getItem(MIGRATION_VERSION);
+    if (storedDay === migrationDayKey) return; // already ran today
+    localStorage.setItem(MIGRATION_VERSION, migrationDayKey);
+
+    const todayIso = migrationDayKey;
+    const DEMO_DATES = new Set(['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03']);
+
+    /**
+     * Returns local YYYY-MM-DD for a given Date.
+     * Intentionally inlined to avoid dependency on the module-level getLocalDateStr
+     * (which may not be defined yet at IIFE execution time).
+     */
+    function localDate(d) {
+      const dd = new Date(d);
+      return `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`;
+    }
+
+    /**
+     * Determine if a check-in record is definitively auto-seeded (fake).
+     * A real user check-in MUST have:
+     *   1. id containing both a date AND a timestamp: ci_YYYY-MM-DD_<ms>
+     *   2. savedAt that is a real wall-clock time (not the seeded 08:00 or 08:30 AM stubs)
+     * A seeded/fake entry:
+     *   - Has an id like ci_2026-08-31 (no underscore after the date)
+     *   - Has one of the exact 4 demo dates (never today)
+     */
+    function isAutoSeeded(entry) {
+      if (!entry || !entry.id) return false;
+      // Auto-seeded IDs are exactly 'ci_YYYY-MM-DD' with nothing after
+      const seedIdPattern = /^ci_\d{4}-\d{2}-\d{2}$/;
+      const isSeedId = seedIdPattern.test(entry.id);
+      // Real user IDs always have a timestamp suffix: ci_YYYY-MM-DD_1725...
+      const isRealId = /^ci_\d{4}-\d{2}-\d{2}_\d+$/.test(entry.id);
+      // If the id has a timestamp, it is always a real entry — never delete
+      if (isRealId) return false;
+      // If the id is exactly ci_YYYY-MM-DD, check if it refers to a demo date
+      if (isSeedId) {
+        const seedDate = entry.id.slice(3); // 'ci_YYYY-MM-DD' -> 'YYYY-MM-DD'
+        return DEMO_DATES.has(seedDate) || seedDate >= todayIso;
+      }
+      // Unknown id format — preserve
+      return false;
+    }
+
+    // 1. Purge mw_daily_checkin ONLY if it is a seeded entry for today.
+    //    Real user entries have timestamp-suffixed IDs → preserved.
+    const rawCI = localStorage.getItem('mw_daily_checkin');
+    if (rawCI) {
+      try {
+        const entry = JSON.parse(rawCI);
+        const entryDate = localDate(new Date(entry.dateKey || entry.savedAt || entry.createdAt || 0));
+        // Only remove if today's entry AND it is provably fake
+        if (entryDate === todayIso && isAutoSeeded(entry)) {
+          localStorage.removeItem('mw_daily_checkin');
+        }
+      } catch { /* malformed JSON — remove to be safe */ localStorage.removeItem('mw_daily_checkin'); }
+    }
+
+    // 2. Update mw_checkin_dates: keep only historical DEMO dates + real user dates.
+    //    Remove today from dates ONLY if there is no real check-in for today.
+    const hasTodayCI = Boolean(localStorage.getItem('mw_daily_checkin'));
+    const rawDates = localStorage.getItem('mw_checkin_dates');
+    if (rawDates) {
+      try {
+        const dates = JSON.parse(rawDates).filter(d => {
+          if (d < todayIso) return true;           // historical: keep
+          if (d === todayIso) return hasTodayCI;   // today: keep only if real CI exists
+          return false;                             // future: remove
+        });
+        localStorage.setItem('mw_checkin_dates', JSON.stringify(dates));
+      } catch {}
+    }
+
+    // 3. Clean mw_checkin_history: remove seeded entries for today/future;
+    //    preserve all historical demo data and all real user entries.
+    const rawHist = localStorage.getItem('mw_checkin_history');
+    if (rawHist) {
+      try {
+        const history = JSON.parse(rawHist);
+        const cleaned = history.filter(h => {
+          const hDate = localDate(new Date(h.savedAt || h.createdAt || h.date || 0));
+          if (hDate < todayIso) return true;       // past: always keep
+          if (hDate > todayIso) return false;      // future: always remove
+          // hDate === today: keep only if it is a REAL user entry (not seeded)
+          return !isAutoSeeded(h);
+        });
+        localStorage.setItem('mw_checkin_history', JSON.stringify(cleaned));
+      } catch {}
+    }
+  } catch { /* silent — never block app startup */ }
+})();
+
+
 // ── Check-in persistence & Streak Calculation ─────────────────────────────────
 
 /**
@@ -662,18 +768,17 @@ export function ensureLiveStreakData() {
   if (isEnsuringLiveStreak) return;
   isEnsuringLiveStreak = true;
   try {
-    const today = new Date();
-    const todayIso = getLocalDateStr(today);
-    const yesterday = new Date(Date.now() - 86400000);
-    const yesterdayIso = getLocalDateStr(yesterday);
+    const todayIso = getLocalDateStr(new Date());
 
-    // 1. DATES_KEY: All 4 consecutive days from Monday to Thursday (Aug 31 - Sep 3, 2026)
-    const currentWeekDates = ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03'];
+    // 1. DATES_KEY: Seed only the 4 historical demo days (Mon Aug 31 – Thu Sep 3, 2026).
+    //    NEVER seed today or any future date automatically.
+    const HISTORICAL_DATES = ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03'];
     const rawDates = localStorage.getItem(DATES_KEY);
     let dates = rawDates ? JSON.parse(rawDates) : [];
     let updatedDates = false;
-    currentWeekDates.forEach(dStr => {
-      if (!dates.includes(dStr)) {
+    HISTORICAL_DATES.forEach(dStr => {
+      // Only add historical dates that are strictly before today
+      if (dStr < todayIso && !dates.includes(dStr)) {
         dates.push(dStr);
         updatedDates = true;
       }
@@ -682,43 +787,28 @@ export function ensureLiveStreakData() {
       localStorage.setItem(DATES_KEY, JSON.stringify(dates));
     }
 
-    // 2. CHECKIN_KEY: Today's check-in (preserves whatever the user entered)
-    let todayCI = null;
-    try {
-      const rawCI = localStorage.getItem(CHECKIN_KEY);
-      todayCI = rawCI ? JSON.parse(rawCI) : null;
-    } catch {}
+    // 2. CHECKIN_KEY: Do NOT auto-create today's check-in.
+    //    loadTodayCheckIn() will return null if the user has not checked in,
+    //    which correctly shows the check-in form.
 
-    // If today's check-in does not exist yet for today, initialize default baseline (Good, 5/6, energy 6, stress 3, mot 3)
-    if (!todayCI || todayCI.dateKey !== today.toDateString()) {
-      todayCI = {
-        id: `ci_${todayIso}`,
-        mood: 'good',
-        moodScore: 5,
-        energy: 6,
-        stress: 3,
-        stressLevel: 3,
-        motivation: 3,
-        date: todayIso,
-        dateKey: today.toDateString(),
-        savedAt: today.toISOString(),
-        createdAt: today.toISOString(),
-      };
-      localStorage.setItem(CHECKIN_KEY, JSON.stringify(todayCI));
-    }
-
-    // 3. CHECKIN_HISTORY_KEY: Only actual checked-in days so far (Mon Aug 31 - Thu Sep 3)
+    // 3. CHECKIN_HISTORY_KEY: Seed only the 4 historical demo check-in records.
+    //    Today (Sep 4+) is only added when the user actually submits a check-in.
     const rawHist = localStorage.getItem(CHECKIN_HISTORY_KEY);
     let history = rawHist ? JSON.parse(rawHist) : [];
 
-    // Filter out future dates (Sep 4, 5, 6) since they have not arrived yet
+    // Remove any auto-seeded entries for today or future dates that may have been
+    // written by a previous version of this code, but PRESERVE real user entries for today!
     history = history.filter(h => {
       const hDate = getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date));
-      return hDate <= todayIso;
+      if (hDate < todayIso) return true;
+      if (hDate > todayIso) return false;
+      // hDate === today: keep only if it is a real user entry (has timestamp or is not an exact stub ID)
+      const isSeedId = /^ci_\d{4}-\d{2}-\d{2}$/.test(h.id);
+      return !isSeedId;
     });
 
-    // Complete day-wise records for checked-in days of current week (Mon-Thu only)
-    const currentWeekRecords = [
+    // Static historical records for the 4 demo days
+    const historicalRecords = [
       {
         id: 'ci_2026-08-31',
         date: '2026-08-31',
@@ -789,49 +879,46 @@ export function ensureLiveStreakData() {
         note: 'Mid-week equilibrium · Somatic tension managed',
       },
       {
-        id: todayCI.id || 'ci_2026-09-03',
+        id: 'ci_2026-09-03',
         date: '2026-09-03',
-        dateKey: todayCI.dateKey || 'Thu Sep 03 2026',
+        dateKey: 'Thu Sep 03 2026',
         dayLabel: 'Thursday',
         shortDay: 'Thu',
         dayNum: '04',
-        mood: todayCI.mood || 'good',
-        moodScore: Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 5),
-        energy: Number(todayCI.energy ?? 6),
-        stress: Number(todayCI.stressLevel ?? todayCI.stress ?? 3),
-        stressLevel: Number(todayCI.stressLevel ?? todayCI.stress ?? 3),
-        motivation: Number(todayCI.motivation ?? 3),
-        timeStr: todayCI.timeStr || (todayCI.savedAt ? new Date(todayCI.savedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '4:51 PM'),
-        createdAt: todayCI.createdAt || today.toISOString(),
-        savedAt: todayCI.savedAt || today.toISOString(),
+        mood: 'good',
+        moodScore: 5,
+        energy: 7,
+        stress: 3,
+        stressLevel: 3,
+        motivation: 8,
+        timeStr: '8:30 AM',
+        createdAt: '2026-09-03T08:30:00.000Z',
+        savedAt: '2026-09-03T08:30:00.000Z',
         color: '#3b82f6',
         colorLight: '#dbeafe',
         colorDark: '#2563eb',
-        pct: Math.min(100, Math.max(16, Math.round((Number(todayCI.moodScore || 5) / 6) * 100))),
+        pct: 83,
         icon: 'calendar_today',
-        note: todayCI.note || 'High physical vitality · Mindful focus cultivated',
-        isToday: true,
+        note: 'High physical vitality · Mindful focus cultivated',
       },
     ];
 
-    currentWeekRecords.forEach(rec => {
-      const idx = history.findIndex(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === rec.date);
-      if (idx >= 0) {
-        if (rec.isToday && todayCI) {
-          // Dynamic live update: User's latest inputs always override for today!
-          history[idx] = { ...history[idx], ...rec, ...todayCI };
-        } else {
-          history[idx] = { ...rec, ...history[idx] };
+    historicalRecords.forEach(rec => {
+      // Only seed if this date is strictly before today
+      if (rec.date < todayIso) {
+        const idx = history.findIndex(h =>
+          getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === rec.date
+        );
+        if (idx < 0) {
+          history.push(rec);
         }
-      } else {
-        history.push(rec);
       }
     });
 
     history.sort((a, b) => new Date(b.createdAt || b.savedAt || b.date) - new Date(a.createdAt || a.savedAt || a.date));
     localStorage.setItem(CHECKIN_HISTORY_KEY, JSON.stringify(history));
 
-    // 4. Update progress cache with 4-day streak
+    // 4. Update progress cache with dynamically calculated streak
     let existingCache = {};
     try {
       const raw = localStorage.getItem(PROGRESS_KEY);
@@ -841,12 +928,15 @@ export function ensureLiveStreakData() {
       }
     } catch {}
 
-    saveProgressCache({
-      ...existingCache,
-      currentStreak: 4,
-      totalSessions: Math.max(4, existingCache.totalSessions || 0),
-      averageMoodScore: 5.5,
-    });
+    // Only update if there is no recent cache (avoid overwriting user's live data)
+    if (!existingCache.currentStreak) {
+      saveProgressCache({
+        ...existingCache,
+        currentStreak: 4,
+        totalSessions: Math.max(4, existingCache.totalSessions || 0),
+        averageMoodScore: 5.5,
+      });
+    }
   } catch (err) {
     console.warn('ensureLiveStreakData warning:', err);
   } finally {
@@ -861,32 +951,28 @@ let isCalculatingStreak = false;
  * @returns {number}
  */
 export function calculateStreak() {
-  if (isCalculatingStreak) return 4;
+  if (isCalculatingStreak) return 0;
   isCalculatingStreak = true;
   try {
     ensureLiveStreakData();
     const rawDates = localStorage.getItem(DATES_KEY);
     const dates = rawDates ? JSON.parse(rawDates) : [];
-    
-    // Also consider today's active check-in if present
+
+    // Also consider today's active check-in if the user has submitted one
     const todayCI = loadTodayCheckIn();
     const todayStr = getLocalDateStr(new Date());
-    
+
     const dateSet = new Set(dates);
     if (todayCI) {
       dateSet.add(todayStr);
     }
-    
-    if (dateSet.size === 0) {
-      return 0;
-    }
+
+    if (dateSet.size === 0) return 0;
 
     const uniqueSorted = Array.from(dateSet).sort().reverse();
-    const yesterdayDate = new Date(Date.now() - 86400000);
-    const yesterdayStr = getLocalDateStr(yesterdayDate);
-
+    const yesterdayStr = getLocalDateStr(new Date(Date.now() - 86400000));
     const latest = uniqueSorted[0];
-    
+
     // Streak is alive ONLY if the most recent check-in was today OR yesterday
     if (latest !== todayStr && latest !== yesterdayStr) {
       return 0; // Streak broken: user missed yesterday
@@ -895,7 +981,6 @@ export function calculateStreak() {
     // Count consecutive days backward starting from latest check-in
     let streak = 1;
     let expected = new Date(latest + 'T12:00:00');
-
     for (let i = 1; i < uniqueSorted.length; i++) {
       expected.setDate(expected.getDate() - 1);
       const expectedStr = getLocalDateStr(expected);
@@ -905,9 +990,9 @@ export function calculateStreak() {
         break;
       }
     }
-    return Math.max(4, streak);
+    return streak;
   } catch {
-    return 2;
+    return 0; // On error, do not fake a streak — show 0
   } finally {
     isCalculatingStreak = false;
   }
@@ -964,17 +1049,17 @@ export function getCurrentWeekStreakStatus() {
       weekDays,
     };
   } catch {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 is Sun, 1 is Mon, ... 4 is Thu, 5 is Fri
+    const dayIdx = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return {
-      streak: 4,
-      weekDays: [
-        { day: 'Mon', isChecked: true, isToday: false },
-        { day: 'Tue', isChecked: true, isToday: false },
-        { day: 'Wed', isChecked: true, isToday: false },
-        { day: 'Thu', isChecked: true, isToday: true },
-        { day: 'Fri', isChecked: false, isToday: false },
-        { day: 'Sat', isChecked: false, isToday: false },
-        { day: 'Sun', isChecked: false, isToday: false },
-      ],
+      streak: 0,
+      weekDays: dayLabels.map((day, idx) => ({
+        day,
+        isChecked: false,
+        isToday: idx === dayIdx,
+      })),
     };
   }
 }
@@ -1252,8 +1337,85 @@ export function loadProgressCache() {
   }
 }
 
+// ── DNA Program Pathway Completion Tracking ─────────────────────────────────
+export const PROGRAM_COMPLETED_DAYS_KEY = 'mw_program_completed_days';
 
+export const DNA_JOURNEY_TITLES_TO_DAY = {
+  'Vagal Somatic Reset': 1,
+  'Sensory Grounding 5-4-3-2-1': 2,
+  'Overcoming Inertia: Micro-Momentum': 3,
+  'Restorative Body Scan': 4,
+  'Dopamine Reset & Clarity': 5,
+  'Shoulder & Neck Tension Release': 6,
+  'Weekly Anchor & Purpose Journal': 7,
+  'Box Breathing 4-4-4-4 Composure': 8,
+  'Compassionate Mindful Pause': 9,
+  'Kinetic Energy Shakeout': 10,
+  'Acoustic Sound Bath Resonance': 11,
+  'Cognitive Reframing Reflection': 12,
+  'Deep Sleep & Nervous Wind-down': 13,
+  'Integration & Habit Mastery': 14,
+};
 
+/**
+ * Load completed DNA program days.
+ * Historical demo days 1, 2, 3, 4 are seeded by default.
+ * Also scans the activity log to automatically recognize any completed DNA tasks (e.g. Day 6).
+ * @returns {number[]}
+ */
+export function loadCompletedProgramDays() {
+  try {
+    const raw = localStorage.getItem(PROGRAM_COMPLETED_DAYS_KEY);
+    let days = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(days) || days.length === 0) {
+      days = [1, 2, 3, 4]; // historical demo days (Aug 31–Sep 3)
+    }
+
+    // Auto-detect completed tasks from activity log
+    const activityLog = loadActivityLog();
+    let updated = false;
+    activityLog.forEach(act => {
+      const d = DNA_JOURNEY_TITLES_TO_DAY[act.title];
+      if (d && !days.includes(d)) {
+        days.push(d);
+        updated = true;
+      }
+    });
+
+    if (updated || !raw) {
+      days.sort((a, b) => a - b);
+      localStorage.setItem(PROGRAM_COMPLETED_DAYS_KEY, JSON.stringify(days));
+    }
+
+    return days;
+  } catch {
+    return [1, 2, 3, 4];
+  }
+}
+
+/**
+ * Mark a DNA journey program day as completed.
+ * @param {number} dayNum
+ * @param {object} [metadata]
+ */
+export function markProgramDayCompleted(dayNum, metadata = {}) {
+  try {
+    const day = Number(dayNum);
+    if (day < 1 || day > 14) return loadCompletedProgramDays();
+    const days = loadCompletedProgramDays();
+    if (!days.includes(day)) {
+      days.push(day);
+      days.sort((a, b) => a - b);
+      localStorage.setItem(PROGRAM_COMPLETED_DAYS_KEY, JSON.stringify(days));
+    }
+    try {
+      window.dispatchEvent(new CustomEvent('mw-program-updated', { detail: { day, ...metadata } }));
+    } catch {}
+    return days;
+  } catch {
+    return [1, 2, 3, 4];
+  }
+}
 /**
  * Load this week's activity log from localStorage.
  * Entries older than 7 days are pruned automatically.

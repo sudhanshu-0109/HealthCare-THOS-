@@ -27,8 +27,10 @@ export default function MWNavigation() {
   const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const menuRef = useRef(null);
+  const desktopMenuRef = useRef(null);
+  const mobileMenuRef = useRef(null);
   const avatarBtnRef = useRef(null);
+  const mobileAvatarBtnRef = useRef(null);
 
   const firstName = user?.fullName?.split(' ')[0] || 'Arjun';
   const initial = (user?.fullName || 'A').charAt(0).toUpperCase();
@@ -52,10 +54,12 @@ export default function MWNavigation() {
   useEffect(() => {
     if (!showProfileMenu) return;
     const handleClickOutside = (e) => {
-      if (
-        menuRef.current && !menuRef.current.contains(e.target) &&
-        avatarBtnRef.current && !avatarBtnRef.current.contains(e.target)
-      ) {
+      const isInsideDesktop = desktopMenuRef.current?.contains(e.target);
+      const isInsideMobile = mobileMenuRef.current?.contains(e.target);
+      const isInsideDesktopAvatar = avatarBtnRef.current?.contains(e.target);
+      const isInsideMobileAvatar = mobileAvatarBtnRef.current?.contains(e.target);
+
+      if (!isInsideDesktop && !isInsideMobile && !isInsideDesktopAvatar && !isInsideMobileAvatar) {
         setShowProfileMenu(false);
       }
     };
@@ -146,7 +150,8 @@ export default function MWNavigation() {
           {/* Profile Dropdown Menu */}
           {showProfileMenu && (
             <div
-              ref={menuRef}
+              ref={desktopMenuRef}
+              onMouseDown={(e) => e.stopPropagation()}
               className="absolute right-0 top-full mt-2.5 w-64 rounded-2xl bg-white/95 backdrop-blur-xl border border-[#dce7e4] shadow-2xl shadow-[#006a67]/15 py-2 z-50 animate-fadeIn divide-y divide-[#edf3f1]"
             >
               {/* User Info Header */}
@@ -167,7 +172,9 @@ export default function MWNavigation() {
               {/* Quick Navigation Links */}
               <div className="p-1.5 space-y-0.5">
                 <button
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setShowProfileMenu(false);
                     navigate('/health-hub');
                   }}
@@ -181,6 +188,7 @@ export default function MWNavigation() {
               {/* Sign Out Action Button */}
               <div className="p-1.5">
                 <button
+                  type="button"
                   onClick={handleLogout}
                   disabled={isLoggingOut}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors font-display text-left cursor-pointer"
@@ -207,9 +215,14 @@ export default function MWNavigation() {
 
       {/* ── Mobile Profile Menu Modal / Action Sheet ────────────────────── */}
       {showProfileMenu && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/30 backdrop-blur-xs flex items-end justify-center p-4">
+        <div
+          className="md:hidden fixed inset-0 z-50 bg-black/30 backdrop-blur-xs flex items-end justify-center p-4"
+          onClick={() => setShowProfileMenu(false)}
+        >
           <div
-            ref={menuRef}
+            ref={mobileMenuRef}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             className="w-full max-w-sm rounded-3xl bg-white border border-[#dce7e4] shadow-2xl p-4 mb-20 animate-fadeIn"
           >
             <div className="flex items-center justify-between pb-3 border-b border-[#edf3f1]">
@@ -223,6 +236,7 @@ export default function MWNavigation() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowProfileMenu(false)}
                 className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 cursor-pointer"
               >
@@ -232,7 +246,9 @@ export default function MWNavigation() {
 
             <div className="py-2 space-y-1">
               <button
-                onClick={() => {
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowProfileMenu(false);
                   navigate('/health-hub');
                 }}
@@ -242,6 +258,7 @@ export default function MWNavigation() {
                 <span>Health Hub Dashboard</span>
               </button>
               <button
+                type="button"
                 onClick={handleLogout}
                 disabled={isLoggingOut}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl text-left cursor-pointer font-display"
@@ -314,6 +331,7 @@ export default function MWNavigation() {
 
         {/* Profile / Account on mobile */}
         <button
+          ref={mobileAvatarBtnRef}
           onClick={() => setShowProfileMenu(prev => !prev)}
           className={`flex flex-col items-center gap-1 transition-all duration-200 ${showProfileMenu ? 'text-[#006a67]' : 'opacity-60'}`}
           title="Account / Sign Out"

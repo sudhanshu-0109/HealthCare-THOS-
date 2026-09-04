@@ -112,6 +112,15 @@ export async function getTrends(profileId) {
     where: { profileId, completedAt: { gte: thirtyDaysAgo, not: null } },
   });
 
+  const toLocalDateStr = (d) => {
+    const dt = new Date(d);
+    return [
+      dt.getFullYear(),
+      String(dt.getMonth() + 1).padStart(2, '0'),
+      String(dt.getDate()).padStart(2, '0'),
+    ].join('-');
+  };
+
   return {
     checkInCount:  recent.length,
     recentAvg,
@@ -121,7 +130,7 @@ export async function getTrends(profileId) {
     streak,
     activityCount,
     chartData: recent.map((c) => ({
-      date: c.createdAt.toISOString().split('T')[0],
+      date: c.checkInDate || toLocalDateStr(c.createdAt),
       mood: c.mood,
       stress: c.stress,
       energy: c.energy,
@@ -133,28 +142,61 @@ export async function getTrends(profileId) {
 
 /**
  * Calculate the user's current check-in streak (consecutive days).
+ * The streak is preserved if the user checked in today OR yesterday.
  */
 async function calculateStreak(profileId) {
-  const checkIns = await prisma.mentalHealthCheckIn.findMany({
-    where: { profileId },
-    orderBy: { createdAt: 'desc' },
-    take: 60,
-    select: { createdAt: true },
-  });
+  let checkIns;
+  try {
+    checkIns = await prisma.mentalHealthCheckIn.findMany({
+      where: { profileId },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+      select: { createdAt: true, checkInDate: true },
+    });
+  } catch {
+    // If checkInDate column doesn't exist yet, query with createdAt only
+    checkIns = await prisma.mentalHealthCheckIn.findMany({
+      where: { profileId },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+      select: { createdAt: true },
+    });
+  }
 
-  if (!checkIns.length) return 0;
+  if (!checkIns || !checkIns.length) return 0;
+
+  const toLocalDateStr = (d) => {
+    const dt = new Date(d);
+    return [
+      dt.getFullYear(),
+      String(dt.getMonth() + 1).padStart(2, '0'),
+      String(dt.getDate()).padStart(2, '0'),
+    ].join('-');
+  };
 
   const dateStrings = [...new Set(
-    checkIns.map((c) => c.createdAt.toISOString().split('T')[0])
-  )].sort((a, b) => b.localeCompare(a)); // descending
+    checkIns.map((c) => c.checkInDate || toLocalDateStr(c.createdAt))
+  )].filter(Boolean).sort().reverse(); // descending
 
-  let streak = 0;
-  const today = new Date().toISOString().split('T')[0];
+  if (!dateStrings.length) return 0;
 
-  for (let i = 0; i < dateStrings.length; i++) {
-    const expected = new Date(today);
-    expected.setDate(expected.getDate() - i);
-    const expectedStr = expected.toISOString().split('T')[0];
+  const now = new Date();
+  const todayStr = toLocalDateStr(now);
+  const yDate = new Date(now);
+  yDate.setDate(yDate.getDate() - 1);
+  const yesterdayStr = toLocalDateStr(yDate);
+
+  const latest = dateStrings[0];
+  // Streak is alive ONLY if the most recent check-in was today OR yesterday
+  if (latest !== todayStr && latest !== yesterdayStr) {
+    return 0; // Streak broken: user missed yesterday
+  }
+
+  let streak = 1;
+  let expected = new Date(latest + 'T12:00:00');
+  for (let i = 1; i < dateStrings.length; i++) {
+    expected.setDate(expected.getDate() - 1);
+    const expectedStr = toLocalDateStr(expected);
     if (dateStrings[i] === expectedStr) {
       streak++;
     } else {

@@ -394,6 +394,8 @@ export default function ActivityPlayer({ item, onClose, onComplete }) {
     };
   }, []);
 
+  const completedRef = useRef(false);
+
   // Main countdown
   useEffect(() => {
     if (phase === 'running') {
@@ -403,7 +405,6 @@ export default function ActivityPlayer({ item, onClose, onComplete }) {
             clearInterval(intervalRef.current);
             setPhase('done');
             wellnessAudio.stop(0.5);
-            onComplete?.(item);
             return 0;
           }
           return prev - 1;
@@ -414,6 +415,14 @@ export default function ActivityPlayer({ item, onClose, onComplete }) {
     }
     return () => clearInterval(intervalRef.current);
   }, [phase]);
+
+  // When phase reaches 'done', fire onComplete to save progress
+  useEffect(() => {
+    if (phase === 'done' && !completedRef.current) {
+      completedRef.current = true;
+      onComplete?.(item);
+    }
+  }, [phase, item, onComplete]);
 
   // Instruction cycling
   useEffect(() => {

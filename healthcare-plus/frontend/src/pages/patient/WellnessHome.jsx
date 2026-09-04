@@ -34,6 +34,9 @@ import {
   calculateStreak,
   loadActivityLog,
   calculateCompositeMoodScore,
+  getLocalDateStr,
+  markProgramDayCompleted,
+  DNA_JOURNEY_TITLES_TO_DAY,
 } from '../../data/wellnessMockData';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -188,6 +191,9 @@ export default function WellnessHome() {
     if (!selectedMood) return;
     setSubmitting(true);
 
+    // getLocalDateStr uses getFullYear/getMonth/getDate — safe for all timezones
+    const checkInDate = getLocalDateStr(new Date());
+
     const payload = {
       mood:        selectedMood,
       moodScore:   MOODS.find(m => m.id === selectedMood)?.score ?? 3,
@@ -195,6 +201,7 @@ export default function WellnessHome() {
       stress,
       stressLevel: stress,
       motivation,
+      checkInDate, // ← CRITICAL: client's local calendar date (not UTC)
     };
 
     // ① Persist locally FIRST & update streak immediately — guarantees check-in survives refresh
@@ -230,7 +237,7 @@ export default function WellnessHome() {
    *   "Meditation at 12:45 for 10 minutes"
    */
   const handleActivityComplete = (completedItem) => {
-    setActiveItem(null);
+    // Keep modal open so user sees the "Well done!" completion screen and clicks "Finish & Return" via onClose
     if (!completedItem) return;
 
     const cat  = completedItem.description?.split(' · ')[1] ?? 'Mindfulness';
@@ -243,6 +250,11 @@ export default function WellnessHome() {
       durationMin: completedItem.duration, // minutes (as passed in)
       startedAt:   activityStartRef.current ?? new Date().toISOString(),
     });
+
+    const dayNum = DNA_JOURNEY_TITLES_TO_DAY?.[completedItem.title];
+    if (dayNum) {
+      markProgramDayCompleted(dayNum);
+    }
 
     // Also try to submit to the API (fire-and-forget)
     mhService.completeActivity?.('local', {

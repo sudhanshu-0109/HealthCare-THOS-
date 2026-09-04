@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { localDateStr } from "../PhysicalHealth.jsx";
 
 // ─── Storage ──────────────────────────────────────────────────────────
 const SK_DEFS = "pw_habit_defs_v2";
@@ -12,7 +13,8 @@ function writeJson(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+/** Today's local YYYY-MM-DD — safe across all timezones. */
+function todayStr() { return localDateStr(new Date()); }
 
 // Return last 7 calendar days oldest→newest
 function getLast7Days() {
@@ -20,7 +22,7 @@ function getLast7Days() {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     return {
-      date: d.toISOString().slice(0, 10),
+      date: localDateStr(d),
       label: d.toLocaleDateString("en-US", { weekday: "short" }),
       dayNum: d.getDate(),
       isToday: i === 6,
@@ -109,14 +111,14 @@ export default function HabitsPage({ streak, last4, checkins }) {
     const isTodayDone = (logs[todayKey] || []).includes(habitId);
 
     if (!isTodayDone) {
-      // If user hasn't ticked today yet, start counting from yesterday so current streak isn't lost mid-day
+      // If user hasn't ticked today yet, start counting from yesterday
       checkDate.setDate(checkDate.getDate() - 1);
-      const yKey = checkDate.toISOString().slice(0, 10);
+      const yKey = localDateStr(checkDate);
       if (!(logs[yKey] || []).includes(habitId)) return 0;
     }
 
     for (let i = 0; i < 60; i++) {
-      const ds = checkDate.toISOString().slice(0, 10);
+      const ds = localDateStr(checkDate);
       if ((logs[ds] || []).includes(habitId)) {
         count++;
         checkDate.setDate(checkDate.getDate() - 1);

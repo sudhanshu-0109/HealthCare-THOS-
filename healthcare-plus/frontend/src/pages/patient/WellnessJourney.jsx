@@ -32,6 +32,8 @@ import {
   getLocalDateStr,
   ensureLiveStreakData,
   calculateCompositeMoodScore,
+  loadCompletedProgramDays,
+  markProgramDayCompleted,
 } from '../../data/wellnessMockData';
 
 // ── 14-Day Evidence-Based Neuroplasticity & Mindfulness DNA Pathway ───────────
@@ -179,84 +181,143 @@ function WellnessOverview({ checkIns, activityLog }) {
 
 function WellnessTrendsChart({ checkIns }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
-  const [selectedIdx, setSelectedIdx] = useState(3); // Default to Thursday (Today, index 3)
+  const [selectedIdx, setSelectedIdx] = useState(null);
 
-  // Dynamically compute days directly from checkIns records (Mon-Thu of current week)
+  // Dynamically compute the current week's days and match check-in records
   const weekDays = useMemo(() => {
-    const dayTemplates = [
-      { date: '2026-08-31', day: 'Monday',    short: 'Mon', num: '01', defaultColor: '#f59e0b', colorDark: '#b45309', colorLight: '#fef3c7', icon: 'schedule',      defaultNote: 'Grounded start to the week · Intentional pacing' },
-      { date: '2026-09-01', day: 'Tuesday',   short: 'Tue', num: '02', defaultColor: '#10b981', colorDark: '#047857', colorLight: '#d1fae5', icon: 'show_chart',    defaultNote: 'Balanced cognitive focus · Productive momentum' },
-      { date: '2026-09-02', day: 'Wednesday', short: 'Wed', num: '03', defaultColor: '#06b6d4', colorDark: '#0e7490', colorLight: '#cffafe', icon: 'pie_chart',     defaultNote: 'Mid-week equilibrium · Vagal regulation' },
-      { date: '2026-09-03', day: 'Thursday',  short: 'Thu', num: '04', defaultColor: '#3b82f6', colorDark: '#1d4ed8', colorLight: '#dbeafe', icon: 'calendar_today', defaultNote: 'High physical vitality · Mindful focus cultivated', isToday: true },
-    ];
+    const today = new Date();
+    const todayIso = getLocalDateStr(today);
+    const todayCI = loadTodayCheckIn();
 
-    return dayTemplates.map((tmpl) => {
-      // Find actual check-in record in checkIns
+    // Find Monday of current week
+    const dow = today.getDay(); // 0=Sun … 6=Sat
+    const distToMon = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + distToMon);
+
+    const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const DAY_SHORTS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const COLORS = [
+      { color: '#f59e0b', colorDark: '#b45309', colorLight: '#fef3c7' },
+      { color: '#10b981', colorDark: '#047857', colorLight: '#d1fae5' },
+      { color: '#06b6d4', colorDark: '#0e7490', colorLight: '#cffafe' },
+      { color: '#3b82f6', colorDark: '#1d4ed8', colorLight: '#dbeafe' },
+      { color: '#8b5cf6', colorDark: '#6d28d9', colorLight: '#ede9fe' },
+      { color: '#ec4899', colorDark: '#be185d', colorLight: '#fce7f3' },
+      { color: '#64748b', colorDark: '#475569', colorLight: '#f1f5f9' },
+    ];
+    const ICONS = ['schedule', 'show_chart', 'pie_chart', 'calendar_today', 'star', 'weekend', 'bedtime'];
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const isoDate = getLocalDateStr(d);
+      const isFuture = isoDate > todayIso;
+      const isToday = isoDate === todayIso;
+
+      // Skip future days — don't show them at all
+      if (isFuture) break;
+
+      // Find matching check-in record from history
       const ci = (checkIns || []).find((c) => {
         const cDate = getLocalDateStr(new Date(c.savedAt || c.createdAt || c.date));
-        return cDate === tmpl.date || (tmpl.isToday && (c.isToday || c.dateKey === new Date().toDateString()));
+        return cDate === isoDate;
       });
 
-      // Today's live check-in from localStorage takes priority so user changes are instantly reflected!
-      const todayLiveCI = tmpl.isToday ? loadTodayCheckIn() : null;
-      const activeRecord = (tmpl.isToday && todayLiveCI) ? { ...ci, ...todayLiveCI } : ci;
+      // For today: use the live localStorage check-in (user may just have submitted)
+      const activeRecord = isToday ? (todayCI ?? ci) : ci;
 
-      const energy = Number(activeRecord?.energy ?? (tmpl.isToday ? 6 : 7));
-      const stress = Number(activeRecord?.stressLevel ?? activeRecord?.stress ?? (tmpl.isToday ? 3 : 5));
-      const mot = Number(activeRecord?.motivation ?? (tmpl.isToday ? 3 : 6));
-      const moodObj = MOODS.find(m => m.id === activeRecord?.mood || m.score === activeRecord?.moodScore);
-      const moodLabel = moodObj?.label || (typeof activeRecord?.mood === 'string' ? activeRecord.mood : 'Good');
+      const isPending = isToday && !activeRecord;
 
-      // General formula based on all details: (feeling + energy + (10 - stress) + motivation) / 4
-      const score10 = calculateCompositeMoodScore({
-        ...activeRecord,
-        energy,
-        stress,
-        stressLevel: stress,
-        motivation: mot,
-      });
-      const pct = Math.min(100, Math.max(16, Math.round((score10 / 10) * 100)));
+      let score10 = 0;
+      let pct = 0;
+      let energy = 0;
+      let stress = 0;
+      let mot = 0;
+      let moodLabel = '—';
+      let note = isPending ? 'Check in today to see your score!' : '';
 
-      const dateObj = new Date(tmpl.date + 'T12:00:00');
-      const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (activeRecord) {
+        energy = Number(activeRecord?.energy ?? 6);
+        stress = Number(activeRecord?.stressLevel ?? activeRecord?.stress ?? 5);
+        mot = Number(activeRecord?.motivation ?? 5);
+        const moodObj = MOODS.find(m => m.id === activeRecord?.mood || m.score === activeRecord?.moodScore);
+        moodLabel = moodObj?.label || (typeof activeRecord?.mood === 'string' ? activeRecord.mood : 'Good');
+        score10 = calculateCompositeMoodScore({ ...activeRecord, energy, stress, stressLevel: stress, motivation: mot });
+        pct = Math.min(100, Math.max(16, Math.round((score10 / 10) * 100)));
+        note = activeRecord?.note || '';
+      }
 
-      return {
-        ...tmpl,
-        date: dateFormatted,
-        isoDate: tmpl.date,
+      const dateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      days.push({
+        isoDate,
+        day: DAY_NAMES[i],
+        short: DAY_SHORTS[i],
+        num: String(i + 1).padStart(2, '0'),
+        dateFormatted,
+        ...COLORS[i],
+        icon: ICONS[i],
+        isToday,
+        isPending,
+        hasData: Boolean(activeRecord),
         score: score10,
         pct,
         energy,
         stress,
         mot,
-        color: tmpl.defaultColor,
         moodLabel,
-        note: ci?.note || tmpl.defaultNote,
-        ci,
-      };
-    });
+        note,
+        ci: activeRecord,
+      });
+    }
+    return days;
   }, [checkIns]);
 
-  const activeIdx = hoveredIdx ?? selectedIdx;
-  const activeDay = weekDays[activeIdx] || weekDays[3];
+  // Default selected: today's index if exists, else last day with data
+  const defaultIdx = useMemo(() => {
+    const todayIdx = weekDays.findIndex(d => d.isToday);
+    if (todayIdx >= 0) return todayIdx;
+    return weekDays.length - 1;
+  }, [weekDays]);
 
-  // 2D Elevated Dimensional Column Dimensions (Clean, Fast, Responsive SVG)
+  const activeIdx = hoveredIdx ?? (selectedIdx ?? defaultIdx);
+  const activeDay = weekDays[activeIdx] || weekDays[weekDays.length - 1];
+
+  // Only render bars for days that have data (not pending)
+  const chartDays = weekDays.filter(d => d.hasData);
+  const allDays = weekDays; // for ribbon list
+
+  // 2D Elevated Dimensional Column Dimensions
   const W = 580;
   const H = 390;
   const Y_BASE = 320;
   const barW = 46;
 
-  // Stepped trendline connecting the tops of the pillars
+  const colSpacing = chartDays.length > 0 ? Math.min(130, Math.floor((W - 80) / chartDays.length)) : 130;
+
+  // Stepped trendline connecting the tops of the pillars (only for days with data)
   const stepLinePath = useMemo(() => {
-    return weekDays.map((d, i) => {
-      const cx = 75 + i * 130;
+    return chartDays.map((d, i) => {
+      const cx = 75 + i * colSpacing;
       const cy = Y_BASE - (50 + (d.pct / 100) * 175);
       const py = cy - 22;
       if (i === 0) return `M ${cx},${py}`;
-      const prevCx = 75 + (i - 1) * 130;
+      const prevCx = 75 + (i - 1) * colSpacing;
       const midX = (prevCx + cx) / 2;
       return `H ${midX} V ${py} H ${cx}`;
     }).join(' ');
+  }, [chartDays, colSpacing]);
+
+  // Range label
+  const rangeLabel = useMemo(() => {
+    if (weekDays.length === 0) return '';
+    const first = weekDays[0];
+    const last = weekDays[weekDays.length - 1];
+    const checkedCount = weekDays.filter(d => d.hasData).length;
+    if (first.isoDate === last.isoDate) return `${first.short} ${first.dateFormatted} (${checkedCount} Day)`;
+    return `${first.short} ${first.dateFormatted} – ${last.short} ${last.dateFormatted} (${checkedCount} Checked)`;
   }, [weekDays]);
 
   return (
@@ -269,42 +330,46 @@ function WellnessTrendsChart({ checkIns }) {
           </div>
           <div>
             <h3 className="font-display font-bold text-[#171d1c] text-base leading-tight">
-              Wellness Trends (Mon – Thu Checked-In)
+              Wellness Trends (This Week)
             </h3>
             <p className="text-[11px] text-[#3c4948]">
-              Dimensional 2D columns & daily biomarker infographic flow · Active 4-day streak
+              Dimensional 2D columns & daily biomarker infographic flow
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-semibold text-[#006a67] bg-[#006a67]/10 px-3 py-1 rounded-full font-display flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#006a67] animate-pulse" />
-            <span>Mon Aug 31 – Thu Sep 03 (4 Days Sealed)</span>
+            <span>{rangeLabel}</span>
           </span>
         </div>
       </div>
 
       {/* Main Split Layout: Left Curled Ribbon Cards + Right 2D Bar Graph */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        {/* ── Left Side: Curled Ribbon Banners (01 through 04) ── */}
+        {/* ── Left Side: Curled Ribbon Banners ── */}
         <div className="lg:col-span-5 space-y-2">
-          {weekDays.map((item, idx) => {
+          {allDays.map((item, idx) => {
             const isSelected = idx === activeIdx;
 
             return (
               <div
-                key={item.num}
+                key={item.isoDate}
                 onClick={() => setSelectedIdx(idx)}
                 onMouseEnter={() => setHoveredIdx(idx)}
                 onMouseLeave={() => setHoveredIdx(null)}
-                style={{
-                  background: isSelected
-                    ? `linear-gradient(90deg, ${item.color} 0%, ${item.colorDark} 100%)`
-                    : `linear-gradient(90deg, ${item.colorLight} 0%, #ffffff 100%)`,
-                  borderLeft: `5px solid ${item.color}`,
-                }}
+                style={
+                  item.isPending
+                    ? { borderLeft: `5px dashed ${item.color}`, opacity: 0.65 }
+                    : {
+                        background: isSelected
+                          ? `linear-gradient(90deg, ${item.color} 0%, ${item.colorDark} 100%)`
+                          : `linear-gradient(90deg, ${item.colorLight} 0%, #ffffff 100%)`,
+                        borderLeft: `5px solid ${item.color}`,
+                      }
+                }
                 className={`relative flex items-center justify-between px-3.5 py-2 rounded-r-2xl border border-gray-200/70 shadow-2xs transition-all duration-200 cursor-pointer ${
-                  isSelected
+                  isSelected && !item.isPending
                     ? 'scale-102 shadow-md -translate-x-0.5 text-white'
                     : 'hover:bg-white hover:shadow-xs'
                 }`}
@@ -319,45 +384,54 @@ function WellnessTrendsChart({ checkIns }) {
                 <div className="min-w-0 flex-1 pr-2">
                   <div className="flex items-center gap-2">
                     <span className={`text-[11px] font-extrabold font-display uppercase tracking-wider ${
-                      isSelected ? 'text-white' : 'text-[#171d1c]'
+                      isSelected && !item.isPending ? 'text-white' : 'text-[#171d1c]'
                     }`}>
-                      {item.day} · {item.date}
+                      {item.day} · {item.dateFormatted}
                     </span>
                     {item.isToday && (
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full bg-white text-blue-700 shadow-2xs">
-                        Today
+                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full shadow-2xs ${
+                        item.isPending ? 'bg-orange-100 text-orange-700' : 'bg-white text-blue-700'
+                      }`}>
+                        {item.isPending ? 'Pending' : 'Today'}
                       </span>
                     )}
                   </div>
                   <p className={`text-[10px] mt-0.5 truncate ${
-                    isSelected ? 'text-white/90' : 'text-[#6c7a78]'
+                    isSelected && !item.isPending ? 'text-white/90' : 'text-[#6c7a78]'
                   }`}>
-                    {item.note}
+                    {item.note || (item.isPending ? 'Check in to see your score' : '—')}
                   </p>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] font-medium font-display">
-                    <span className={isSelected ? 'text-white font-bold' : 'text-[#171d1c] font-semibold'}>
-                      Mood: {item.score}/10
-                    </span>
-                    <span>•</span>
-                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
-                      E: {item.energy}/10
-                    </span>
-                    <span>•</span>
-                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
-                      S: {item.stress}/10
-                    </span>
-                    <span>•</span>
-                    <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
-                      M: {item.mot}/10
-                    </span>
-                  </div>
+                  {item.hasData && (
+                    <div className="flex items-center gap-2 mt-1 text-[10px] font-medium font-display">
+                      <span className={isSelected ? 'text-white font-bold' : 'text-[#171d1c] font-semibold'}>
+                        Mood: {item.score}/10
+                      </span>
+                      <span>•</span>
+                      <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                        E: {item.energy}/10
+                      </span>
+                      <span>•</span>
+                      <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                        S: {item.stress}/10
+                      </span>
+                      <span>•</span>
+                      <span className={isSelected ? 'text-white/85' : 'text-[#3c4948]'}>
+                        M: {item.mot}/10
+                      </span>
+                    </div>
+                  )}
+                  {item.isPending && (
+                    <p className="text-[10px] mt-1 text-orange-500 font-semibold font-display">
+                      Complete your check-in to unlock today's score
+                    </p>
+                  )}
                 </div>
 
-                {/* Big Stylized Number (01, 02, 03, 04) */}
+                {/* Big Stylized Number */}
                 <div className="flex-shrink-0 text-right">
                   <span
                     className={`font-display font-black text-3xl leading-none tracking-tighter ${
-                      isSelected ? 'text-white/95' : 'text-gray-300'
+                      isSelected && !item.isPending ? 'text-white/95' : 'text-gray-300'
                     }`}
                   >
                     {item.num}
@@ -368,167 +442,129 @@ function WellnessTrendsChart({ checkIns }) {
           })}
         </div>
 
-        {/* ── Right Side: 2D Dimensional Columns SVG Graph with Box Shadows ── */}
+        {/* ── Right Side: 2D Dimensional Columns SVG Graph ── */}
         <div className="lg:col-span-7 relative flex justify-center items-center bg-gradient-to-b from-[#fbfdfd] to-[#eef6f5]/50 rounded-2xl p-4 border border-[#dce8e6] shadow-inner">
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[440px] overflow-visible select-none">
-            <defs>
-              {/* Rich multi-layer box shadow filter for 2D bars */}
-              <filter id="barBoxShadow" x="-35%" y="-20%" width="170%" height="150%">
-                <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="#0c2e2c" floodOpacity="0.22" />
-                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.08" />
-              </filter>
-              <filter id="barBoxShadowActive" x="-40%" y="-25%" width="180%" height="160%">
-                <feDropShadow dx="0" dy="16" stdDeviation="10" floodColor="#0c2e2c" floodOpacity="0.32" />
-                <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.12" />
-              </filter>
+          {chartDays.length === 0 ? (
+            <div className="text-center py-12 text-[#3c4948]">
+              <span className="material-symbols-outlined text-4xl text-[#006a67]/40 block mb-2">bar_chart_4_bars</span>
+              <p className="text-sm font-medium">No check-ins yet this week.</p>
+              <p className="text-xs mt-1 text-[#6c7a78]">Complete today's check-in to see your chart.</p>
+            </div>
+          ) : (
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[440px] overflow-visible select-none">
+              <defs>
+                <filter id="barBoxShadow" x="-35%" y="-20%" width="170%" height="150%">
+                  <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="#0c2e2c" floodOpacity="0.22" />
+                  <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.08" />
+                </filter>
+                <filter id="barBoxShadowActive" x="-40%" y="-25%" width="180%" height="160%">
+                  <feDropShadow dx="0" dy="16" stdDeviation="10" floodColor="#0c2e2c" floodOpacity="0.32" />
+                  <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.12" />
+                </filter>
+                {chartDays.map(d => (
+                  <linearGradient key={`grad_${d.num}`} id={`grad_${d.num}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={d.color} />
+                    <stop offset="100%" stopColor={d.colorDark} />
+                  </linearGradient>
+                ))}
+              </defs>
 
-              {/* Gradient fills for each bar */}
-              {weekDays.map(d => (
-                <linearGradient key={`grad_${d.num}`} id={`grad_${d.num}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={d.color} />
-                  <stop offset="100%" stopColor={d.colorDark} />
-                </linearGradient>
-              ))}
-            </defs>
+              {/* Reference grid lines */}
+              <g opacity="0.45">
+                <line x1="20" y1={Y_BASE - 175} x2={W - 20} y2={Y_BASE - 175} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
+                <line x1="20" y1={Y_BASE - 100} x2={W - 20} y2={Y_BASE - 100} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
+                <line x1="20" y1={Y_BASE} x2={W - 20} y2={Y_BASE} stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" />
+              </g>
 
-            {/* Subtle horizontal reference grid lines */}
-            <g opacity="0.45">
-              <line x1="20" y1={Y_BASE - 175} x2={W - 20} y2={Y_BASE - 175} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1="20" y1={Y_BASE - 100} x2={W - 20} y2={Y_BASE - 100} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1="20" y1={Y_BASE} x2={W - 20} y2={Y_BASE} stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" />
-            </g>
+              {/* Stepped Trendline */}
+              <path d={stepLinePath} fill="none" stroke="#94a3b8" strokeWidth="2.2" strokeLinejoin="round" opacity="0.75" />
 
-            {/* Stepped Gray Trendline connecting the tops */}
-            <path
-              d={stepLinePath}
-              fill="none"
-              stroke="#94a3b8"
-              strokeWidth="2.2"
-              strokeLinejoin="round"
-              opacity="0.75"
-            />
+              {/* 2D Columns */}
+              {chartDays.map((d, i) => {
+                const cx = 75 + i * colSpacing;
+                const colHeight = 50 + (d.pct / 100) * 175;
+                const cy = Y_BASE - colHeight;
+                const chartIdx = allDays.findIndex(ad => ad.isoDate === d.isoDate);
+                const isSelected = chartIdx === activeIdx;
 
-            {/* 2D Columns with Box Shadows (Mon - Thu) */}
-            {weekDays.map((d, i) => {
-              const cx = 75 + i * 130;
-              const colHeight = 50 + (d.pct / 100) * 175;
-              const cy = Y_BASE - colHeight;
-              const isSelected = i === activeIdx;
+                return (
+                  <g
+                    key={`col_${d.num}`}
+                    onClick={() => setSelectedIdx(chartIdx)}
+                    onMouseEnter={() => setHoveredIdx(chartIdx)}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                    className="cursor-pointer transition-transform duration-200"
+                    style={{ transform: isSelected ? 'translateY(-6px)' : undefined }}
+                  >
+                    <circle cx={cx} cy={cy - 22} r="3.5" fill="#64748b" stroke="#ffffff" strokeWidth="1.5" />
 
-              return (
-                <g
-                  key={`col_${d.num}`}
-                  onClick={() => setSelectedIdx(i)}
-                  onMouseEnter={() => setHoveredIdx(i)}
-                  onMouseLeave={() => setHoveredIdx(null)}
-                  className="cursor-pointer transition-transform duration-200"
-                  style={{
-                    transform: isSelected ? 'translateY(-6px)' : undefined,
-                  }}
-                >
-                  {/* Stepped line junction dot */}
-                  <circle cx={cx} cy={cy - 22} r="3.5" fill="#64748b" stroke="#ffffff" strokeWidth="1.5" />
+                    <g transform={`translate(${cx - 38}, ${cy - 31})`}>
+                      <rect x="0" y="0" width="38" height="18" rx="4" fill="#e2e8f0" />
+                      <text x="19" y="13" fill="#334155" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                        {d.short}
+                      </text>
+                      <rect x="38" y="0" width="38" height="18" rx="4" fill={d.color} />
+                      <text x="57" y="13" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                        {d.score}
+                      </text>
+                    </g>
 
-                  {/* Two-Tone Pill Badge above column (showing exact 10-scale score matching diagnostics) */}
-                  <g transform={`translate(${cx - 38}, ${cy - 31})`}>
-                    {/* Left neutral box */}
-                    <rect x="0" y="0" width="38" height="18" rx="4" fill="#e2e8f0" />
-                    <text x="19" y="13" fill="#334155" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
+                    <g transform={`translate(${cx}, ${cy - 52})`}>
+                      <circle cx="0" cy="0" r="14" fill="#ffffff" stroke={d.color} strokeWidth="2" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))" />
+                      <text x="0" y="5" fill={d.color} fontSize="14" textAnchor="middle" fontFamily="'Material Symbols Outlined'">
+                        {d.icon}
+                      </text>
+                    </g>
+
+                    <rect
+                      x={cx - barW / 2}
+                      y={cy}
+                      width={barW}
+                      height={colHeight}
+                      rx="8" ry="8"
+                      fill={`url(#grad_${d.num})`}
+                      filter={isSelected ? 'url(#barBoxShadowActive)' : 'url(#barBoxShadow)'}
+                      stroke={d.color}
+                      strokeWidth="1"
+                    />
+                    <rect x={cx - barW / 2 + 2} y={cy + 1.5} width={barW - 4} height={3.5} rx="2" fill="#ffffff" opacity={isSelected ? 0.6 : 0.4} />
+                    <rect x={cx - barW / 2 + 2.5} y={cy + 7} width={2.5} height={Math.max(10, colHeight - 14)} rx="1" fill="#ffffff" opacity={isSelected ? 0.4 : 0.22} />
+
+                    <text x={cx} y={Y_BASE + 18} fill={isSelected ? d.colorDark : '#64748b'} fontSize="11" fontWeight={isSelected ? 'bold' : '600'} fontFamily="sans-serif" textAnchor="middle">
                       {d.short}
                     </text>
-                    {/* Right colored box */}
-                    <rect x="38" y="0" width="38" height="18" rx="4" fill={d.color} />
-                    <text x="57" y="13" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">
-                      {d.score}
-                    </text>
                   </g>
-
-                  {/* Floating Milestone Icon inside circle */}
-                  <g transform={`translate(${cx}, ${cy - 52})`}>
-                    <circle cx="0" cy="0" r="14" fill="#ffffff" stroke={d.color} strokeWidth="2" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))" />
-                    <text
-                      x="0"
-                      y="5"
-                      fill={d.color}
-                      fontSize="14"
-                      textAnchor="middle"
-                      fontFamily="'Material Symbols Outlined'"
-                    >
-                      {d.icon}
-                    </text>
-                  </g>
-
-                  {/* 2D Vertical Bar with Box Shadow */}
-                  <rect
-                    x={cx - barW / 2}
-                    y={cy}
-                    width={barW}
-                    height={colHeight}
-                    rx="8"
-                    ry="8"
-                    fill={`url(#grad_${d.num})`}
-                    filter={isSelected ? 'url(#barBoxShadowActive)' : 'url(#barBoxShadow)'}
-                    stroke={d.color}
-                    strokeWidth="1"
-                  />
-
-                  {/* Subtle Top Bevel Highlight */}
-                  <rect
-                    x={cx - barW / 2 + 2}
-                    y={cy + 1.5}
-                    width={barW - 4}
-                    height={3.5}
-                    rx="2"
-                    fill="#ffffff"
-                    opacity={isSelected ? 0.6 : 0.4}
-                  />
-
-                  {/* Subtle Left Edge Specular Highlight */}
-                  <rect
-                    x={cx - barW / 2 + 2.5}
-                    y={cy + 7}
-                    width={2.5}
-                    height={Math.max(10, colHeight - 14)}
-                    rx="1"
-                    fill="#ffffff"
-                    opacity={isSelected ? 0.4 : 0.22}
-                  />
-
-                  {/* Bottom Label under the baseline */}
-                  <text
-                    x={cx}
-                    y={Y_BASE + 18}
-                    fill={isSelected ? d.colorDark : '#64748b'}
-                    fontSize="11"
-                    fontWeight={isSelected ? 'bold' : '600'}
-                    fontFamily="sans-serif"
-                    textAnchor="middle"
-                  >
-                    {d.short}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
+                );
+              })}
+            </svg>
+          )}
         </div>
       </div>
 
-      {/* Dynamic Detail Pill Footer */}
-      <div className="mt-4 pt-3.5 border-t border-[#e4ebe9] flex items-center justify-between flex-wrap gap-2 text-xs font-display">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-[#171d1c]">
-            Active Day: {activeDay.day} ({activeDay.date})
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: activeDay.color }}>
-            Score: {activeDay.score}/10 · {activeDay.pct}%
-          </span>
+      {/* Dynamic Detail Footer */}
+      {activeDay && activeDay.hasData && (
+        <div className="mt-4 pt-3.5 border-t border-[#e4ebe9] flex items-center justify-between flex-wrap gap-2 text-xs font-display">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-[#171d1c]">
+              Active Day: {activeDay.day} ({activeDay.dateFormatted})
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: activeDay.color }}>
+              Score: {activeDay.score}/10 · {activeDay.pct}%
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-[#3c4948] text-xs">
+            <span>⚡ Energy: <strong>{activeDay.energy}/10</strong></span>
+            <span>🌀 Stress: <strong>{activeDay.stress}/10</strong></span>
+            <span>🎯 Motivation: <strong>{activeDay.mot}/10</strong></span>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-[#3c4948] text-xs">
-          <span>⚡ Energy: <strong>{activeDay.energy}/10</strong></span>
-          <span>🌀 Stress: <strong>{activeDay.stress}/10</strong></span>
-          <span>🎯 Motivation: <strong>{activeDay.mot}/10</strong></span>
+      )}
+      {activeDay && activeDay.isPending && (
+        <div className="mt-4 pt-3.5 border-t border-[#e4ebe9] flex items-center gap-2 text-xs text-orange-600 font-display">
+          <span className="material-symbols-outlined text-[14px]">pending</span>
+          <span className="font-semibold">Today's check-in is pending — complete it to populate this bar.</span>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -710,9 +746,32 @@ function CheckInCalendarTimeline({ checkIns }) {
 
 function DnaHelicalJourney({ onStartActivity }) {
   ensureLiveStreakData();
-  const currentStreak = calculateStreak(); // returns 4 for live streak (Mon - Thu)
-  const completedDaysCount = Math.max(4, currentStreak);
-  const activeDayNum = Math.min(14, completedDaysCount + 1); // Day 5 is Next Target!
+  const [completedDaysList, setCompletedDaysList] = useState(() => loadCompletedProgramDays());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setCompletedDaysList(loadCompletedProgramDays());
+    };
+    window.addEventListener('mw-program-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('mw-program-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const completedSet = useMemo(() => new Set(completedDaysList), [completedDaysList]);
+  const currentStreak = calculateStreak();
+
+  // Next active day: first incomplete day in the 14-day pathway (e.g. Day 5, 6, 7...)
+  const activeDayNum = useMemo(() => {
+    for (let d = 1; d <= 14; d++) {
+      if (!completedSet.has(d)) return d;
+    }
+    return 14;
+  }, [completedSet]);
+
+  const sealedCount = completedDaysList.filter(d => d >= 1 && d <= 14).length;
 
   // Tab selector for 14-day pathway (Cycle 1: Days 1-7, Cycle 2: Days 8-14)
   const [activeCycle, setActiveCycle] = useState(1);
@@ -750,17 +809,17 @@ function DnaHelicalJourney({ onStartActivity }) {
         <div className="inline-flex items-center gap-2 mt-3 px-3.5 py-1.5 rounded-full bg-white border border-[#dcd7ea] shadow-2xs text-xs font-semibold text-[#171d1c] font-display flex-wrap justify-center">
           <span className="flex items-center gap-1 text-amber-600 font-bold">
             <span>🔥</span>
-            <span>4-Day Live Streak Active</span>
+            <span>{currentStreak}-Day Live Streak Active</span>
           </span>
           <span className="text-[#bcc9c8]">•</span>
           <span className="text-emerald-700 font-bold flex items-center gap-0.5">
             <span className="material-symbols-outlined text-[14px]">verified</span>
-            <span>Days 1 to 4 Sealed</span>
+            <span>{sealedCount} Milestones Sealed</span>
           </span>
           <span className="text-[#bcc9c8]">•</span>
           <span className="text-[#58519e] font-bold flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#58519e] animate-ping" />
-            <span>Day 5 Next Target</span>
+            <span>Day {activeDayNum} Active Target</span>
           </span>
         </div>
 
@@ -847,7 +906,7 @@ function DnaHelicalJourney({ onStartActivity }) {
           <g filter="url(#ribbonShadow)">
             {/* Top entry into Crest 0 */}
             <path
-              d={`M 430,48 C 490,48 ${XR},75 ${XR},${crestYs[0]} L ${XR},${crestYs[0] + T} C ${XR},75+T 490,48+T 430,${48 + T} Z`}
+              d={`M 430,48 C 490,48 ${XR},75 ${XR},${crestYs[0]} L ${XR},${crestYs[0] + T} C ${XR},${75 + T} 490,${48 + T} 430,${48 + T} Z`}
               fill="#8e8ac7"
               stroke="#e5a93c"
               strokeWidth="2.2"
@@ -921,7 +980,7 @@ function DnaHelicalJourney({ onStartActivity }) {
             <path
               d={`M ${XR},${crestYs[6]} C ${XR},965 480,990 420,990
                   L 420,${990 + T}
-                  C 480,${990 + T} ${XR},965+T ${XR},${crestYs[6] + T} Z`}
+                  C 480,${990 + T} ${XR},${965 + T} ${XR},${crestYs[6] + T} Z`}
               fill="#58519e"
               stroke="#e5a93c"
               strokeWidth="2.4"
@@ -949,7 +1008,7 @@ function DnaHelicalJourney({ onStartActivity }) {
             const isRight = idx % 2 === 0;
             const crestX = isRight ? XR : XL;
             const crestY = crestYs[idx] + T / 2;
-            const isCompleted = step.day <= completedDaysCount;
+            const isCompleted = completedSet.has(step.day);
             const isActive = step.day === activeDayNum;
 
             // Connector leader line towards the task card
@@ -1064,6 +1123,8 @@ function DnaHelicalJourney({ onStartActivity }) {
                       {isActive ? (
                         <button
                           onClick={() => onStartActivity({
+                            day: step.day,
+                            isProgramDay: true,
                             type: step.type,
                             title: step.title,
                             durationMin: step.durationMin,
@@ -1078,13 +1139,15 @@ function DnaHelicalJourney({ onStartActivity }) {
                       ) : isCompleted ? (
                         <button
                           onClick={() => onStartActivity({
+                            day: step.day,
+                            isProgramDay: true,
                             type: step.type,
                             title: step.title,
                             durationMin: step.durationMin,
                             category: step.category,
                             icon: step.icon,
                           })}
-                          className="text-[10px] font-semibold text-[#58519e] hover:underline font-display"
+                          className="text-[10px] font-semibold text-[#58519e] hover:underline font-display cursor-pointer"
                         >
                           Practice Again ↺
                         </button>
@@ -1106,7 +1169,7 @@ function DnaHelicalJourney({ onStartActivity }) {
       {/* ── Mobile View: Compact Responsive Helix Strip ── */}
       <div className="md:hidden space-y-3.5">
         {cycleDays.map((step) => {
-          const isCompleted = step.day <= completedDaysCount;
+          const isCompleted = completedSet.has(step.day);
           const isActive = step.day === activeDayNum;
 
           return (
@@ -1152,16 +1215,36 @@ function DnaHelicalJourney({ onStartActivity }) {
                 <div className="mt-3 pt-2.5 border-t border-[#e4e0f2]">
                   <button
                     onClick={() => onStartActivity({
+                      day: step.day,
+                      isProgramDay: true,
                       type: step.type,
                       title: step.title,
                       durationMin: step.durationMin,
                       category: step.category,
                       icon: step.icon,
                     })}
-                    className="w-full py-1.5 rounded-full bg-[#58519e] text-white text-xs font-bold font-display flex items-center justify-center gap-1.5 shadow-xs"
+                    className="w-full py-1.5 rounded-full bg-[#58519e] text-white text-xs font-bold font-display flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   >
                     <span>Start Day {step.day} Practice</span>
                     <span>→</span>
+                  </button>
+                </div>
+              )}
+              {isCompleted && (
+                <div className="mt-2 pt-2 border-t border-emerald-100 flex justify-end">
+                  <button
+                    onClick={() => onStartActivity({
+                      day: step.day,
+                      isProgramDay: true,
+                      type: step.type,
+                      title: step.title,
+                      durationMin: step.durationMin,
+                      category: step.category,
+                      icon: step.icon,
+                    })}
+                    className="text-[11px] font-semibold text-[#58519e] hover:underline font-display cursor-pointer"
+                  >
+                    Practice Again ↺
                   </button>
                 </div>
               )}
@@ -1294,18 +1377,23 @@ export default function WellnessJourney() {
   const [activeItem,     setActiveItem]     = useState(null);
   const activityStartRef = useRef(null);
 
-  const openActivity = ({ type, title, durationMin, category, icon }) => {
+  const openActivity = ({ type, title, durationMin, category, icon, day, isProgramDay }) => {
     activityStartRef.current = new Date().toISOString();
     setActiveItem({
       type: type || 'MEDITATION',
       title: title || 'Wellness Session',
       duration: durationMin || 10,
       description: `${durationMin || 10} min · ${category || 'Meditation'}`,
+      day,
+      isProgramDay: Boolean(isProgramDay || day),
     });
   };
 
   const handleActivityComplete = (completedItem) => {
-    setActiveItem(null);
+    // NOTE: We do NOT call setActiveItem(null) here!
+    // Calling setActiveItem(null) immediately was causing ActivityPlayer to abruptly disappear
+    // before the user saw the "Well done!" screen. The player modal will be closed when the user
+    // clicks "Finish & Return" (or the Close button) via onClose.
     if (!completedItem) return;
 
     const cat  = completedItem.description?.split(' · ')[1] ?? 'Meditation';
@@ -1318,6 +1406,16 @@ export default function WellnessJourney() {
       durationMin: completedItem.duration,
       startedAt:   activityStartRef.current ?? new Date().toISOString(),
     });
+
+    // Mark DNA program journey milestone as completed!
+    const matchingStep = DNA_JOURNEY_DAYS.find(s => s.title === completedItem.title);
+    const dayNum = completedItem.day || matchingStep?.day;
+    if (dayNum) {
+      markProgramDayCompleted(dayNum, {
+        title: completedItem.title,
+        completedAt: new Date().toISOString(),
+      });
+    }
 
     setActivityLog(loadActivityLog());
 

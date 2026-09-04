@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { computeAvgReadiness } from "../PhysicalHealth.jsx";
+import { computeAvgReadiness, localDateStr } from "../PhysicalHealth.jsx";
+import { loadBiometricsHistory } from "../../../data/physicalWellnessMockData.js";
 
 // ─── Dimensional 2D Readiness Chart (Mental Wellness Graphical Representation) ───
 function ReadinessDimensionalChart({ days = [] }) {
@@ -340,12 +341,15 @@ function EmptyChart({ label }) {
 export default function ProgressPage({ checkins = [], workouts = [], streak = 0, profile }) {
   const [period, setPeriod] = useState("week");
 
+  // Biometrics history from localStorage
+  const biometrics = useMemo(() => loadBiometricsHistory(), []);
+
   // Build last N days from real check-ins
   const nDays = period === "week" ? 7 : 28;
   const days = Array.from({ length: nDays }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (nDays - 1 - i));
-    const date = d.toISOString().slice(0, 10);
+    const date = localDateStr(d);
     const entry = checkins.find(c => c.date === date);
     return {
       date,
@@ -495,6 +499,55 @@ export default function ProgressPage({ checkins = [], workouts = [], streak = 0,
                   {i % 3 === 0 && <span className="text-[8px] text-[var(--muted-foreground)]">{d.label}</span>}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Weight & BMI Trend (real biometrics data) ── */}
+        <div className="bg-white/80 backdrop-blur-sm border border-[var(--border)] rounded-3xl p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Weight & BMI History</p>
+              <p className="text-xs text-[var(--muted-foreground)]">Logged each Monday · Real data</p>
+            </div>
+            <span className="text-xs font-semibold text-[var(--accent)] bg-[var(--secondary)] border border-[var(--border)] px-2.5 py-1 rounded-full">
+              ⚖️ {biometrics.length} entries
+            </span>
+          </div>
+          {biometrics.length === 0 ? (
+            <EmptyChart label="Log your body metrics from the Plan page to track weight & BMI over time" />
+          ) : (
+            <div className="space-y-2.5">
+              {biometrics.slice(0, 5).map((entry, i) => {
+                const bmiColor = entry.bmi
+                  ? entry.bmi < 18.5 ? "text-sky-600 bg-sky-50"
+                    : entry.bmi < 25 ? "text-emerald-600 bg-emerald-50"
+                    : entry.bmi < 30 ? "text-amber-600 bg-amber-50"
+                    : "text-rose-600 bg-rose-50"
+                  : "text-[var(--muted-foreground)] bg-[var(--muted)]";
+                return (
+                  <div key={entry.date} className={`flex items-center justify-between px-4 py-3 rounded-xl border ${
+                    i === 0 ? "bg-[var(--secondary)] border-[var(--accent)]/20" : "bg-[var(--muted)] border-transparent"
+                  }`}>
+                    <div>
+                      <p className="text-xs font-semibold text-[var(--foreground)]">
+                        {new Date(entry.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                        {i === 0 && <span className="ml-2 text-[10px] text-[var(--accent)] font-bold">LATEST</span>}
+                      </p>
+                      <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
+                        {entry.weight} {entry.weightUnit} · {entry.height} {entry.heightUnit}
+                        {entry.note ? ` · ${entry.note}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-base font-bold ${bmiColor.split(" ")[0]}`}>{entry.bmi ?? "—"}</p>
+                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${bmiColor}`}>
+                        {entry.category || "BMI"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

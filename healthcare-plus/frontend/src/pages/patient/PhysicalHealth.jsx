@@ -8,8 +8,8 @@
  * - All pages receive live state via props — no module-level mock data
  */
 
-import React, { useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import PWLayout from "../../components/physicalWellness/PWLayout.jsx";
 import "../../components/physicalWellness/physicalWellness.css";
 
@@ -30,7 +30,8 @@ import WeeklyPlanPage from "./physicalWellness/WeeklyPlanPage.jsx";
 import AssistantPage from "./physicalWellness/AssistantPage.jsx";
 import SettingsPage from "./physicalWellness/SettingsPage.jsx";
 import WaveformBackground from "../../components/physicalWellness/WaveformBackground.jsx";
-import { ensureLivePhysicalStreakData } from "../../data/physicalWellnessMockData.js";
+import MondayBiometricsModal from "../../components/physicalWellness/MondayBiometricsModal.jsx";
+import { ensureLivePhysicalStreakData, generatePersonalizedDailyPlan, isMondayBiometricsDue } from "../../data/physicalWellnessMockData.js";
 
 // ─── Storage keys ───────────────────────────────────────────────────
 const SK_ONBOARDED   = "pw_onboarded_v2";
@@ -41,8 +42,22 @@ const SK_HABITS_DEF  = "pw_habit_defs_v2";  // user-defined habits [{ id, name, 
 const SK_HABIT_LOGS  = "pw_habit_logs_v2";  // { "2026-09-01": [habitId, ...] }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+/**
+ * Returns YYYY-MM-DD using LOCAL calendar date (not UTC).
+ * Using toISOString().slice(0,10) is wrong for timezones east of UTC (IST = UTC+5:30)
+ * because after 6:30 PM local time, toISOString returns the NEXT UTC day.
+ */
+export function localDateStr(date = new Date()) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Shorthand for today's local date string. */
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr(new Date());
 }
 
 function readJson(key, fallback) {
@@ -71,15 +86,21 @@ export function computeResult(scores) {
   return "recovery";
 }
 
-/** Compute consecutive-day streak from checkin history (up to last 4 days) */
-export function computeStreak(checkins) {
-  let streak = 0;
+/** Compute consecutive-day streak from checkin history (preserves streak if checked in yesterday) */
+export function computeStreak(checkins = []) {
+  if (!checkins || !checkins.length) return 0;
   const today = new Date();
-  for (let i = 0; i < 4; i++) {
+  const hasToday = checkins.some(c => c.date === localDateStr(today));
+
+  let streak = 0;
+  // If checked in today, start counting from today (i=0). If not yet, count from yesterday (i=1).
+  const startOffset = hasToday ? 0 : 1;
+
+  for (let i = startOffset; i < 60; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
-    if (checkins.find(c => c.date === ds)) {
+    const ds = localDateStr(d);
+    if (checkins.some(c => c.date === ds)) {
       streak++;
     } else {
       break;
@@ -93,7 +114,7 @@ export function getLast4Days(checkins) {
   return Array.from({ length: 4 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (3 - i));
-    const date = d.toISOString().slice(0, 10);
+    const date = localDateStr(d);
     const entry = checkins.find(c => c.date === date) || null;
     return {
       date,
@@ -110,22 +131,47 @@ const NAV_PAGES = ["dashboard", "weekly-plan", "habits", "progress", "assistant"
 // ─── Main Component ─────────────────────────────────────────────────
 export default function PhysicalHealth() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // ── Persisted profile (from onboarding) ──
   const [profile, setProfile] = useState(() => readJson(SK_PROFILE, null));
   const [isFirstTime, setIsFirstTime] = useState(() => localStorage.getItem(SK_ONBOARDED) !== "true");
 
-  // ── Page routing ──
-  const [page, setPage] = useState(() => {
-    const req = searchParams.get("page");
-    if (req) return req;
-    return localStorage.getItem(SK_ONBOARDED) === "true" ? "dashboard" : "entry";
-  });
+  const defaultPage = localStorage.getItem(SK_ONBOARDED) === "true" ? "dashboard" : "entry";
+
+  // ── Page routing synchronized with URL & browser history ──
+  const [page, setPage] = useState(() => searchParams.get("page") || defaultPage);
+
+  // Synchronize state on URL searchParams changes or browser Back/Forward (popstate)
+  useEffect(() => {
+    const urlPage = searchParams.get("page") || defaultPage;
+    setPage(urlPage);
+  }, [searchParams, defaultPage]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlPage = params.get("page") || defaultPage;
+      setPage(urlPage);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [defaultPage]);
 
   const go = useCallback((p) => {
     setPage(p);
     setSearchParams(["entry", "dashboard"].includes(p) ? {} : { page: p });
   }, [setSearchParams]);
+
+  const handleBack = useCallback((fallbackPage = "dashboard") => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      go(fallbackPage);
+    }
+  }, [navigate, go]);
+
+  const [sessionTarget, setSessionTarget] = useState(null); // { exIndex, setNum }
 
   // ── Check-in history ──
   const [checkins, setCheckins] = useState(() => {
@@ -165,6 +211,15 @@ export default function PhysicalHealth() {
   const streak = computeStreak(checkins);
   const last4  = getLast4Days(checkins);
   const todayCheckin = checkins.find(c => c.date === todayStr()) || null;
+
+  // ── Today's Personalized Plan (re-computed whenever check-in or profile changes) ──
+  const todayPlan = useMemo(
+    () => generatePersonalizedDailyPlan(todayCheckin, profile, todayStr()),
+    [todayCheckin, profile]
+  );
+
+  // ── Biometrics Modal ──
+  const [biometricsOpen, setBiometricsOpen] = useState(() => isMondayBiometricsDue());
 
   const showLayout = NAV_PAGES.includes(page);
 
@@ -234,7 +289,7 @@ export default function PhysicalHealth() {
               saveCheckin(scores);
               go("readiness");
             }}
-            onBack={() => go(isFirstTime ? "entry" : "dashboard")}
+            onBack={() => handleBack(isFirstTime ? "entry" : "dashboard")}
           />
         );
 
@@ -250,18 +305,34 @@ export default function PhysicalHealth() {
       case "today-workout":
         return (
           <TodayWorkoutPage
-            profile={profile}
-            onStartSession={() => go("workout-session")}
-            onBack={() => go("dashboard")}
+            workout={todayPlan}
+            onStartSession={(targetExIdx, targetSet) => {
+              if (typeof targetExIdx === "number") {
+                setSessionTarget({ exIndex: targetExIdx, setNum: targetSet || 1 });
+              } else {
+                setSessionTarget(null);
+              }
+              go("workout-session");
+            }}
+            onBack={() => handleBack(isFirstTime ? "entry" : "dashboard")}
           />
         );
 
       case "workout-session":
         return (
           <WorkoutSessionPage
+            workout={todayPlan}
             profile={profile}
-            onComplete={() => go("post-workout")}
-            onBack={() => go("today-workout")}
+            initialExIndex={sessionTarget?.exIndex}
+            initialSetNum={sessionTarget?.setNum}
+            onComplete={() => {
+              setSessionTarget(null);
+              go("post-workout");
+            }}
+            onBack={() => {
+              setSessionTarget(null);
+              handleBack("today-workout");
+            }}
           />
         );
 
@@ -306,8 +377,11 @@ export default function PhysicalHealth() {
         return (
           <WeeklyPlanPage
             profile={profile}
+            todayCheckin={todayCheckin}
             workouts={workouts}
             onStartWorkout={() => go("today-workout")}
+            onUpdateCheckIn={() => go("checkin")}
+            onOpenBiometrics={() => setBiometricsOpen(true)}
             onViewReview={() => go("weekly-review")}
           />
         );
@@ -359,6 +433,14 @@ export default function PhysicalHealth() {
           <div className="h-screen overflow-y-auto bg-transparent">{content}</div>
         )}
       </div>
+
+      {/* ── Monday Biometrics Modal ── */}
+      <MondayBiometricsModal
+        isOpen={biometricsOpen}
+        onClose={() => setBiometricsOpen(false)}
+        onSaved={() => setBiometricsOpen(false)}
+        isManualUpdate={!isMondayBiometricsDue()}
+      />
     </div>
   );
 }

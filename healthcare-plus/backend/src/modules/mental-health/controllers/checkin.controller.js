@@ -13,9 +13,11 @@ import { moodScaleToEmotion, stressToEmotion } from '../services/mood.service.js
  */
 export const submitCheckIn = asyncHandler(async (req, res) => {
   const profileId = req.mentalHealthProfile.id;
-  const { mood, stress, energy, motivation, sleepHours, note } = req.body;
+  // checkInDate: YYYY-MM-DD local date string sent by the frontend.
+  // MUST be included so the server uses the client's calendar date, not the server's timezone.
+  const { mood, stress, energy, motivation, sleepHours, note, checkInDate } = req.body;
 
-  const checkIn = await createCheckIn(profileId, { mood, stress, energy, motivation, sleepHours, note });
+  const checkIn = await createCheckIn(profileId, { mood, stress, energy, motivation, sleepHours, note, checkInDate });
 
   // Generate recommendations based on check-in state
   const emotion = moodScaleToEmotion(mood);
@@ -58,8 +60,9 @@ export const submitCheckIn = asyncHandler(async (req, res) => {
 export const getCheckInHistory = asyncHandler(async (req, res) => {
   const profileId = req.mentalHealthProfile.id;
   const limit = Math.min(parseInt(req.query.limit || '30'), 90);
+  const clientDate = req.query.clientDate || req.query.date;
   const checkIns = await getCheckIns(profileId, limit);
-  const today = await getTodaysCheckIn(profileId);
+  const today = await getTodaysCheckIn(profileId, clientDate);
 
   res.json({ success: true, data: { checkIns, todaysCheckIn: today } });
 });

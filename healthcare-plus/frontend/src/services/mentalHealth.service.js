@@ -13,7 +13,11 @@ export const updateConsent = (consentLevel) => api.patch(`${BASE}/profile/consen
 
 // ── Check-ins ─────────────────────────────────────────────────────────────────
 export const submitCheckIn = (data) => api.post(`${BASE}/check-ins`, data);
-export const getCheckInHistory = (limit = 30) => api.get(`${BASE}/check-ins?limit=${limit}`);
+export const getCheckInHistory = (limit = 30, clientDate = '') => {
+  const params = new URLSearchParams({ limit });
+  if (clientDate) params.set('clientDate', clientDate);
+  return api.get(`${BASE}/check-ins?${params.toString()}`);
+};
 
 // ── AI Conversations ──────────────────────────────────────────────────────────
 export const createConversation = () => api.post(`${BASE}/conversations`);
