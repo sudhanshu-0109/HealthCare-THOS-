@@ -653,10 +653,14 @@ export function getLocalDateStr(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+let isEnsuringLiveStreak = false;
+
 /**
  * Ensures the live 2-day streak (Today and Yesterday) is actively recorded in local runtime state.
  */
 export function ensureLiveStreakData() {
+  if (isEnsuringLiveStreak) return;
+  isEnsuringLiveStreak = true;
   try {
     const today = new Date();
     const todayIso = getLocalDateStr(today);
@@ -828,7 +832,15 @@ export function ensureLiveStreakData() {
     localStorage.setItem(CHECKIN_HISTORY_KEY, JSON.stringify(history));
 
     // 4. Update progress cache with 4-day streak
-    const existingCache = loadProgressCache() || {};
+    let existingCache = {};
+    try {
+      const raw = localStorage.getItem(PROGRESS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        existingCache = parsed?.data || {};
+      }
+    } catch {}
+
     saveProgressCache({
       ...existingCache,
       currentStreak: 4,
@@ -837,14 +849,20 @@ export function ensureLiveStreakData() {
     });
   } catch (err) {
     console.warn('ensureLiveStreakData warning:', err);
+  } finally {
+    isEnsuringLiveStreak = false;
   }
 }
+
+let isCalculatingStreak = false;
 
 /**
  * Calculates the current consecutive streak (in days) ending today or yesterday.
  * @returns {number}
  */
 export function calculateStreak() {
+  if (isCalculatingStreak) return 4;
+  isCalculatingStreak = true;
   try {
     ensureLiveStreakData();
     const rawDates = localStorage.getItem(DATES_KEY);
@@ -890,6 +908,8 @@ export function calculateStreak() {
     return Math.max(4, streak);
   } catch {
     return 2;
+  } finally {
+    isCalculatingStreak = false;
   }
 }
 
@@ -1223,21 +1243,12 @@ export function saveProgressCache(data) {
 export function loadProgressCache() {
   try {
     const raw = localStorage.getItem(PROGRESS_KEY);
-    const streak = calculateStreak();
-    if (!raw) {
-      return streak > 0 ? { currentStreak: streak } : null;
-    }
+    if (!raw) return null;
     const { data, savedAt } = JSON.parse(raw);
-    if (Date.now() - savedAt > PROGRESS_TTL_MS) {
-      return streak > 0 ? { currentStreak: streak } : null;
-    }
-    return {
-      ...data,
-      currentStreak: Math.max(data?.currentStreak || 0, streak),
-    };
+    if (Date.now() - savedAt > PROGRESS_TTL_MS) return null;
+    return data || null;
   } catch {
-    const streak = calculateStreak();
-    return streak > 0 ? { currentStreak: streak } : null;
+    return null;
   }
 }
 

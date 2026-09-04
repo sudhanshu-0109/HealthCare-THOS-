@@ -30,7 +30,7 @@ const ROLES = [
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setAuth } = useAuthStore();
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const [selectedRole, setSelectedRole] = useState('PATIENT');
   const [email, setEmail] = useState('');

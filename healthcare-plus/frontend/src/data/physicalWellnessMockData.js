@@ -230,7 +230,11 @@ function getLocalDateStr(date) {
   return `${year}-${month}-${day}`;
 }
 
+let isEnsuringPhysicalStreak = false;
+
 export function ensureLivePhysicalStreakData() {
+  if (isEnsuringPhysicalStreak) return;
+  isEnsuringPhysicalStreak = true;
   try {
     const raw = localStorage.getItem("pw_checkins_v2");
     if (!raw || JSON.parse(raw).length === 0) {
@@ -252,6 +256,8 @@ export function ensureLivePhysicalStreakData() {
     }
   } catch (err) {
     console.warn("ensureLivePhysicalStreakData warning:", err);
+  } finally {
+    isEnsuringPhysicalStreak = false;
   }
 }
 

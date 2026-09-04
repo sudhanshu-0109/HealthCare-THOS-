@@ -18,7 +18,7 @@ import GoogleLoginButton from '../../components/auth/GoogleLoginButton';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const [step, setStep] = useState(1);
   const [fullName, setFullName] = useState('');
