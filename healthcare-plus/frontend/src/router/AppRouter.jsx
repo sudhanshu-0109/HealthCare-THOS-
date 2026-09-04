@@ -112,6 +112,7 @@ const AppRouter = () => {
         <Route path="/health-hub" element={<HealthHub />} />
         <Route path="/health-hub/hospital-care" element={<Navigate to="/patient/dashboard" replace />} />
         <Route path="/health-hub/physical-health" element={<PhysicalHealth />} />
+        <Route path="/physical-wellness" element={<Navigate to="/health-hub/physical-health" replace />} />
 
         {/* ── Mental Wellness module — nested sub-routes ───────── */}
         {/* MentalWellnessLayout renders: AmbientBackground + MWNavigation + <Outlet /> */}

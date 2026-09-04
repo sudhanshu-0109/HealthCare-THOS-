@@ -1,0 +1,45 @@
+/**
+ * components/physicalWellness/physicalWellness.css
+ *
+ * Scoped styles for the Physical Wellness module.
+ * Source: frontend_Physical/src/index.css
+ * All variables scoped to .pw-root to prevent bleeding into Hospital Care or Mental Wellness.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+.pw-root {
+  --background: #F7F8F6;
+  --foreground: #0F1C17;
+  --card: #FFFFFF;
+  --card-foreground: #0F1C17;
+  --primary: #1A3C34;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EDF2EE;
+  --secondary-foreground: #1A3C34;
+  --muted: #F0F2F0;
+  --muted-foreground: #6B7B70;
+  --accent: #3D8B6E;
+  --accent-foreground: #FFFFFF;
+  --border: #E2E8E4;
+  --ring: #3D8B6E;
+  --radius: 12px;
+
+  font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pw-root .font-display {
+  font-family: 'DM Serif Display', Georgia, serif;
+}
+
+.pw-root * {
+  scrollbar-width: none;
+}
+
+.pw-root *::-webkit-scrollbar {
+  display: none;
+}

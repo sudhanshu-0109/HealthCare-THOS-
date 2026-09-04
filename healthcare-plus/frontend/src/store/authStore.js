@@ -1,9 +1,11 @@
 /**
  * store/authStore.js — Zustand store for state management.
+ * Configured with sessionStorage so closing the browser/tab ends the session
+ * and prevents unwanted automatic logins across sessions.
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 const useAuthStore = create(
   persist(
@@ -14,24 +16,41 @@ const useAuthStore = create(
 
       setAuth: ({ user, accessToken }) => {
         if (accessToken) {
-          localStorage.setItem('hc_token', accessToken);
+          sessionStorage.setItem('hc_token', accessToken);
         }
         if (user) {
-          localStorage.setItem('hc_user', JSON.stringify(user));
+          sessionStorage.setItem('hc_user', JSON.stringify(user));
         }
+        // Purge legacy permanent localStorage auth if present
+        try {
+          localStorage.removeItem('hc_token');
+          localStorage.removeItem('hc_user');
+          localStorage.removeItem('healthcare-plus-auth');
+        } catch {}
+
         set({ user, token: accessToken, isLoading: false });
       },
 
       clearAuth: () => {
-        localStorage.removeItem('hc_token');
-        localStorage.removeItem('hc_user');
+        try {
+          sessionStorage.removeItem('hc_token');
+          sessionStorage.removeItem('hc_user');
+          localStorage.removeItem('hc_token');
+          localStorage.removeItem('hc_user');
+          localStorage.removeItem('healthcare-plus-auth');
+        } catch {}
         set({ user: null, token: null, isLoading: false });
       },
 
       // Alias for clearAuth — both patterns used across the codebase
       logout: () => {
-        localStorage.removeItem('hc_token');
-        localStorage.removeItem('hc_user');
+        try {
+          sessionStorage.removeItem('hc_token');
+          sessionStorage.removeItem('hc_user');
+          localStorage.removeItem('hc_token');
+          localStorage.removeItem('hc_user');
+          localStorage.removeItem('healthcare-plus-auth');
+        } catch {}
         set({ user: null, token: null, isLoading: false });
       },
 
@@ -44,6 +63,7 @@ const useAuthStore = create(
     }),
     {
       name: 'healthcare-plus-auth',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({ user: state.user, token: state.token }),
     }
   )

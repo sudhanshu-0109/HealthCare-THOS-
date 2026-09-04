@@ -16,6 +16,8 @@ import useAuthStore from '../../store/authStore';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import { getCurrentWeekStreakStatus } from '../../data/wellnessMockData';
+import { getCurrentWeekPhysicalStreakStatus } from '../../data/physicalWellnessMockData';
+import WaveformBackground from '../../components/common/WaveformBackground';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getGreeting() {
@@ -100,6 +102,7 @@ export default function HealthHub() {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [streakData, setStreakData] = useState(() => getCurrentWeekStreakStatus());
+  const [physicalStreakData, setPhysicalStreakData] = useState(() => getCurrentWeekPhysicalStreakStatus());
   const profileRef = useRef(null);
   const locationRef = useRef(null);
 
@@ -109,18 +112,21 @@ export default function HealthHub() {
   const handleLogout = async () => { await logout(); navigate('/', { replace: true }); };
   const handleSOS = () => navigate('/patient/dashboard');
 
-  // Real-time synchronization with Mental Wellness check-ins
+  // Real-time synchronization with Mental & Physical Wellness check-ins
   useEffect(() => {
     const handleSync = () => {
       setStreakData(getCurrentWeekStreakStatus());
+      setPhysicalStreakData(getCurrentWeekPhysicalStreakStatus());
     };
 
     window.addEventListener('mw-checkin-updated', handleSync);
+    window.addEventListener('pw-checkin-updated', handleSync);
     window.addEventListener('storage', handleSync);
     window.addEventListener('focus', handleSync);
 
     return () => {
       window.removeEventListener('mw-checkin-updated', handleSync);
+      window.removeEventListener('pw-checkin-updated', handleSync);
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('focus', handleSync);
     };
@@ -144,10 +150,12 @@ export default function HealthHub() {
      * Desktop: h-screen overflow-hidden → fits exactly in viewport, no scroll.
      * Mobile: min-h-screen (can scroll if needed on tiny phones).
      */
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-slate-50">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-slate-50/50 relative">
+      {/* ── Biometric Waveform Background Animation ── */}
+      <WaveformBackground />
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <header className="flex-shrink-0 bg-white border-b border-slate-100 z-40">
+      <header className="flex-shrink-0 bg-white/85 backdrop-blur-md border-b border-slate-100/80 z-40 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-5 py-2.5 flex items-center justify-between gap-3">
           {/* Logo */}
           <div className="flex items-center gap-2 flex-shrink-0 cursor-pointer" onClick={() => navigate('/health-hub')}>
@@ -254,7 +262,7 @@ export default function HealthHub() {
       </header>
 
       {/* ── PAGE BODY — fills remaining height on desktop ──────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative z-10 bg-transparent">
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-5 py-3 flex flex-col gap-3 h-full">
 
           {/* ── GREETING + SOS ──────────────────────────────────────────── */}
@@ -315,26 +323,58 @@ export default function HealthHub() {
           {/* ── HEALTH SUMMARY + STREAK ──────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-shrink-0">
 
-            {/* Health Summary */}
+            {/* Physical Wellness Streak */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-bold text-slate-900 text-sm">Health Summary</h2>
-                <button className="flex items-center gap-1 text-xs text-teal-600 font-semibold hover:underline">
-                  View Trends <ArrowRight className="w-3 h-3" />
+                <h2 className="font-bold text-slate-900 text-sm">Physical Wellness Streak</h2>
+                <button
+                  onClick={() => navigate('/health-hub/physical-health')}
+                  className="flex items-center gap-1 text-xs text-orange-600 font-semibold hover:underline cursor-pointer"
+                >
+                  View Details <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
-              <div className="grid grid-cols-4 gap-2">
-                {HEALTH_STATS.map((s) => (
-                  <div key={s.label} className="flex flex-col items-center text-center gap-1">
-                    <div className="text-xl leading-none">{s.emoji}</div>
-                    <p className="font-extrabold text-slate-900 text-sm leading-tight">
-                      {s.value}
-                      {s.unit && <span className="text-[10px] text-slate-500 font-semibold ml-0.5">{s.unit}</span>}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 flex-shrink-0">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 bg-orange-50 border border-orange-100/80 rounded-xl flex items-center justify-center text-lg sm:text-xl shadow-2xs">💪</div>
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                        {physicalStreakData.streak}
+                      </p>
+                      <p className="text-xs font-bold text-slate-700">Days Streak</p>
+                    </div>
+                    <p className="text-[10px] text-orange-600 font-semibold mt-0.5">
+                      {physicalStreakData.streak >= 4 ? '🔥 Great going!' : '💪 Active journey'}
                     </p>
-                    <p className="text-[10px] text-slate-500 leading-tight">{s.label}</p>
-                    <p className={`text-[10px] font-bold ${s.sc} leading-tight`}>{s.status}</p>
                   </div>
-                ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1 sm:flex sm:items-center sm:gap-2 flex-1 max-w-full justify-between pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                  {physicalStreakData.weekDays.map((d) => (
+                    <div key={d.day} className="flex flex-col items-center gap-1">
+                      {d.isChecked ? (
+                        <div
+                          className={`w-6 h-6 sm:w-7 sm:h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-2xs ${
+                            d.isToday ? 'ring-2 ring-orange-400 ring-offset-1' : ''
+                          }`}
+                          title={`${d.day}: Active`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                        </div>
+                      ) : (
+                        <div
+                          className={`w-6 h-6 sm:w-7 sm:h-7 border-2 ${
+                            d.isToday ? 'border-orange-400 border-dashed bg-orange-50/50' : 'border-slate-200'
+                          } rounded-full flex items-center justify-center`}
+                          title={`${d.day}: ${d.isToday ? 'Today (Pending)' : 'No activity'}`}
+                        />
+                      )}
+                      <span className={`text-[9px] font-medium ${d.isToday ? 'text-orange-700 font-bold' : 'text-slate-500'}`}>
+                        {d.day}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

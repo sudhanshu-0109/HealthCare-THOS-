@@ -18,11 +18,7 @@ import GoogleLoginButton from '../../components/auth/GoogleLoginButton';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { user, token, setAuth } = useAuthStore();
-
-  useEffect(() => {
-    if (token && user) navigate('/health-hub', { replace: true });
-  }, [token, user, navigate]);
+  const { setAuth } = useAuthStore();
 
   const [step, setStep] = useState(1);
   const [fullName, setFullName] = useState('');

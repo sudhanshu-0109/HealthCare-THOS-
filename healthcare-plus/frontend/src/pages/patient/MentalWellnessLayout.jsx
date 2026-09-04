@@ -14,22 +14,22 @@
  */
 
 import { Outlet } from 'react-router-dom';
-import MWAmbientBackground from '../../components/mentalWellness/MWAmbientBackground';
+import WaveformBackground from '../../components/common/WaveformBackground';
 import MWNavigation from '../../components/mentalWellness/MWNavigation';
 import '../../components/mentalWellness/mentalWellness.css';
 
 export default function MentalWellnessLayout() {
   return (
-    <div className="mw-root min-h-screen relative" style={{ backgroundColor: '#f5fbf9' }}>
-      {/* Animated ambient background (desktop only) */}
-      <MWAmbientBackground />
+    <div className="mw-root min-h-screen relative bg-transparent">
+      {/* Biometric waveform animation spanning full page */}
+      <WaveformBackground />
 
-      {/* Relative z-10 keeps content above the fixed background SVG */}
-      <div className="relative z-10">
+      {/* Relative z-10 keeps content above the fixed background canvas */}
+      <div className="relative z-10 bg-transparent">
         <MWNavigation />
 
         {/* Child route page — padded for bottom nav on mobile */}
-        <main className="pb-24 md:pb-0">
+        <main className="pb-24 md:pb-0 bg-transparent">
           <Outlet />
         </main>
       </div>

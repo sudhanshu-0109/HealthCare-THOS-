@@ -30,14 +30,7 @@ const ROLES = [
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, token, setAuth } = useAuthStore();
-
-  useEffect(() => {
-    if (token && user) {
-      const redirectUrl = searchParams.get('redirect');
-      navigate(redirectUrl || ROLE_HOME_ROUTE[user.role] || '/dashboard', { replace: true });
-    }
-  }, [token, user, navigate, searchParams]);
+  const { setAuth } = useAuthStore();
 
   const [selectedRole, setSelectedRole] = useState('PATIENT');
   const [email, setEmail] = useState('');

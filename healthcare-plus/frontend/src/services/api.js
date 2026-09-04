@@ -33,7 +33,7 @@ const AUTH_BYPASS = ['/auth/refresh-token', '/auth/login', '/auth/register', '/a
 // ── Request interceptor — attach JWT ───────────────────────────────────────
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('hc_token');
+    const token = sessionStorage.getItem('hc_token') || localStorage.getItem('hc_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

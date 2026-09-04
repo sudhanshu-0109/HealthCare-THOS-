@@ -13,8 +13,16 @@ import useAuthStore from '../../store/authStore';
 import * as authService from '../../services/auth.service';
 
 const AuthBootstrap = ({ children }) => {
-  // If there's no token there's nothing to revalidate — render immediately.
-  const [ready, setReady] = useState(() => !localStorage.getItem('hc_token'));
+  // If there's no session token there's nothing to revalidate — render immediately.
+  const [ready, setReady] = useState(() => {
+    // Purge legacy permanent localStorage auth tokens
+    try {
+      localStorage.removeItem('hc_token');
+      localStorage.removeItem('hc_user');
+      localStorage.removeItem('healthcare-plus-auth');
+    } catch {}
+    return !sessionStorage.getItem('hc_token');
+  });
   const setAuth = useAuthStore((s) => s.setAuth);
 
   useEffect(() => {
@@ -27,7 +35,7 @@ const AuthBootstrap = ({ children }) => {
         const user = res?.data?.user;
         if (mounted && user) {
           // Re-read the token: the interceptor may have refreshed it during this call.
-          const freshToken = localStorage.getItem('hc_token');
+          const freshToken = sessionStorage.getItem('hc_token');
           setAuth({ user, accessToken: freshToken });
         }
       } catch {
