@@ -19,7 +19,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 const app = express();
 
 // ── Security headers ──────────────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+}));
 
 // ── CORS ──────────────────────────────────────────────────────────────────
 app.use(cors(corsConfig));

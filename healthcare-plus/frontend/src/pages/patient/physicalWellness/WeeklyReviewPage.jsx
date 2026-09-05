@@ -1,8 +1,36 @@
 import React from "react";
-import { mockWeeklyReview } from "../../../data/physicalWellnessMockData.js";
+import { mockWeeklyReview, isDemoPatient } from "../../../data/physicalWellnessMockData.js";
 
-export default function WeeklyReviewPage({ onBack, onViewNextWeek }) {
-  const r = mockWeeklyReview;
+export default function WeeklyReviewPage({ onBack, onViewNextWeek, checkins = [], workouts = [], user = null }) {
+  const isDemo = isDemoPatient(user);
+
+  // Compute current week range
+  const now = new Date();
+  const dayOfWeek = (now.getDay() + 6) % 7; // 0 = Mon, 6 = Sun
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dayOfWeek);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const weekRangeStr = `${monday.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${sunday.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+
+  const completedCount = workouts.filter(w => w.completed).length;
+  const targetCount = 3;
+  const completionPct = Math.min(100, Math.round((completedCount / targetCount) * 100));
+
+  const r = (isDemo && workouts.length === 0) ? mockWeeklyReview : {
+    completed: completedCount,
+    target: targetCount,
+    completionPct,
+    avgFeedback: workouts.length > 0 ? (workouts[workouts.length - 1].feedback || "Appropriate") : "No logs yet",
+    consistency: checkins.length > 0 ? Math.min(7, checkins.length) : 0,
+    recoveryDays: Math.max(0, 7 - completedCount),
+    nextWeekAdjustments: {
+      duration: { from: 30, to: 30 },
+      intensity: { from: "Moderate", to: "Moderate" },
+      rest: { from: "30s", to: "30s" },
+    },
+  };
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
@@ -12,7 +40,7 @@ export default function WeeklyReviewPage({ onBack, onViewNextWeek }) {
       </button>
 
       <h1 className="font-display text-3xl text-[var(--foreground)] mb-1">Weekly Review</h1>
-      <p className="text-sm text-[var(--muted-foreground)] mb-8">Aug 28 – Sep 3</p>
+      <p className="text-sm text-[var(--muted-foreground)] mb-8">{weekRangeStr}</p>
 
       {/* This week summary */}
       <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-3">This Week</p>
@@ -34,7 +62,11 @@ export default function WeeklyReviewPage({ onBack, onViewNextWeek }) {
       {/* Next week plan adjustments */}
       <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-3">Next Week Adjustments</p>
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 mb-6 shadow-xs">
-        <p className="text-sm text-[var(--muted-foreground)] mb-4">Based on this week's performance, your plan for next week remains consistent.</p>
+        <p className="text-sm text-[var(--muted-foreground)] mb-4">
+          {workouts.length === 0 && !isDemo
+            ? "Complete your daily workouts to unlock personalized adaptive progression adjustments for next week."
+            : "Based on your performance and recovery data, your plan for next week is calibrated."}
+        </p>
         <div className="grid grid-cols-3 gap-4 text-center">
           {[
             { label: "Duration", from: r.nextWeekAdjustments.duration.from + " min", to: r.nextWeekAdjustments.duration.to + " min", changed: r.nextWeekAdjustments.duration.from !== r.nextWeekAdjustments.duration.to },

@@ -47,6 +47,13 @@ router.post(
   emergencyController.cancelEmergencyRequest
 );
 
+// Patient confirms ambulance pickup (PICKUP_PENDING_CONFIRMATION → PICKED_UP)
+router.post(
+  '/:id/confirm-pickup',
+  checkRole('PATIENT'),
+  emergencyController.confirmPickup
+);
+
 
 // Hospital Staff views and updates requests
 router.get(

@@ -11,7 +11,7 @@ export const createEmergencySchema = z.object({
 });
 
 export const updateEmergencySchema = z.object({
-  status: z.enum(['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'PICKED_UP', 'ARRIVED', 'CANCELLED', 'NO_DRIVER_FALLBACK']),
+  status: z.enum(['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'REACHED_PATIENT', 'PICKUP_PENDING_CONFIRMATION', 'PICKED_UP', 'ARRIVED', 'CANCELLED', 'NO_DRIVER_FALLBACK']),
 });
 
 export const createEmergencyRequest = asyncHandler(async (req, res) => {
@@ -51,3 +51,7 @@ export const cancelEmergencyRequest = asyncHandler(async (req, res) => {
   }
 });
 
+export const confirmPickup = asyncHandler(async (req, res) => {
+  const result = await emergencyService.confirmEmergencyPickup(req.params.id, req.user.id);
+  res.status(200).json({ success: true, data: result });
+});

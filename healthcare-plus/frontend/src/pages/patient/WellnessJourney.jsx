@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import useAuthStore from '../../store/authStore';
 import * as mhService from '../../services/mentalHealth.service';
 import ActivityPlayer from '../../components/mentalWellness/ActivityPlayer';
 import {
@@ -30,7 +31,6 @@ import {
   calculateCheckInStats,
   appendActivityLog,
   getLocalDateStr,
-  ensureLiveStreakData,
   calculateCompositeMoodScore,
   loadCompletedProgramDays,
   markProgramDayCompleted,
@@ -64,10 +64,10 @@ const PERIOD_DAYS = { week: 7, month: 30, all: 90 };
 
 // ── 1. Wellness Overview (With Real Runtime 10-Scale Averages) ────────────────
 
-function WellnessOverview({ checkIns, activityLog }) {
-  const currentStreak = calculateStreak();
+function WellnessOverview({ checkIns, activityLog, user }) {
+  const currentStreak = calculateStreak(user);
   const sessionsCount = activityLog.length;
-  const stats = useMemo(() => calculateCheckInStats(checkIns), [checkIns]);
+  const stats = useMemo(() => calculateCheckInStats(checkIns, user), [checkIns, user]);
 
   return (
     <div className="mw-card rounded-2xl p-6 relative overflow-hidden">
@@ -179,7 +179,7 @@ function WellnessOverview({ checkIns, activityLog }) {
 
 // ── 2. 2D Wellness Trends Chart & Daily Infographic Flow (Full Current Week) ──
 
-function WellnessTrendsChart({ checkIns }) {
+function WellnessTrendsChart({ checkIns, user }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [selectedIdx, setSelectedIdx] = useState(null);
 
@@ -187,7 +187,7 @@ function WellnessTrendsChart({ checkIns }) {
   const weekDays = useMemo(() => {
     const today = new Date();
     const todayIso = getLocalDateStr(today);
-    const todayCI = loadTodayCheckIn();
+    const todayCI = loadTodayCheckIn(user);
 
     // Find Monday of current week
     const dow = today.getDay(); // 0=Sun … 6=Sat
@@ -744,13 +744,12 @@ function CheckInCalendarTimeline({ checkIns }) {
 
 // ── 4. DNA-Helix Daywise Animated Program Journey (Matching Diagram) ───────────
 
-function DnaHelicalJourney({ onStartActivity }) {
-  ensureLiveStreakData();
-  const [completedDaysList, setCompletedDaysList] = useState(() => loadCompletedProgramDays());
+function DnaHelicalJourney({ onStartActivity, user }) {
+  const [completedDaysList, setCompletedDaysList] = useState(() => loadCompletedProgramDays(user));
 
   useEffect(() => {
     const handleUpdate = () => {
-      setCompletedDaysList(loadCompletedProgramDays());
+      setCompletedDaysList(loadCompletedProgramDays(user));
     };
     window.addEventListener('mw-program-updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
@@ -758,10 +757,10 @@ function DnaHelicalJourney({ onStartActivity }) {
       window.removeEventListener('mw-program-updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, []);
+  }, [user]);
 
   const completedSet = useMemo(() => new Set(completedDaysList), [completedDaysList]);
-  const currentStreak = calculateStreak();
+  const currentStreak = calculateStreak(user);
 
   // Next active day: first incomplete day in the 14-day pathway (e.g. Day 5, 6, 7...)
   const activeDayNum = useMemo(() => {
@@ -807,10 +806,17 @@ function DnaHelicalJourney({ onStartActivity }) {
 
         {/* Live Streak Status Badge */}
         <div className="inline-flex items-center gap-2 mt-3 px-3.5 py-1.5 rounded-full bg-white border border-[#dcd7ea] shadow-2xs text-xs font-semibold text-[#171d1c] font-display flex-wrap justify-center">
-          <span className="flex items-center gap-1 text-amber-600 font-bold">
-            <span>🔥</span>
-            <span>{currentStreak}-Day Live Streak Active</span>
-          </span>
+          {currentStreak > 0 ? (
+            <span className="flex items-center gap-1 text-amber-600 font-bold">
+              <span>🔥</span>
+              <span>{currentStreak}-Day Live Streak Active</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[#58519e] font-bold">
+              <span>🌱</span>
+              <span>Day 1 Ready</span>
+            </span>
+          )}
           <span className="text-[#bcc9c8]">•</span>
           <span className="text-emerald-700 font-bold flex items-center gap-0.5">
             <span className="material-symbols-outlined text-[14px]">verified</span>
@@ -862,47 +868,7 @@ function DnaHelicalJourney({ onStartActivity }) {
             </filter>
           </defs>
 
-          {/* 1. Scientific Bracket: "full turn 34 Å" (matching diagram) */}
-          <g className="scientific-bracket">
-            {/* Curly bracket path spanning Crest 0 (Y=120) to Crest 2 (Y=390) */}
-            <path
-              d="M 230,123 C 195,123 195,245 170,256 C 195,267 195,392 230,392"
-              fill="none"
-              stroke="#2e2664"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            {/* Arrow tips on bracket */}
-            <path d="M 224,117 L 233,123 L 224,129" fill="none" stroke="#2e2664" strokeWidth="1.8" />
-            <path d="M 224,386 L 233,392 L 224,398" fill="none" stroke="#2e2664" strokeWidth="1.8" />
-            {/* Rotated text "full turn" */}
-            <text
-              x="130"
-              y="256"
-              fontFamily="'Caveat', 'Comic Sans MS', cursive, sans-serif"
-              fontSize="20"
-              fontStyle="italic"
-              fill="#26224f"
-              textAnchor="middle"
-              transform="rotate(-90 130 256)"
-            >
-              full turn
-            </text>
-            {/* Dimension label "34 Å" */}
-            <text
-              x="158"
-              y="262"
-              fontFamily="'Caveat', 'Comic Sans MS', cursive, sans-serif"
-              fontSize="24"
-              fontWeight="bold"
-              fill="#26224f"
-              textAnchor="end"
-            >
-              34 Å
-            </text>
-          </g>
-
-          {/* 2. BACK BANDS (Inside Lavender Surfaces · Drawn behind) */}
+          {/* 1. BACK BANDS (Inside Lavender Surfaces · Drawn behind) */}
           <g filter="url(#ribbonShadow)">
             {/* Top entry into Crest 0 */}
             <path
@@ -1365,17 +1331,24 @@ function ActivityHistory({ log, filter, onFilter, onReplay }) {
 // ── Main Page Component ───────────────────────────────────────────────────────
 
 export default function WellnessJourney() {
+  const { user }         = useAuthStore();
   const [period,         setPeriod]         = useState('week');
   const [activityFilter, setActivityFilter] = useState('All');
 
-  // Real runtime state
-  const [checkIns,       setCheckIns]       = useState(() => loadCheckInHistory());
-  const [activityLog,    setActivityLog]    = useState(() => loadActivityLog());
+  // Real runtime state scoped to user
+  const [checkIns,       setCheckIns]       = useState(() => loadCheckInHistory(user));
+  const [activityLog,    setActivityLog]    = useState(() => loadActivityLog(user));
   const [loading,        setLoading]        = useState(false);
 
   // ActivityPlayer state
   const [activeItem,     setActiveItem]     = useState(null);
   const activityStartRef = useRef(null);
+
+  // Sync state if auth user changes
+  useEffect(() => {
+    setCheckIns(loadCheckInHistory(user));
+    setActivityLog(loadActivityLog(user));
+  }, [user]);
 
   const openActivity = ({ type, title, durationMin, category, icon, day, isProgramDay }) => {
     activityStartRef.current = new Date().toISOString();
@@ -1390,10 +1363,6 @@ export default function WellnessJourney() {
   };
 
   const handleActivityComplete = (completedItem) => {
-    // NOTE: We do NOT call setActiveItem(null) here!
-    // Calling setActiveItem(null) immediately was causing ActivityPlayer to abruptly disappear
-    // before the user saw the "Well done!" screen. The player modal will be closed when the user
-    // clicks "Finish & Return" (or the Close button) via onClose.
     if (!completedItem) return;
 
     const cat  = completedItem.description?.split(' · ')[1] ?? 'Meditation';
@@ -1405,7 +1374,7 @@ export default function WellnessJourney() {
       icon,
       durationMin: completedItem.duration,
       startedAt:   activityStartRef.current ?? new Date().toISOString(),
-    });
+    }, user);
 
     // Mark DNA program journey milestone as completed!
     const matchingStep = DNA_JOURNEY_DAYS.find(s => s.title === completedItem.title);
@@ -1414,10 +1383,10 @@ export default function WellnessJourney() {
       markProgramDayCompleted(dayNum, {
         title: completedItem.title,
         completedAt: new Date().toISOString(),
-      });
+      }, user);
     }
 
-    setActivityLog(loadActivityLog());
+    setActivityLog(loadActivityLog(user));
 
     mhService.completeActivity?.('local', {
       title:    completedItem.title,
@@ -1427,9 +1396,9 @@ export default function WellnessJourney() {
 
   // Sync real check-in data from localStorage & API
   const refreshRuntimeData = useCallback(async () => {
-    const localHist = loadCheckInHistory();
+    const localHist = loadCheckInHistory(user);
     setCheckIns(localHist);
-    setActivityLog(loadActivityLog());
+    setActivityLog(loadActivityLog(user));
 
     try {
       const days = PERIOD_DAYS[period] ?? 7;
@@ -1456,7 +1425,7 @@ export default function WellnessJourney() {
     } catch {
       // Offline fallback: keep local history
     }
-  }, [period]);
+  }, [period, user]);
 
   useEffect(() => {
     refreshRuntimeData();
@@ -1465,8 +1434,8 @@ export default function WellnessJourney() {
   // Keep synced on focus, storage, & live check-in updates
   useEffect(() => {
     const handleSync = () => {
-      setCheckIns(loadCheckInHistory());
-      setActivityLog(loadActivityLog());
+      setCheckIns(loadCheckInHistory(user));
+      setActivityLog(loadActivityLog(user));
     };
     window.addEventListener('storage', handleSync);
     window.addEventListener('focus', handleSync);
@@ -1476,7 +1445,7 @@ export default function WellnessJourney() {
       window.removeEventListener('focus', handleSync);
       window.removeEventListener('mw-checkin-updated', handleSync);
     };
-  }, []);
+  }, [user]);
 
   return (
     <>
@@ -1528,16 +1497,16 @@ export default function WellnessJourney() {
         {/* Dashboard Grid */}
         <div className="space-y-6">
           {/* 1. Overview Diagnostics */}
-          <WellnessOverview checkIns={checkIns} activityLog={activityLog} />
+          <WellnessOverview checkIns={checkIns} activityLog={activityLog} user={user} />
 
           {/* 2. Wellness Trends Infographic Chart (2D Bar Graph - Full Current Week) */}
-          <WellnessTrendsChart checkIns={checkIns} />
+          <WellnessTrendsChart checkIns={checkIns} user={user} />
 
           {/* 3. Day-Wise Check-In Calendar Strip & Diagnostics */}
           <CheckInCalendarTimeline checkIns={checkIns} />
 
           {/* 3. DNA-Helix Daywise Animated Program Journey (Matching Diagram) */}
-          <DnaHelicalJourney onStartActivity={openActivity} />
+          <DnaHelicalJourney onStartActivity={openActivity} user={user} />
 
           {/* 4. Activity History Feed with Direct Replay */}
           <ActivityHistory

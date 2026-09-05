@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Shield, LogOut } from "lucide-react";
 import useAuthStore from "../../store/authStore.js";
 import { useAuth } from "../../hooks/useAuth.js";
+import { getUserPwKey } from "../../data/physicalWellnessMockData.js";
 
 const HomeIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -87,10 +88,11 @@ export default function PWLayout({ currentPage, navigate, children, streak = 0 }
     }
   };
 
-  // Derive display name: prefer firstName from profile (pw_profile_v2), then auth user fullName
+  // Derive display name: prefer firstName from profile, then auth user fullName
   const displayName = (() => {
     try {
-      const raw = localStorage.getItem("pw_profile_v2");
+      const key = getUserPwKey("pw_profile_v2", user);
+      const raw = localStorage.getItem(key);
       if (raw) {
         const p = JSON.parse(raw);
         if (p.firstName) return p.firstName;

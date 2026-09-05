@@ -101,8 +101,8 @@ export default function HealthHub() {
   const [selectedLocation, setSelectedLocation] = useState(user?.city || 'Vadodara, Gujarat');
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [streakData, setStreakData] = useState(() => getCurrentWeekStreakStatus());
-  const [physicalStreakData, setPhysicalStreakData] = useState(() => getCurrentWeekPhysicalStreakStatus());
+  const [streakData, setStreakData] = useState(() => getCurrentWeekStreakStatus(user));
+  const [physicalStreakData, setPhysicalStreakData] = useState(() => getCurrentWeekPhysicalStreakStatus(user));
   const profileRef = useRef(null);
   const locationRef = useRef(null);
 
@@ -115,9 +115,11 @@ export default function HealthHub() {
   // Real-time synchronization with Mental & Physical Wellness check-ins
   useEffect(() => {
     const handleSync = () => {
-      setStreakData(getCurrentWeekStreakStatus());
-      setPhysicalStreakData(getCurrentWeekPhysicalStreakStatus());
+      setStreakData(getCurrentWeekStreakStatus(user));
+      setPhysicalStreakData(getCurrentWeekPhysicalStreakStatus(user));
     };
+
+    handleSync();
 
     window.addEventListener('mw-checkin-updated', handleSync);
     window.addEventListener('pw-checkin-updated', handleSync);
@@ -130,7 +132,7 @@ export default function HealthHub() {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('focus', handleSync);
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {

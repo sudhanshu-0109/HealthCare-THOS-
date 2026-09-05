@@ -41,3 +41,6 @@ tools/*.exe
 
 # Tunnel session logs
 tunnel-*.log
+
+# Demo / seed credentials — contains plaintext passwords, never commit
+CREDENTIALS.md

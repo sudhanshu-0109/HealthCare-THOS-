@@ -17,6 +17,8 @@
  * localStorage key "mw_activity_log" stores the local session activity history.
  */
 
+import useAuthStore from '../store/authStore.js';
+
 // ── Mood scale (static enum — never changes) ─────────────────────────────────
 export const MOODS = [
   {
@@ -633,115 +635,60 @@ export function getPersonalizedRecommendations({ mood, energy = 5, stress = 5, m
 }
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
-const LOG_KEY      = 'mw_activity_log';
-const CHECKIN_KEY  = 'mw_daily_checkin';
-const DATES_KEY    = 'mw_checkin_dates';
-const PROGRESS_KEY = 'mw_progress_cache';
+export const LOG_KEY                      = 'mw_activity_log';
+export const CHECKIN_KEY                  = 'mw_daily_checkin';
+export const DATES_KEY                    = 'mw_checkin_dates';
+export const PROGRESS_KEY                 = 'mw_progress_cache';
+export const CHECKIN_HISTORY_KEY          = 'mw_checkin_history';
+export const PROGRAM_COMPLETED_DAYS_KEY   = 'mw_program_completed_days';
 
-// ── Idempotent migration: remove auto-seeded data written by old code ─────────
-// Uses a localStorage-versioned key so it persists across page reloads and
-// re-runs whenever the app loads (not just once per session).
-// It is safe to run multiple times — it only removes entries that are PROVABLY
-// auto-seeded (no real timestamp, only the 4 exact demo dates).
-(function runStaleDataMigration() {
-  try {
-    const MIGRATION_VERSION = 'mw_seed_migration_v4';
-    // Re-run once per calendar day (not just once ever) so midnight transitions work
-    const migrationDayKey = (() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    })();
-    const storedDay = localStorage.getItem(MIGRATION_VERSION);
-    if (storedDay === migrationDayKey) return; // already ran today
-    localStorage.setItem(MIGRATION_VERSION, migrationDayKey);
+/**
+ * Returns true if the user is Arjun Mehta (the only allowed demo patient).
+ * All other patients (Sudhanshu Ranjan, new patients, Google auth, etc.) return false.
+ * @param {object} [user]
+ * @returns {boolean}
+ */
+export function isDemoPatient(user) {
+  const u = user || useAuthStore.getState().user;
+  if (!u) return false;
+  const email = (u.email || '').toLowerCase().trim();
+  const name = (u.fullName || u.name || '').toLowerCase().trim();
+  const id = String(u.id || '');
+  return (
+    email === 'dummy2@healthcareplus.dev' ||
+    name === 'arjun mehta' ||
+    id === 'ea60e4c2-aaea-450e-81b8-0e52eb10c21f'
+  );
+}
 
-    const todayIso = migrationDayKey;
-    const DEMO_DATES = new Set(['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03']);
+/**
+ * Generates a storage key scoped to the authenticated user ID.
+ * @param {string} baseKey
+ * @param {object} [user]
+ * @returns {string}
+ */
+export function getUserWellnessKey(baseKey, user) {
+  const u = user || useAuthStore.getState().user;
+  const uid = u?.id || u?._id;
+  if (!uid) return `${baseKey}_anon`;
+  return `${baseKey}_${uid}`;
+}
 
-    /**
-     * Returns local YYYY-MM-DD for a given Date.
-     * Intentionally inlined to avoid dependency on the module-level getLocalDateStr
-     * (which may not be defined yet at IIFE execution time).
-     */
-    function localDate(d) {
-      const dd = new Date(d);
-      return `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`;
-    }
-
-    /**
-     * Determine if a check-in record is definitively auto-seeded (fake).
-     * A real user check-in MUST have:
-     *   1. id containing both a date AND a timestamp: ci_YYYY-MM-DD_<ms>
-     *   2. savedAt that is a real wall-clock time (not the seeded 08:00 or 08:30 AM stubs)
-     * A seeded/fake entry:
-     *   - Has an id like ci_2026-08-31 (no underscore after the date)
-     *   - Has one of the exact 4 demo dates (never today)
-     */
-    function isAutoSeeded(entry) {
-      if (!entry || !entry.id) return false;
-      // Auto-seeded IDs are exactly 'ci_YYYY-MM-DD' with nothing after
-      const seedIdPattern = /^ci_\d{4}-\d{2}-\d{2}$/;
-      const isSeedId = seedIdPattern.test(entry.id);
-      // Real user IDs always have a timestamp suffix: ci_YYYY-MM-DD_1725...
-      const isRealId = /^ci_\d{4}-\d{2}-\d{2}_\d+$/.test(entry.id);
-      // If the id has a timestamp, it is always a real entry — never delete
-      if (isRealId) return false;
-      // If the id is exactly ci_YYYY-MM-DD, check if it refers to a demo date
-      if (isSeedId) {
-        const seedDate = entry.id.slice(3); // 'ci_YYYY-MM-DD' -> 'YYYY-MM-DD'
-        return DEMO_DATES.has(seedDate) || seedDate >= todayIso;
-      }
-      // Unknown id format — preserve
-      return false;
-    }
-
-    // 1. Purge mw_daily_checkin ONLY if it is a seeded entry for today.
-    //    Real user entries have timestamp-suffixed IDs → preserved.
-    const rawCI = localStorage.getItem('mw_daily_checkin');
-    if (rawCI) {
-      try {
-        const entry = JSON.parse(rawCI);
-        const entryDate = localDate(new Date(entry.dateKey || entry.savedAt || entry.createdAt || 0));
-        // Only remove if today's entry AND it is provably fake
-        if (entryDate === todayIso && isAutoSeeded(entry)) {
-          localStorage.removeItem('mw_daily_checkin');
-        }
-      } catch { /* malformed JSON — remove to be safe */ localStorage.removeItem('mw_daily_checkin'); }
-    }
-
-    // 2. Update mw_checkin_dates: keep only historical DEMO dates + real user dates.
-    //    Remove today from dates ONLY if there is no real check-in for today.
-    const hasTodayCI = Boolean(localStorage.getItem('mw_daily_checkin'));
-    const rawDates = localStorage.getItem('mw_checkin_dates');
-    if (rawDates) {
-      try {
-        const dates = JSON.parse(rawDates).filter(d => {
-          if (d < todayIso) return true;           // historical: keep
-          if (d === todayIso) return hasTodayCI;   // today: keep only if real CI exists
-          return false;                             // future: remove
-        });
-        localStorage.setItem('mw_checkin_dates', JSON.stringify(dates));
-      } catch {}
-    }
-
-    // 3. Clean mw_checkin_history: remove seeded entries for today/future;
-    //    preserve all historical demo data and all real user entries.
-    const rawHist = localStorage.getItem('mw_checkin_history');
-    if (rawHist) {
-      try {
-        const history = JSON.parse(rawHist);
-        const cleaned = history.filter(h => {
-          const hDate = localDate(new Date(h.savedAt || h.createdAt || h.date || 0));
-          if (hDate < todayIso) return true;       // past: always keep
-          if (hDate > todayIso) return false;      // future: always remove
-          // hDate === today: keep only if it is a REAL user entry (not seeded)
-          return !isAutoSeeded(h);
-        });
-        localStorage.setItem('mw_checkin_history', JSON.stringify(cleaned));
-      } catch {}
-    }
-  } catch { /* silent — never block app startup */ }
-})();
+// ── Immediate Purge of Legacy Global Unscoped Storage ──────────────────────────
+// Ensures previous un-scoped dummy data does not bleed into any user's session.
+try {
+  const LEGACY_MW_KEYS = [
+    'mw_activity_log',
+    'mw_daily_checkin',
+    'mw_checkin_dates',
+    'mw_progress_cache',
+    'mw_checkin_history',
+    'mw_program_completed_days',
+    'mw_seed_migration_v4',
+    'mw_seed_migration_v3',
+  ];
+  LEGACY_MW_KEYS.forEach(k => localStorage.removeItem(k));
+} catch { /* silent */ }
 
 
 // ── Check-in persistence & Streak Calculation ─────────────────────────────────
@@ -762,52 +709,44 @@ export function getLocalDateStr(date = new Date()) {
 let isEnsuringLiveStreak = false;
 
 /**
- * Ensures the live 2-day streak (Today and Yesterday) is actively recorded in local runtime state.
+ * Ensures demo streak and historical records are seeded STRICTLY for Arjun Mehta.
+ * For EVERY other patient, this function is a strict no-op.
+ * @param {object} [user]
  */
-export function ensureLiveStreakData() {
+export function ensureLiveStreakData(user) {
+  const u = user || useAuthStore.getState().user;
+  if (!isDemoPatient(u)) return; // Strictly demo patient Arjun Mehta only!
   if (isEnsuringLiveStreak) return;
   isEnsuringLiveStreak = true;
   try {
     const todayIso = getLocalDateStr(new Date());
-
-    // 1. DATES_KEY: Seed only the 4 historical demo days (Mon Aug 31 – Thu Sep 3, 2026).
-    //    NEVER seed today or any future date automatically.
     const HISTORICAL_DATES = ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03'];
-    const rawDates = localStorage.getItem(DATES_KEY);
+    const datesKey = getUserWellnessKey(DATES_KEY, u);
+    const rawDates = localStorage.getItem(datesKey);
     let dates = rawDates ? JSON.parse(rawDates) : [];
     let updatedDates = false;
     HISTORICAL_DATES.forEach(dStr => {
-      // Only add historical dates that are strictly before today
       if (dStr < todayIso && !dates.includes(dStr)) {
         dates.push(dStr);
         updatedDates = true;
       }
     });
     if (updatedDates || !rawDates) {
-      localStorage.setItem(DATES_KEY, JSON.stringify(dates));
+      localStorage.setItem(datesKey, JSON.stringify(dates));
     }
 
-    // 2. CHECKIN_KEY: Do NOT auto-create today's check-in.
-    //    loadTodayCheckIn() will return null if the user has not checked in,
-    //    which correctly shows the check-in form.
-
-    // 3. CHECKIN_HISTORY_KEY: Seed only the 4 historical demo check-in records.
-    //    Today (Sep 4+) is only added when the user actually submits a check-in.
-    const rawHist = localStorage.getItem(CHECKIN_HISTORY_KEY);
+    const histKey = getUserWellnessKey(CHECKIN_HISTORY_KEY, u);
+    const rawHist = localStorage.getItem(histKey);
     let history = rawHist ? JSON.parse(rawHist) : [];
 
-    // Remove any auto-seeded entries for today or future dates that may have been
-    // written by a previous version of this code, but PRESERVE real user entries for today!
     history = history.filter(h => {
       const hDate = getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date));
       if (hDate < todayIso) return true;
       if (hDate > todayIso) return false;
-      // hDate === today: keep only if it is a real user entry (has timestamp or is not an exact stub ID)
       const isSeedId = /^ci_\d{4}-\d{2}-\d{2}$/.test(h.id);
       return !isSeedId;
     });
 
-    // Static historical records for the 4 demo days
     const historicalRecords = [
       {
         id: 'ci_2026-08-31',
@@ -904,7 +843,6 @@ export function ensureLiveStreakData() {
     ];
 
     historicalRecords.forEach(rec => {
-      // Only seed if this date is strictly before today
       if (rec.date < todayIso) {
         const idx = history.findIndex(h =>
           getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) === rec.date
@@ -916,26 +854,24 @@ export function ensureLiveStreakData() {
     });
 
     history.sort((a, b) => new Date(b.createdAt || b.savedAt || b.date) - new Date(a.createdAt || a.savedAt || a.date));
-    localStorage.setItem(CHECKIN_HISTORY_KEY, JSON.stringify(history));
+    localStorage.setItem(histKey, JSON.stringify(history));
 
-    // 4. Update progress cache with dynamically calculated streak
+    const progKey = getUserWellnessKey(PROGRESS_KEY, u);
     let existingCache = {};
     try {
-      const raw = localStorage.getItem(PROGRESS_KEY);
+      const raw = localStorage.getItem(progKey);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        existingCache = parsed?.data || {};
+        existingCache = JSON.parse(raw)?.data || {};
       }
     } catch {}
 
-    // Only update if there is no recent cache (avoid overwriting user's live data)
     if (!existingCache.currentStreak) {
       saveProgressCache({
         ...existingCache,
         currentStreak: 4,
         totalSessions: Math.max(4, existingCache.totalSessions || 0),
         averageMoodScore: 5.5,
-      });
+      }, u);
     }
   } catch (err) {
     console.warn('ensureLiveStreakData warning:', err);
@@ -947,19 +883,23 @@ export function ensureLiveStreakData() {
 let isCalculatingStreak = false;
 
 /**
- * Calculates the current consecutive streak (in days) ending today or yesterday.
+ * Calculates the current consecutive streak (in days) ending today or yesterday for the specific user.
+ * @param {object} [user]
  * @returns {number}
  */
-export function calculateStreak() {
+export function calculateStreak(user) {
   if (isCalculatingStreak) return 0;
   isCalculatingStreak = true;
   try {
-    ensureLiveStreakData();
-    const rawDates = localStorage.getItem(DATES_KEY);
+    const u = user || useAuthStore.getState().user;
+    if (isDemoPatient(u)) {
+      ensureLiveStreakData(u);
+    }
+    const datesKey = getUserWellnessKey(DATES_KEY, u);
+    const rawDates = localStorage.getItem(datesKey);
     const dates = rawDates ? JSON.parse(rawDates) : [];
 
-    // Also consider today's active check-in if the user has submitted one
-    const todayCI = loadTodayCheckIn();
+    const todayCI = loadTodayCheckIn(u);
     const todayStr = getLocalDateStr(new Date());
 
     const dateSet = new Set(dates);
@@ -992,7 +932,7 @@ export function calculateStreak() {
     }
     return streak;
   } catch {
-    return 0; // On error, do not fake a streak — show 0
+    return 0;
   } finally {
     isCalculatingStreak = false;
   }
@@ -1000,15 +940,19 @@ export function calculateStreak() {
 
 /**
  * Real-time Weekly Check-in Calendar status synchronized with Mental Wellness My Journey.
- * Evaluates Monday through Sunday for the active week.
+ * Evaluates Monday through Sunday for the active week for the specific user.
+ * @param {object} [user]
  * @returns {{ streak: number, weekDays: Array<{ day: string, dateStr: string, isToday: boolean, isChecked: boolean }> }}
  */
-export function getCurrentWeekStreakStatus() {
+export function getCurrentWeekStreakStatus(user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    ensureLiveStreakData();
-    const history = loadCheckInHistory();
-    const todayCI = loadTodayCheckIn();
-    const streak = calculateStreak();
+    if (isDemoPatient(u)) {
+      ensureLiveStreakData(u);
+    }
+    const history = loadCheckInHistory(u);
+    const todayCI = loadTodayCheckIn(u);
+    const streak = calculateStreak(u);
 
     // Map all checked-in dates
     const checkedDates = new Set();
@@ -1024,7 +968,7 @@ export function getCurrentWeekStreakStatus() {
     }
 
     // Determine Monday of current week
-    const dayOfWeek = today.getDay(); // 0 is Sun, 1 is Mon, ... 4 is Thu
+    const dayOfWeek = today.getDay(); // 0 is Sun, 1 is Mon, ...
     const distToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(today);
     monday.setDate(today.getDate() + distToMon);
@@ -1050,7 +994,7 @@ export function getCurrentWeekStreakStatus() {
     };
   } catch {
     const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 is Sun, 1 is Mon, ... 4 is Thu, 5 is Fri
+    const dayOfWeek = today.getDay();
     const dayIdx = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return {
@@ -1064,21 +1008,23 @@ export function getCurrentWeekStreakStatus() {
   }
 }
 
-export const CHECKIN_HISTORY_KEY = 'mw_checkin_history';
-
 /**
- * Load full historical check-in records from runtime localStorage.
- * Ensures today's check-in is seamlessly represented alongside past days.
+ * Load full historical check-in records from runtime localStorage for the specific user.
+ * @param {object} [user]
  * @returns {Array<{ id: string, date: string, dateKey: string, datetime: string, mood: string, moodScore: number, energy: number, stress: number, stressLevel: number, motivation: number, savedAt: string, createdAt: string }>}
  */
-export function loadCheckInHistory() {
+export function loadCheckInHistory(user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    ensureLiveStreakData();
-    const raw = localStorage.getItem(CHECKIN_HISTORY_KEY);
+    if (isDemoPatient(u)) {
+      ensureLiveStreakData(u);
+    }
+    const histKey = getUserWellnessKey(CHECKIN_HISTORY_KEY, u);
+    const raw = localStorage.getItem(histKey);
     let history = raw ? JSON.parse(raw) : [];
 
-    // Ensure today's check-in is seamlessly represented and ALWAYS reflects the latest user input
-    const todayCI = loadTodayCheckIn();
+    // Ensure today's check-in is seamlessly represented and reflects user input
+    const todayCI = loadTodayCheckIn(u);
     if (todayCI) {
       const todayIso = getLocalDateStr(new Date());
       const mScore = Number(todayCI.moodScore ?? (MOODS.find(m => m.id === todayCI.mood)?.score) ?? 4);
@@ -1115,11 +1061,6 @@ export function loadCheckInHistory() {
 /**
  * General formula to calculate composite holistic mood score (1-10)
  * based on all check-in details: Primary Feeling, Energy, Stress, and Motivation.
- * - Feeling: Level 1-6 scaled to 10 -> (moodScore / 6) * 10
- * - Energy: Positive as entered (1-10)
- * - Stress: Inverted positive -> (10 - stress) (e.g., stress 3 => positive 7)
- * - Motivation: Positive as entered (1-10)
- *
  * Formula: (Feeling + Energy + (10 - Stress) + Motivation) / 4
  *
  * @param {{ moodScore?: number, mood?: string, energy?: number, stress?: number, stressLevel?: number, motivation?: number }} ci
@@ -1154,9 +1095,10 @@ export function calculateCompositeMoodScore(ci) {
 /**
  * Calculates aggregate stats on a 10-point scale from real check-in records.
  * @param {Array} checkIns
+ * @param {object} [user]
  */
-export function calculateCheckInStats(checkIns = []) {
-  const todayCI = loadTodayCheckIn();
+export function calculateCheckInStats(checkIns = [], user) {
+  const todayCI = loadTodayCheckIn(user);
   let effectiveRecords = Array.isArray(checkIns) ? [...checkIns] : [];
 
   if (todayCI) {
@@ -1181,6 +1123,8 @@ export function calculateCheckInStats(checkIns = []) {
   if (effectiveRecords.length === 0) {
     return {
       avgMood10: '0.0',
+      todayMood10: '0.0',
+      weeklyAvgMood10: '0.0',
       avgEnergy: '0.0',
       avgStress: '0.0',
       avgMotivation: '0.0',
@@ -1195,7 +1139,6 @@ export function calculateCheckInStats(checkIns = []) {
   let sumMotivation = 0;
 
   effectiveRecords.forEach(ci => {
-    // Each record's mood score is calculated via the general composite formula
     const compScore = calculateCompositeMoodScore(ci);
     sumMoodScore += compScore;
     sumEnergy += Number(ci.energy ?? 6);
@@ -1203,7 +1146,6 @@ export function calculateCheckInStats(checkIns = []) {
     sumMotivation += Number(ci.motivation ?? 3);
   });
 
-  // Today's composite mood score derived from all given details (feeling, energy, stress, motivation)
   const todayScore10 = todayCI
     ? calculateCompositeMoodScore(todayCI)
     : Number((sumMoodScore / total).toFixed(1));
@@ -1220,12 +1162,13 @@ export function calculateCheckInStats(checkIns = []) {
 }
 
 /**
- * Save today's check-in to localStorage, updates check-in date history, and calculates streak.
- * The entry is automatically considered stale after midnight.
+ * Save today's check-in to localStorage, updates check-in date history, and calculates streak for user.
  * @param {{ mood: string, moodScore: number, energy: number, stressLevel: number, motivation: number }} data
+ * @param {object} [user]
  * @returns {number} The updated streak count
  */
-export function saveCheckIn(data) {
+export function saveCheckIn(data, user) {
+  const u = user || useAuthStore.getState().user;
   try {
     const now = new Date();
     const todayIso = getLocalDateStr(now);
@@ -1243,36 +1186,36 @@ export function saveCheckIn(data) {
       createdAt: now.toISOString(),
     };
 
-    localStorage.setItem(CHECKIN_KEY, JSON.stringify(checkInRecord));
+    const ciKey = getUserWellnessKey(CHECKIN_KEY, u);
+    localStorage.setItem(ciKey, JSON.stringify(checkInRecord));
 
-    // Append / update in mw_checkin_history
-    const rawHist = localStorage.getItem(CHECKIN_HISTORY_KEY);
+    // Append / update in user's checkin history
+    const histKey = getUserWellnessKey(CHECKIN_HISTORY_KEY, u);
+    const rawHist = localStorage.getItem(histKey);
     let history = rawHist ? JSON.parse(rawHist) : [];
-    // Remove any previous entry for today so we replace it with latest updated values
     history = history.filter(h => getLocalDateStr(new Date(h.savedAt || h.createdAt || h.date)) !== todayIso);
     history.unshift(checkInRecord);
-    localStorage.setItem(CHECKIN_HISTORY_KEY, JSON.stringify(history.slice(0, 90)));
+    localStorage.setItem(histKey, JSON.stringify(history.slice(0, 90)));
 
-    // Record today's date in streak date history
-    const rawDates = localStorage.getItem(DATES_KEY);
+    // Record today's date in user's streak date history
+    const datesKey = getUserWellnessKey(DATES_KEY, u);
+    const rawDates = localStorage.getItem(datesKey);
     const dates = rawDates ? JSON.parse(rawDates) : [];
     if (!dates.includes(todayIso)) {
       dates.push(todayIso);
-      localStorage.setItem(DATES_KEY, JSON.stringify(dates));
+      localStorage.setItem(datesKey, JSON.stringify(dates));
     }
 
-    const newStreak = calculateStreak();
+    const newStreak = calculateStreak(u);
 
-    // Immediately cache updated streak and progress
-    const existingCache = loadProgressCache() || {};
+    const existingCache = loadProgressCache(u) || {};
     saveProgressCache({
       ...existingCache,
       currentStreak: newStreak,
       totalSessions: (existingCache.totalSessions || 0) + 1,
       averageMoodScore: data.moodScore || existingCache.averageMoodScore || 4,
-    });
+    }, u);
 
-    // Dispatch custom event so all active components in the app immediately react
     try {
       window.dispatchEvent(new CustomEvent('mw-checkin-updated', { detail: checkInRecord }));
     } catch {}
@@ -1284,18 +1227,20 @@ export function saveCheckIn(data) {
 }
 
 /**
- * Load today's check-in from localStorage.
+ * Load today's check-in from localStorage for user.
  * Returns null if no check-in was saved, or if it was saved on a different day.
+ * @param {object} [user]
  * @returns {{ mood, moodScore, energy, stressLevel, motivation, savedAt } | null}
  */
-export function loadTodayCheckIn() {
+export function loadTodayCheckIn(user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    const raw = localStorage.getItem(CHECKIN_KEY);
+    const ciKey = getUserWellnessKey(CHECKIN_KEY, u);
+    const raw = localStorage.getItem(ciKey);
     if (!raw) return null;
     const entry = JSON.parse(raw);
-    // Expire at midnight — compare date strings
     if (entry.dateKey !== new Date().toDateString()) {
-      localStorage.removeItem(CHECKIN_KEY);
+      localStorage.removeItem(ciKey);
       return null;
     }
     return entry;
@@ -1311,10 +1256,13 @@ const PROGRESS_TTL_MS = 60 * 60 * 1000; // 1 hour
 /**
  * Cache the progress/streak response from the API.
  * @param {{ currentStreak, totalSessions, averageMoodScore, ... }} data
+ * @param {object} [user]
  */
-export function saveProgressCache(data) {
+export function saveProgressCache(data, user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify({
+    const progKey = getUserWellnessKey(PROGRESS_KEY, u);
+    localStorage.setItem(progKey, JSON.stringify({
       data,
       savedAt: Date.now(),
     }));
@@ -1322,12 +1270,15 @@ export function saveProgressCache(data) {
 }
 
 /**
- * Load the cached progress. Returns null if stale (> 1 hour) or missing.
+ * Load the cached progress for user. Returns null if stale (> 1 hour) or missing.
+ * @param {object} [user]
  * @returns {{ currentStreak, totalSessions, averageMoodScore } | null}
  */
-export function loadProgressCache() {
+export function loadProgressCache(user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    const raw = localStorage.getItem(PROGRESS_KEY);
+    const progKey = getUserWellnessKey(PROGRESS_KEY, u);
+    const raw = localStorage.getItem(progKey);
     if (!raw) return null;
     const { data, savedAt } = JSON.parse(raw);
     if (Date.now() - savedAt > PROGRESS_TTL_MS) return null;
@@ -1338,7 +1289,6 @@ export function loadProgressCache() {
 }
 
 // ── DNA Program Pathway Completion Tracking ─────────────────────────────────
-export const PROGRAM_COMPLETED_DAYS_KEY = 'mw_program_completed_days';
 
 export const DNA_JOURNEY_TITLES_TO_DAY = {
   'Vagal Somatic Reset': 1,
@@ -1359,20 +1309,23 @@ export const DNA_JOURNEY_TITLES_TO_DAY = {
 
 /**
  * Load completed DNA program days.
- * Historical demo days 1, 2, 3, 4 are seeded by default.
- * Also scans the activity log to automatically recognize any completed DNA tasks (e.g. Day 6).
+ * Historical demo days 1, 2, 3, 4 are seeded ONLY for Arjun Mehta.
+ * Every other patient starts with [] (0 completed days).
+ * @param {object} [user]
  * @returns {number[]}
  */
-export function loadCompletedProgramDays() {
+export function loadCompletedProgramDays(user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    const raw = localStorage.getItem(PROGRAM_COMPLETED_DAYS_KEY);
+    const progKey = getUserWellnessKey(PROGRAM_COMPLETED_DAYS_KEY, u);
+    const raw = localStorage.getItem(progKey);
     let days = raw ? JSON.parse(raw) : null;
-    if (!Array.isArray(days) || days.length === 0) {
-      days = [1, 2, 3, 4]; // historical demo days (Aug 31–Sep 3)
+    if (!Array.isArray(days)) {
+      days = isDemoPatient(u) ? [1, 2, 3, 4] : [];
     }
 
     // Auto-detect completed tasks from activity log
-    const activityLog = loadActivityLog();
+    const activityLog = loadActivityLog(u);
     let updated = false;
     activityLog.forEach(act => {
       const d = DNA_JOURNEY_TITLES_TO_DAY[act.title];
@@ -1384,49 +1337,55 @@ export function loadCompletedProgramDays() {
 
     if (updated || !raw) {
       days.sort((a, b) => a - b);
-      localStorage.setItem(PROGRAM_COMPLETED_DAYS_KEY, JSON.stringify(days));
+      localStorage.setItem(progKey, JSON.stringify(days));
     }
 
     return days;
   } catch {
-    return [1, 2, 3, 4];
+    return isDemoPatient(u) ? [1, 2, 3, 4] : [];
   }
 }
 
 /**
- * Mark a DNA journey program day as completed.
+ * Mark a DNA journey program day as completed for user.
  * @param {number} dayNum
  * @param {object} [metadata]
+ * @param {object} [user]
  */
-export function markProgramDayCompleted(dayNum, metadata = {}) {
+export function markProgramDayCompleted(dayNum, metadata = {}, user) {
+  const u = user || useAuthStore.getState().user;
   try {
     const day = Number(dayNum);
-    if (day < 1 || day > 14) return loadCompletedProgramDays();
-    const days = loadCompletedProgramDays();
+    if (day < 1 || day > 14) return loadCompletedProgramDays(u);
+    const days = loadCompletedProgramDays(u);
     if (!days.includes(day)) {
       days.push(day);
       days.sort((a, b) => a - b);
-      localStorage.setItem(PROGRAM_COMPLETED_DAYS_KEY, JSON.stringify(days));
+      const progKey = getUserWellnessKey(PROGRAM_COMPLETED_DAYS_KEY, u);
+      localStorage.setItem(progKey, JSON.stringify(days));
     }
     try {
       window.dispatchEvent(new CustomEvent('mw-program-updated', { detail: { day, ...metadata } }));
     } catch {}
     return days;
   } catch {
-    return [1, 2, 3, 4];
+    return isDemoPatient(u) ? [1, 2, 3, 4] : [];
   }
 }
+
 /**
- * Load this week's activity log from localStorage.
- * Entries older than 7 days are pruned automatically.
+ * Load this week's activity log from localStorage for user.
+ * @param {object} [user]
  * @returns {Array<{id, title, category, icon, durationMin, startedAt, completedAt, displayTime, displayDate}>}
  */
-export function loadActivityLog() {
+export function loadActivityLog(user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    const raw = localStorage.getItem(LOG_KEY);
+    const logKey = getUserWellnessKey(LOG_KEY, u);
+    const raw = localStorage.getItem(logKey);
     if (!raw) return [];
     const entries = JSON.parse(raw);
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days ago
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return entries.filter(e => new Date(e.completedAt).getTime() > cutoff);
   } catch {
     return [];
@@ -1434,12 +1393,14 @@ export function loadActivityLog() {
 }
 
 /**
- * Append a completed activity to the localStorage log (keeps last 7 days).
+ * Append a completed activity to the localStorage log (keeps last 7 days) for user.
  * @param {{ title: string, category: string, icon: string, durationMin: number, startedAt: string }} entry
+ * @param {object} [user]
  */
-export function appendActivityLog(entry) {
+export function appendActivityLog(entry, user) {
+  const u = user || useAuthStore.getState().user;
   try {
-    const existing = loadActivityLog();
+    const existing = loadActivityLog(u);
     const now = new Date();
     const newEntry = {
       id:          `act_${Date.now()}`,
@@ -1449,7 +1410,6 @@ export function appendActivityLog(entry) {
       durationMin: entry.durationMin,
       startedAt:   entry.startedAt,
       completedAt: now.toISOString(),
-      /** "Meditation at 12:45 for 5 minutes" */
       displayTime: new Date(entry.startedAt).toLocaleTimeString('en-US', {
         hour: 'numeric', minute: '2-digit', hour12: true,
       }),
@@ -1457,8 +1417,9 @@ export function appendActivityLog(entry) {
         month: 'short', day: 'numeric',
       }),
     };
-    const updated = [newEntry, ...existing].slice(0, 100); // keep max 100 entries
-    localStorage.setItem(LOG_KEY, JSON.stringify(updated));
+    const updated = [newEntry, ...existing].slice(0, 100);
+    const logKey = getUserWellnessKey(LOG_KEY, u);
+    localStorage.setItem(logKey, JSON.stringify(updated));
     return newEntry;
   } catch {
     return null;

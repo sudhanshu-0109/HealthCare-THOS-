@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { computeAvgReadiness, localDateStr } from "../PhysicalHealth.jsx";
-import { loadBiometricsHistory } from "../../../data/physicalWellnessMockData.js";
+import {
+  loadBiometricsHistory,
+  loadAssessmentHistory,
+  formatMondayDate,
+} from "../../../data/physicalWellnessMockData.js";
 
 // ─── Dimensional 2D Readiness Chart (Mental Wellness Graphical Representation) ───
 function ReadinessDimensionalChart({ days = [] }) {
@@ -295,35 +299,82 @@ function ReadinessDimensionalChart({ days = [] }) {
 }
 
 function LineChart({ data }) {
-  if (data.length < 2) return <EmptyChart label="Log more check-ins to see the trend" />;
+  if (!data || data.length === 0) {
+    return <EmptyChart label="Log your daily check-in to see energy trends" />;
+  }
+
+  if (data.length === 1) {
+    const d = data[0];
+    const pct = Math.min(100, Math.max(10, Math.round((d.value / 10) * 100)));
+    const energyLevelText = d.value >= 8 ? "Peak Vitality" : d.value >= 6 ? "High Energy" : d.value >= 4 ? "Moderate Energy" : "Low Energy";
+    const energyBadgeCls = d.value >= 8
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : d.value >= 5
+      ? "bg-cyan-50 text-cyan-700 border-cyan-200"
+      : "bg-amber-50 text-amber-700 border-amber-200";
+
+    return (
+      <div className="w-full py-1">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[var(--foreground)]">{d.label} (Latest)</span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${energyBadgeCls}`}>
+              {energyLevelText}
+            </span>
+          </div>
+          <span className="text-sm font-extrabold text-[var(--accent)]">{d.value}/10</span>
+        </div>
+
+        {/* Dynamic vitality progress bar with gradient */}
+        <div className="h-3 w-full bg-[var(--muted)] rounded-full overflow-hidden p-0.5 border border-[var(--border)]">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-teal-400 via-[var(--accent)] to-emerald-500 transition-all duration-700 shadow-2xs"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between mt-2 text-[10px] text-[var(--muted-foreground)]">
+          <span>Scale: 0 (Exhausted) to 10 (Peak Energy)</span>
+          <span className="font-medium text-[var(--accent)]">✓ 1 check-in logged · Slope trend expands on next check-in</span>
+        </div>
+      </div>
+    );
+  }
+
   const values = data.map(d => d.value);
-  const min = Math.min(...values) - 0.5;
-  const max = Math.max(...values) + 0.5;
+  const min = Math.max(0, Math.min(...values) - 1);
+  const max = Math.min(10, Math.max(...values) + 1);
+  const range = max - min || 1;
   const W = 300, H = 80;
-  const toX = i => (i / (data.length - 1)) * W;
-  const toY = v => H - ((v - min) / (max - min)) * H;
+  const toX = i => (i / (data.length - 1)) * (W - 24) + 12;
+  const toY = v => H - ((v - min) / range) * (H - 24) - 12;
   const pathD = data.map((d, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(d.value).toFixed(1)}`).join(" ");
-  const areaD = `${pathD} L${W},${H} L0,${H} Z`;
+  const areaD = `${pathD} L${toX(data.length - 1).toFixed(1)},${H} L${toX(0).toFixed(1)},${H} Z`;
 
   return (
     <div className="w-full">
       <svg viewBox={`0 0 ${W} ${H + 4}`} className="w-full" preserveAspectRatio="none">
         <defs>
-          <linearGradient id="pgGrad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.2"/>
-            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
+          <linearGradient id="pgGrad" x1="0" x2="0" y1="0" x2="1">
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.25"/>
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.01"/>
           </linearGradient>
         </defs>
         <path d={areaD} fill="url(#pgGrad)"/>
-        <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+        <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"/>
         {data.map((d, i) => (
           <g key={i}>
             <circle cx={toX(i)} cy={toY(d.value)} r="3.5" fill="white" stroke="var(--accent)" strokeWidth="2"/>
+            <text x={toX(i)} y={toY(d.value) - 6} textAnchor="middle" fontSize="8" fontWeight="bold" fill="var(--foreground)">
+              {d.value}
+            </text>
           </g>
         ))}
       </svg>
-      <div className="flex justify-between mt-1">
-        {data.map(d => <span key={d.label} className="text-[9px] text-[var(--muted-foreground)]">{d.label}</span>)}
+      <div className="flex justify-between mt-1 px-1">
+        {data.map((d, i) => (
+          <span key={i} className="text-[9px] text-[var(--muted-foreground)] font-medium">{d.label}</span>
+        ))}
       </div>
     </div>
   );
@@ -338,11 +389,42 @@ function EmptyChart({ label }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────
-export default function ProgressPage({ checkins = [], workouts = [], streak = 0, profile }) {
+export default function ProgressPage({
+  checkins = [],
+  workouts = [],
+  streak = 0,
+  profile,
+  user = null,
+  onOpenWeeklyAssessment,
+}) {
   const [period, setPeriod] = useState("week");
 
-  // Biometrics history from localStorage
-  const biometrics = useMemo(() => loadBiometricsHistory(), []);
+  // Biometrics history from localStorage scoped to user (reactive)
+  const [biometrics, setBiometrics] = useState(() => loadBiometricsHistory(user));
+
+  // Preserved assessment versions history (reactive)
+  const [assessmentHistory, setAssessmentHistory] = useState(() => loadAssessmentHistory(user));
+
+  useEffect(() => {
+    setBiometrics(loadBiometricsHistory(user));
+    setAssessmentHistory(loadAssessmentHistory(user));
+    const handleUpdate = () => {
+      setBiometrics(loadBiometricsHistory(user));
+      setAssessmentHistory(loadAssessmentHistory(user));
+    };
+    window.addEventListener("pw-biometrics-updated", handleUpdate);
+    window.addEventListener("pw-checkin-updated", handleUpdate);
+    window.addEventListener("pw-assessment-updated", handleUpdate);
+    window.addEventListener("pw-profile-updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("pw-biometrics-updated", handleUpdate);
+      window.removeEventListener("pw-checkin-updated", handleUpdate);
+      window.removeEventListener("pw-assessment-updated", handleUpdate);
+      window.removeEventListener("pw-profile-updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, [user]);
 
   // Build last N days from real check-ins
   const nDays = period === "week" ? 7 : 28;
@@ -487,19 +569,42 @@ export default function ProgressPage({ checkins = [], workouts = [], streak = 0,
             </div>
             <span className="text-xs font-bold text-[var(--accent)]">{periodWorkouts}/{nDays} days</span>
           </div>
-          {workouts.length === 0 ? (
-            <EmptyChart label="Complete your first workout to see consistency data" />
-          ) : (
-            <div className="flex items-end gap-1.5" style={{ height: "64px" }}>
-              {workoutDays.slice(-14).map((d, i) => (
-                <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full flex flex-col justify-end rounded-md overflow-hidden bg-[var(--muted)]" style={{ height: "48px" }}>
-                    {d.done && <div className="w-full bg-[var(--accent)] rounded-md" style={{ height: "100%" }} />}
+          {workoutDays.length > 0 ? (
+            <div>
+              <div className="flex items-end gap-1.5" style={{ height: "64px" }}>
+                {workoutDays.slice(period === "week" ? -7 : -14).map((d) => (
+                  <div key={d.date} className="flex-1 flex flex-col items-center gap-1 group relative">
+                    <div className="w-full flex flex-col justify-end rounded-md overflow-hidden bg-[var(--muted)]" style={{ height: "48px" }}>
+                      {d.done ? (
+                        <div className="w-full bg-[var(--accent)] rounded-md transition-all duration-300 shadow-2xs" style={{ height: "100%" }} />
+                      ) : (
+                        <div className="w-full h-1.5 bg-[var(--border)]/70 rounded-full mb-1 mx-auto" style={{ width: "55%" }} />
+                      )}
+                    </div>
+                    <span className={`text-[9px] ${d.done ? "text-[var(--accent)] font-bold" : "text-[var(--muted-foreground)] font-medium"}`}>
+                      {d.label}
+                    </span>
+                    {/* Tooltip on hover */}
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex px-2 py-0.5 rounded bg-slate-800 text-white text-[9px] whitespace-nowrap z-20 shadow-sm pointer-events-none">
+                      {d.label} ({d.shortDate}): {d.done ? "Session Completed ✓" : "Rest / Incomplete"}
+                    </div>
                   </div>
-                  {i % 3 === 0 && <span className="text-[8px] text-[var(--muted-foreground)]">{d.label}</span>}
-                </div>
-              ))}
+                ))}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[var(--border)]/60 text-[10px] text-[var(--muted-foreground)]">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-[var(--accent)] inline-block" />
+                  Completed Session
+                </span>
+                <span>
+                  {periodWorkouts === 0
+                    ? "Log daily check-in or workout to build consistency"
+                    : `${periodWorkouts} session${periodWorkouts > 1 ? "s" : ""} on track this ${period === "week" ? "week" : "period"}`}
+                </span>
+              </div>
             </div>
+          ) : (
+            <EmptyChart label="Complete your daily log or workout to see consistency data" />
           )}
         </div>
 
@@ -545,6 +650,108 @@ export default function ProgressPage({ checkins = [], workouts = [], streak = 0,
                         {entry.category || "BMI"}
                       </span>
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Weekly Journey & Assessment History (Preserved Versions) ── */}
+        <div className="bg-white/80 backdrop-blur-sm border border-[var(--border)] rounded-3xl p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Weekly Journey & Assessment History</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Versioned records preserved each Monday · Strict equipment context
+              </p>
+            </div>
+            {onOpenWeeklyAssessment && (
+              <button
+                onClick={onOpenWeeklyAssessment}
+                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+              >
+                <span>+ Log Monday Journey</span>
+              </button>
+            )}
+          </div>
+
+          {assessmentHistory.length === 0 ? (
+            <EmptyChart label="No weekly journey updates logged yet. Your next update will be preserved as Version 1." />
+          ) : (
+            <div className="space-y-3">
+              {assessmentHistory.map((item, idx) => {
+                const isLatest = idx === 0;
+                const eqList = Array.isArray(item.equipment) ? item.equipment : ["No Equipment"];
+                const isNoEq = eqList.includes("No Equipment");
+
+                return (
+                  <div
+                    key={item.id || idx}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      isLatest
+                        ? "bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border-emerald-300 shadow-xs"
+                        : "bg-white border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                          isLatest
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-gray-100 text-gray-700"
+                        }`}>
+                          Version {item.version || (assessmentHistory.length - idx)}
+                          {isLatest && " • Active"}
+                        </span>
+                        <span className="text-xs font-semibold text-gray-700">
+                          Week of {item.weekStartDate ? formatMondayDate(item.weekStartDate) : "Weekly Cycle"}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-gray-900">
+                          {item.weight} {item.weightUnit} · BMI {item.bmi || "—"}
+                        </span>
+                        {item.bmiCategory && (
+                          <span className="ml-1.5 text-[10px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.2 rounded-md">
+                            {item.bmiCategory}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Equipment badges */}
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                      <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
+                        Equipment Context:
+                      </span>
+                      {eqList.map((eq) => (
+                        <span
+                          key={eq}
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            isNoEq
+                              ? "bg-amber-50 text-amber-900 border border-amber-200"
+                              : "bg-teal-50 text-teal-800 border border-teal-200"
+                          }`}
+                        >
+                          {eq === "No Equipment" ? "🤸 No Equipment (Bodyweight Only)" : `🏋️ ${eq}`}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Goals & Frequency */}
+                    <div className="mt-2 text-xs text-gray-600 flex items-center gap-3 flex-wrap">
+                      <span>🎯 <strong>Goal:</strong> {item.primaryGoal || "General Fitness"}</span>
+                      <span>🔄 <strong>Freq:</strong> {item.exerciseFrequency || "4-5 days/week"}</span>
+                      <span>⏱️ <strong>Time:</strong> {item.commitment || "30 min"}</span>
+                    </div>
+
+                    {/* Progress Notes */}
+                    {item.progressNotes && (
+                      <p className="mt-2 text-xs text-gray-500 italic bg-white/60 p-2 rounded-xl border border-gray-100">
+                        "{item.progressNotes}"
+                      </p>
+                    )}
                   </div>
                 );
               })}

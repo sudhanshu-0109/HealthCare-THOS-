@@ -10,6 +10,9 @@ export default defineConfig({
     // Allow all hosts: required so Cloudflare Tunnel hostnames (*.trycloudflare.com)
     // are not rejected by Vite's host-check middleware.
     allowedHosts: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    },
     proxy: {
       // REST API — forwarded to local Express backend
       '/api': {

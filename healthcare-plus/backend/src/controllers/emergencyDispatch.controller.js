@@ -21,8 +21,8 @@ export const goOffline = async (req, res) => {
 };
 
 export const updateLocation = async (req, res) => {
-  const { latitude, longitude } = req.body;
-  const ambulance = await dispatchService.updateDriverLocation(req.user.id, { latitude, longitude });
+  const { latitude, longitude, heading, speed } = req.body;
+  const ambulance = await dispatchService.updateDriverLocation(req.user.id, { latitude, longitude, heading, speed });
   res.json({ success: true, data: ambulance });
 };
 
@@ -38,6 +38,11 @@ export const rejectRequest = async (req, res) => {
 
 export const markEnRoute = async (req, res) => {
   const result = await dispatchService.markEnRoute(req.params.id, req.user.id);
+  res.json({ success: true, data: result });
+};
+
+export const markReachedPatient = async (req, res) => {
+  const result = await dispatchService.markReachedPatient(req.params.id, req.user.id);
   res.json({ success: true, data: result });
 };
 

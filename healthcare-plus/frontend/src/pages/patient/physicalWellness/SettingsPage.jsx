@@ -1,16 +1,46 @@
 import React, { useState } from "react";
-import { mockUser } from "../../../data/physicalWellnessMockData.js";
 
-export default function SettingsPage({ onBack }) {
+export default function SettingsPage({ onBack, profile, user, onSaveProfile }) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const [goal, setGoal] = useState(mockUser.goals.primary);
-  const [fitnessLevel, setFitnessLevel] = useState(mockUser.fitnessLevel);
-  const [environment, setEnvironment] = useState(mockUser.environment);
-  const [commitment, setCommitment] = useState("30 min");
-  const [units, setUnits] = useState("metric");
+
+  const name =
+    profile?.name ||
+    profile?.firstName ||
+    user?.fullName ||
+    user?.name ||
+    "User";
+
+  const avatarLetter = name.charAt(0).toUpperCase();
+
+  const bioDetails = [
+    profile?.age ? `${profile.age} yrs` : null,
+    profile?.height ? `${profile.height}${profile.heightUnit || 'cm'}` : null,
+    profile?.weight ? `${profile.weight}${profile.weightUnit || 'kg'}` : null,
+  ].filter(Boolean).join(" · ") || user?.email || "Personalized Fitness Profile";
+
+  const [goal, setGoal] = useState(profile?.primaryGoal || "General Fitness");
+  const [fitnessLevel, setFitnessLevel] = useState(profile?.fitnessLevel || "Beginner");
+  const [environment, setEnvironment] = useState(profile?.environment || "Home");
+  const [commitment, setCommitment] = useState(profile?.commitment || "30 min");
+  const [units, setUnits] = useState(profile?.units || "metric");
   const [edited, setEdited] = useState(false);
 
   const trackEdit = (fn) => { fn(); setEdited(true); };
+
+  const handleSave = () => {
+    setShowConfirm(false);
+    setEdited(false);
+    if (onSaveProfile) {
+      onSaveProfile({
+        ...profile,
+        primaryGoal: goal,
+        fitnessLevel,
+        environment,
+        commitment,
+        units,
+      });
+    }
+  };
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
@@ -24,10 +54,12 @@ export default function SettingsPage({ onBack }) {
       {/* Profile summary */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 mb-5 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-[var(--secondary)] flex items-center justify-center text-lg font-bold text-[var(--primary)]">S</div>
+          <div className="w-12 h-12 rounded-full bg-[var(--secondary)] flex items-center justify-center text-lg font-bold text-[var(--primary)]">
+            {avatarLetter}
+          </div>
           <div>
-            <p className="text-sm font-semibold text-[var(--foreground)]">{mockUser.name}</p>
-            <p className="text-xs text-[var(--muted-foreground)]">{mockUser.age} yrs · {mockUser.height.cm}cm · {mockUser.weight.kg}kg</p>
+            <p className="text-sm font-semibold text-[var(--foreground)]">{name}</p>
+            <p className="text-xs text-[var(--muted-foreground)]">{bioDetails}</p>
           </div>
         </div>
       </div>
@@ -117,13 +149,13 @@ export default function SettingsPage({ onBack }) {
         <div className="fixed inset-0 bg-black/40 flex items-end lg:items-center justify-center z-50 px-4 pb-4 lg:pb-0">
           <div className="bg-[var(--card)] rounded-3xl p-6 w-full max-w-sm shadow-xl">
             <h3 className="font-display text-xl text-[var(--foreground)] mb-2">Update settings?</h3>
-            <p className="text-sm text-[var(--muted-foreground)] mb-6 leading-relaxed">Updating these details may affect future wellness plans.</p>
+            <p className="text-sm text-[var(--muted-foreground)] mb-6 leading-relaxed">Updating these details will adjust future wellness recommendations.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowConfirm(false)} className="flex-1 py-3 border border-[var(--border)] rounded-xl text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)] transition cursor-pointer">
                 Cancel
               </button>
-              <button onClick={() => { setShowConfirm(false); setEdited(false); }} className="flex-1 py-3 bg-[var(--primary)] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition cursor-pointer shadow-sm">
-                Continue
+              <button onClick={handleSave} className="flex-1 py-3 bg-[var(--primary)] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition cursor-pointer shadow-sm">
+                Save & Update
               </button>
             </div>
           </div>

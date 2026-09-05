@@ -294,7 +294,17 @@ export const resendVerification = async (email) => {
 /**
  * Google OAuth authentication.
  */
-export const googleAuth = async ({ idToken, role }) => {
+export const googleAuth = async (input) => {
+  let idToken = typeof input === 'string' ? input : input?.idToken;
+  let role = input?.role || 'PATIENT';
+  if (typeof idToken === 'object' && idToken !== null) {
+    if (idToken.role && !role) role = idToken.role;
+    idToken = idToken.idToken || idToken.credential;
+  }
+  if (!idToken || typeof idToken !== 'string') {
+    throw ApiError.badRequest('Google ID token is required.');
+  }
+
   let ticket;
   try {
     ticket = await googleClient.verifyIdToken({
@@ -302,7 +312,8 @@ export const googleAuth = async ({ idToken, role }) => {
       audience: env.GOOGLE_CLIENT_ID,
     });
   } catch (err) {
-    throw ApiError.unauthorized('Google authentication failed. Invalid token.');
+    console.error('[GoogleAuth] Token verification failed:', err.message);
+    throw ApiError.unauthorized('Google authentication failed. Invalid or expired token.');
   }
 
   const payload = ticket.getPayload();
@@ -313,10 +324,25 @@ export const googleAuth = async ({ idToken, role }) => {
   const { sub: googleId, email, name: fullName } = payload;
   const normalizedEmail = email.trim().toLowerCase();
 
-  let user = await prisma.user.findUnique({ where: { googleId } });
+  const userInclude = {
+    hospitalAdmin: { include: { hospital: true } },
+    doctor: { include: { hospital: true } },
+    receptionist: { include: { hospital: true } },
+    pharmacist: { include: { hospital: true } },
+    labStaff: { include: { hospital: true } },
+    ambulanceDriver: { include: { hospital: true } },
+  };
+
+  let user = await prisma.user.findUnique({
+    where: { googleId },
+    include: userInclude,
+  });
 
   if (!user) {
-    user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: userInclude,
+    });
 
     if (user) {
       if (role && user.role !== role) {
@@ -331,18 +357,34 @@ export const googleAuth = async ({ idToken, role }) => {
           isEmailVerified: true,
           lastLoginAt: new Date(),
         },
+        include: userInclude,
       });
     } else {
       user = await prisma.user.create({
         data: {
           email: normalizedEmail,
           fullName: fullName || 'Google User',
-          role: 'PATIENT',
+          role: role || 'PATIENT',
           googleId,
           authProvider: 'GOOGLE',
           isEmailVerified: true,
           lastLoginAt: new Date(),
+          ...(role === 'PATIENT' || !role ? {
+            patientProfile: {
+              create: {
+                city: 'Vadodara',
+              },
+            },
+            passport: {
+              create: {
+                allergies: [],
+                medicalConditions: [],
+                currentMedications: [],
+              },
+            },
+          } : {}),
         },
+        include: userInclude,
       });
     }
   } else {
@@ -353,17 +395,29 @@ export const googleAuth = async ({ idToken, role }) => {
     user = await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
+      include: userInclude,
     });
   }
 
   const tokens = await issueTokenPair(user);
+
+  let hospitalId = null;
+  let hospitalName = null;
+  const profile = user.hospitalAdmin || user.doctor || user.receptionist || user.pharmacist || user.labStaff || user.ambulanceDriver;
+  if (profile && profile.hospital) {
+    hospitalId = profile.hospitalId;
+    hospitalName = profile.hospital.name;
+  }
 
   const safeUser = {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
     role: user.role,
+    status: user.status,
     isEmailVerified: user.isEmailVerified,
+    hospitalId,
+    hospitalName,
   };
 
   return { user: safeUser, ...tokens };

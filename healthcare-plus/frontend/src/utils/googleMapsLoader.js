@@ -6,8 +6,9 @@
  * return the already-loaded instance without re-fetching the script.
  *
  * Required Google Cloud APIs:
- *   - Maps JavaScript API    (map rendering)
- *   - Directions API         (real road routes, distance, ETA)
+ *   - Maps JavaScript API    (map rendering, markers)
+ *   - Routes API             (real road routes, traffic-aware ETA — replaces deprecated Directions API)
+ *   - Maps JavaScript API: Geometry library  (encodedPolyline decoding)
  *
  * Environment variable:
  *   VITE_GOOGLE_MAPS_API_KEY  — set in frontend/.env (git-ignored)
@@ -31,7 +32,7 @@ export const loadGoogleMaps = () => {
       new Error(
         'Google Maps API key is not configured. ' +
         'Add VITE_GOOGLE_MAPS_API_KEY to frontend/.env and restart the dev server. ' +
-        'Enable Maps JavaScript API and Directions API in Google Cloud Console.'
+        'Enable Maps JavaScript API and Routes API in Google Cloud Console.'
       )
     );
     return _loaderPromise;
@@ -40,7 +41,7 @@ export const loadGoogleMaps = () => {
   const loader = new Loader({
     apiKey: API_KEY,
     version: 'weekly',
-    libraries: ['maps', 'marker', 'routes'],
+    libraries: ['maps', 'marker', 'routes', 'geometry'],
   });
 
   _loaderPromise = loader.load().then(() => window.google.maps);

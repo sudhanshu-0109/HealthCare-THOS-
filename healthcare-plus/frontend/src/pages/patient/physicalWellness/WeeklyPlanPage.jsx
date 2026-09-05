@@ -174,7 +174,9 @@ export default function WeeklyPlanPage({
   onStartWorkout,
   onUpdateCheckIn,
   onOpenBiometrics,
+  onOpenWeeklyAssessment,
   workouts = [],
+  user = null,
 }) {
   // Generate personalised plan from live data
   const plan = useMemo(
@@ -190,7 +192,20 @@ export default function WeeklyPlanPage({
   });
 
   // Biometrics
-  const biometrics = useMemo(() => loadBiometricsHistory(), []);
+  const [biometrics, setBiometrics] = useState(() => loadBiometricsHistory(user));
+  useEffect(() => {
+    setBiometrics(loadBiometricsHistory(user));
+    const handleUpdate = () => setBiometrics(loadBiometricsHistory(user));
+    window.addEventListener("pw-biometrics-updated", handleUpdate);
+    window.addEventListener("pw-checkin-updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("pw-biometrics-updated", handleUpdate);
+      window.removeEventListener("pw-checkin-updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, [user]);
+
   const latest = biometrics[0];
   const nextMondayStr = getNextMondayDateStr();
   const nextMondayLabel = formatMondayDate(nextMondayStr);
@@ -200,17 +215,17 @@ export default function WeeklyPlanPage({
   const completedToday = workouts.some(w => w.date === todayDateStr && w.completed);
 
   // Live workout progress state
-  const [progress, setProgress] = useState(() => getTodayWorkoutProgress(todayDateStr));
+  const [progress, setProgress] = useState(() => getTodayWorkoutProgress(todayDateStr, user));
 
   useEffect(() => {
-    const handleUpdate = () => setProgress(getTodayWorkoutProgress(todayDateStr));
+    const handleUpdate = () => setProgress(getTodayWorkoutProgress(todayDateStr, user));
     window.addEventListener("pw-workout-progress-updated", handleUpdate);
     window.addEventListener("storage", handleUpdate);
     return () => {
       window.removeEventListener("pw-workout-progress-updated", handleUpdate);
       window.removeEventListener("storage", handleUpdate);
     };
-  }, [todayDateStr]);
+  }, [todayDateStr, user]);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 lg:px-8 space-y-5">
@@ -281,6 +296,34 @@ export default function WeeklyPlanPage({
         )}
       </div>
 
+      {/* ── Active Equipment Filter Card ── */}
+      <div className="bg-white border border-[var(--border)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-xl shrink-0">
+            {plan.equipment && plan.equipment.includes("No Equipment") ? "🤸" : "🏋️"}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[var(--foreground)]">Active Equipment Guarantee</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                Strict Subset
+              </span>
+            </div>
+            <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+              {plan.equipmentBadge} · Zero exercises with unowned equipment
+            </p>
+          </div>
+        </div>
+        {onOpenWeeklyAssessment && (
+          <button
+            onClick={onOpenWeeklyAssessment}
+            className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition cursor-pointer shrink-0 self-start sm:self-auto"
+          >
+            Update Equipment / Goals →
+          </button>
+        )}
+      </div>
+
       {/* ── Workout Info Card ── */}
       <div className="bg-white border border-[var(--border)] rounded-3xl shadow-xs overflow-hidden">
         <div className="px-5 pt-5 pb-4 border-b border-[var(--border)]">
@@ -304,8 +347,13 @@ export default function WeeklyPlanPage({
               { label: plan.difficulty },
               { label: `${plan.exerciseCount} exercises` },
               { label: plan.goal },
+              { label: plan.equipmentBadge || "No Equipment", isEq: true },
             ].map(t => (
-              <span key={t.label} className="text-[10px] font-semibold text-[var(--foreground)] bg-[var(--muted)] px-2.5 py-1 rounded-full">
+              <span key={t.label} className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${
+                t.isEq
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  : "text-[var(--foreground)] bg-[var(--muted)]"
+              }`}>
                 {t.label}
               </span>
             ))}

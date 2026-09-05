@@ -1,48 +1,156 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { sendPhysicalAssistantMessage } from "../../../services/physicalAssistant.service.js";
-import { mockTodayWorkout } from "../../../data/physicalWellnessMockData.js";
+import { mockTodayWorkout, loadBiometricsHistory } from "../../../data/physicalWellnessMockData.js";
 
-// Render formatted text with bolding, lists, and line breaks
+// Render formatted text with bolding, lists, blockquotes, headings, and responsive Markdown tables
 function FormattedMessage({ text = "" }) {
   const lines = text.split("\n");
+  const elements = [];
+  let i = 0;
 
-  return (
-    <div className="space-y-1.5 text-sm leading-relaxed">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) return <div key={idx} className="h-1.5" />;
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
 
-        // Bullet point
-        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-          const content = trimmed.slice(2);
-          return (
-            <div key={idx} className="flex items-start gap-2 pl-1">
-              <span className="text-[var(--accent)] font-bold text-xs mt-1">•</span>
-              <span dangerouslySetInnerHTML={{ __html: formatInline(content) }} />
-            </div>
-          );
-        }
+    if (!trimmed) {
+      elements.push(<div key={`space_${i}`} className="h-1.5" />);
+      i++;
+      continue;
+    }
 
-        // Numbered list (e.g. 1. 2.)
-        const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
-        if (numMatch) {
-          return (
-            <div key={idx} className="flex items-start gap-2 pl-1">
-              <span className="font-bold text-[var(--accent)] text-xs mt-0.5">{numMatch[1]}.</span>
-              <span dangerouslySetInnerHTML={{ __html: formatInline(numMatch[2]) }} />
-            </div>
-          );
-        }
+    // ── 1. Markdown Table Block ──
+    if (
+      trimmed.startsWith("|") &&
+      trimmed.endsWith("|") &&
+      i + 1 < lines.length &&
+      lines[i + 1].trim().startsWith("|") &&
+      lines[i + 1].includes("-")
+    ) {
+      const headerLine = trimmed;
+      const headers = headerLine
+        .split("|")
+        .slice(1, -1)
+        .map(h => h.trim());
 
-        return (
-          <p
-            key={idx}
-            dangerouslySetInnerHTML={{ __html: formatInline(line) }}
-          />
-        );
-      })}
-    </div>
-  );
+      const rows = [];
+      let j = i + 2;
+      while (j < lines.length && lines[j].trim().startsWith("|") && lines[j].trim().endsWith("|")) {
+        const rowCells = lines[j]
+          .trim()
+          .split("|")
+          .slice(1, -1)
+          .map(c => c.trim());
+        rows.push(rowCells);
+        j++;
+      }
+
+      elements.push(
+        <div key={`table_${i}`} className="overflow-x-auto my-3 rounded-2xl border border-[var(--border)] shadow-xs bg-white">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[var(--muted)] border-b border-[var(--border)]">
+                {headers.map((h, hIdx) => (
+                  <th key={hIdx} className="px-3.5 py-2.5 font-bold uppercase tracking-wider text-[10px] text-[var(--muted-foreground)] whitespace-nowrap">
+                    <span dangerouslySetInnerHTML={{ __html: formatInline(h) }} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]/60">
+              {rows.map((row, rIdx) => (
+                <tr
+                  key={rIdx}
+                  className={rIdx % 2 === 0 ? "bg-white hover:bg-emerald-50/20" : "bg-slate-50/50 hover:bg-emerald-50/30 transition-colors"}
+                >
+                  {row.map((cell, cIdx) => (
+                    <td key={cIdx} className="px-3.5 py-2.5 align-top text-[var(--foreground)] leading-relaxed">
+                      <span dangerouslySetInnerHTML={{ __html: formatInline(cell) }} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+
+      i = j;
+      continue;
+    }
+
+    // ── 2. Headings ──
+    if (trimmed.startsWith("### ")) {
+      elements.push(
+        <h4 key={`h3_${i}`} className="font-bold text-sm text-[var(--foreground)] mt-3 mb-1.5 flex items-center gap-1.5">
+          <span dangerouslySetInnerHTML={{ __html: formatInline(trimmed.slice(4)) }} />
+        </h4>
+      );
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      elements.push(
+        <h3 key={`h2_${i}`} className="font-bold text-base text-[var(--foreground)] mt-3.5 mb-1.5 flex items-center gap-1.5">
+          <span dangerouslySetInnerHTML={{ __html: formatInline(trimmed.slice(3)) }} />
+        </h3>
+      );
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      elements.push(
+        <h2 key={`h1_${i}`} className="font-extrabold text-lg text-[var(--foreground)] mt-4 mb-2">
+          <span dangerouslySetInnerHTML={{ __html: formatInline(trimmed.slice(2)) }} />
+        </h2>
+      );
+      i++;
+      continue;
+    }
+
+    // ── 3. Blockquote ──
+    if (trimmed.startsWith("> ")) {
+      elements.push(
+        <div key={`quote_${i}`} className="border-l-3 border-emerald-500 bg-emerald-50/70 rounded-r-xl px-3.5 py-2 my-2 text-xs text-emerald-950 font-medium leading-relaxed">
+          <span dangerouslySetInnerHTML={{ __html: formatInline(trimmed.slice(2)) }} />
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // ── 4. Bullet Point ──
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      elements.push(
+        <div key={`bullet_${i}`} className="flex items-start gap-2 pl-1 my-0.5">
+          <span className="text-[var(--accent)] font-bold text-xs mt-1">•</span>
+          <span dangerouslySetInnerHTML={{ __html: formatInline(trimmed.slice(2)) }} />
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // ── 5. Numbered List ──
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    if (numMatch) {
+      elements.push(
+        <div key={`num_${i}`} className="flex items-start gap-2 pl-1 my-0.5">
+          <span className="font-bold text-[var(--accent)] text-xs mt-0.5">{numMatch[1]}.</span>
+          <span dangerouslySetInnerHTML={{ __html: formatInline(numMatch[2]) }} />
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // ── 6. Default Paragraph ──
+    elements.push(
+      <p key={`p_${i}`} dangerouslySetInnerHTML={{ __html: formatInline(line) }} />
+    );
+    i++;
+  }
+
+  return <div className="space-y-1.5 text-sm leading-relaxed">{elements}</div>;
 }
 
 // Convert markdown **bold** and *italic* to safe HTML
@@ -75,15 +183,28 @@ export default function AssistantPage({
   streak = 0,
   workouts = [],
   todayCheckin,
+  todayPlan,
+  user = null,
 }) {
   const name = profile?.firstName || profile?.name || "there";
   const goal = profile?.primaryGoal || "General Fitness";
-  const readiness = todayCheckin ? `${todayCheckin.avgReadiness}/10` : "Logged";
+  const readiness = todayCheckin ? `${todayCheckin.avgReadiness}/10` : "Pending Check-In";
+
+  // Biometrics (Weight & BMI history)
+  const biometrics = useMemo(() => loadBiometricsHistory(user), [user]);
+  const latestBio = biometrics[0] || null;
+  const weightStr = latestBio?.weight ? `${latestBio.weight} ${latestBio.weightUnit || "kg"}` : (profile?.weight ? `${profile.weight} ${profile?.weightUnit || "kg"}` : null);
+  const bmiStr = latestBio?.bmi ? `BMI ${latestBio.bmi}` : (profile?.bmi ? `BMI ${profile.bmi}` : null);
+
+  const activeWorkout = todayPlan || mockTodayWorkout;
+
+  const now = new Date();
+  const dayName = now.toLocaleDateString("en-US", { weekday: "long" });
 
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: `Hi ${name}! 👋 I'm your Healthcare+ Physical Health AI Coach powered by Gemini.\n\nI'm connected to your **${goal}** goal, your **${streak}-day streak**, and today's **${mockTodayWorkout.title}** plan. Ask me anything about exercise form, workout adjustments, recovery, or nutrition!`,
+      content: `Hi ${name}! 👋 I'm your Healthcare+ Physical Health AI Coach powered by Gemini.\n\nI'm connected to your **${goal}** goal${streak > 0 ? `, your **${streak}-day streak**,` : ""}${weightStr ? `, weight **${weightStr}**` : ""}${bmiStr ? ` (${bmiStr})` : ""}, and your daily training plan. Ask me anything about exercise form, workout adjustments, recovery, or tap below to generate today's customized **Indian Diet Plan**!`,
       time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
     },
   ]);
@@ -95,13 +216,15 @@ export default function AssistantPage({
 
   // Suggested dynamic prompt chips
   const dynamicPrompts = [
+    "🥗 Generate today's Indian diet plan in a table",
+    "🍛 High-protein Indian vegetarian meal plan",
     "How do I perform the Hip Thrust with proper form?",
     "Explain today's workout plan",
     todayCheckin?.result === "adjusted"
       ? "Why was my workout adjusted today?"
       : "What should I focus on for my goal?",
+    "⚡ Pre & post workout Indian nutrition tips",
     "Best recovery tips for muscle soreness",
-    "How can I modify exercises if my joints ache?",
   ];
 
   // Auto-scroll to bottom whenever messages or typing state changes
@@ -130,7 +253,9 @@ export default function AssistantPage({
           streak,
           workouts,
           todayCheckin,
-          workoutPlan: mockTodayWorkout,
+          workoutPlan: activeWorkout,
+          biometrics,
+          user,
         },
       });
 
@@ -157,6 +282,11 @@ export default function AssistantPage({
     }
   };
 
+  const handleGenerateDiet = () => {
+    const prompt = `Please generate my personalized Indian diet plan for today (${dayName}) in a clean tabular format, tailored to my weight, BMI, readiness score, and fitness goal.`;
+    send(prompt);
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -165,7 +295,7 @@ export default function AssistantPage({
   };
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col h-full lg:px-8" style={{ height: "100%" }}>
+    <div className="max-w-3xl mx-auto flex flex-col h-full lg:px-6" style={{ height: "100%" }}>
       {/* Header */}
       <div className="px-4 py-4 border-b border-[var(--border)] shrink-0 bg-white/70 backdrop-blur-md">
         <div className="flex items-center justify-between">
@@ -201,9 +331,47 @@ export default function AssistantPage({
             ⚡ Readiness {readiness}
           </span>
           <span className="shrink-0 text-xs bg-[var(--muted)] text-[var(--foreground)] font-semibold px-3 py-1 rounded-full flex items-center gap-1 shadow-2xs">
-            🏋️ {mockTodayWorkout.title}
+            🏋️ {activeWorkout.title}
           </span>
+          {weightStr && (
+            <span className="shrink-0 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-3 py-1 rounded-full flex items-center gap-1 shadow-2xs">
+              ⚖️ {weightStr}
+            </span>
+          )}
+          {bmiStr && (
+            <span className="shrink-0 text-xs bg-teal-50 text-teal-800 border border-teal-200 font-semibold px-3 py-1 rounded-full flex items-center gap-1 shadow-2xs">
+              📊 {bmiStr}
+            </span>
+          )}
         </div>
+
+        {/* Dedicated Indian Diet Plan Generator Action Bar */}
+        <button
+          onClick={handleGenerateDiet}
+          disabled={isTyping}
+          className="w-full mt-3 flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white shadow-xs hover:shadow-md hover:opacity-95 transition-all cursor-pointer group disabled:opacity-50 text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-base shrink-0 group-hover:scale-110 transition-transform">
+              🥗
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold leading-tight">Generate Today's Indian Diet Plan</span>
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-emerald-300 text-emerald-950">
+                  Tabular Menu
+                </span>
+              </div>
+              <p className="text-[10px] text-emerald-100 font-medium truncate mt-0.5">
+                {dayName} Rotation · {goal} · {weightStr || "Profile data"} · Readiness {readiness}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] font-bold bg-white/15 px-2.5 py-1.5 rounded-xl group-hover:bg-white/25 transition-colors shrink-0">
+            <span>Generate</span>
+            <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+          </div>
+        </button>
       </div>
 
       {/* Messages Viewport */}
@@ -218,10 +386,10 @@ export default function AssistantPage({
               </div>
             )}
             <div
-              className={`max-w-[85%] sm:max-w-[78%] px-4 py-3.5 shadow-xs transition-all ${
+              className={`px-4 py-3.5 shadow-xs transition-all ${
                 msg.role === "user"
-                  ? "bg-[var(--primary)] text-white rounded-2xl rounded-tr-xs"
-                  : "bg-white border border-[var(--border)] text-[var(--foreground)] rounded-2xl rounded-tl-xs shadow-2xs"
+                  ? "max-w-[85%] sm:max-w-[78%] bg-[var(--primary)] text-white rounded-2xl rounded-tr-xs"
+                  : "w-full max-w-[96%] bg-white border border-[var(--border)] text-[var(--foreground)] rounded-2xl rounded-tl-xs shadow-2xs"
               }`}
             >
               <FormattedMessage text={msg.content} />

@@ -16,7 +16,8 @@ export const verifyEmail = (token) => api.get(`/auth/verify-email/${token}`);
 
 export const resendVerification = (email) => api.post('/auth/resend-verification', { email });
 
-export const googleAuth = (idToken) => api.post('/auth/google', { idToken });
+export const googleAuth = (data) =>
+  api.post('/auth/google', typeof data === 'string' ? { idToken: data } : data);
 
 export const forgotPassword = (email) => api.post('/auth/forgot-password', { email });
 

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Users, Calendar, Pill, FlaskConical, Receipt, ArrowLeft,
-  Search, Star, Clock, ChevronRight, Loader2, MapPin,
+  Search, Star, Clock, ChevronRight, Loader2, MapPin, Navigation,
   CheckCircle2, Package, Eye, Download, Building2, CreditCard,
   Activity, AlertCircle, X, ChevronDown, Stethoscope
 } from 'lucide-react';
@@ -16,6 +16,7 @@ import * as appointmentsService from '../../services/appointments.service';
 import * as pharmacyOrdersService from '../../services/pharmacyOrders.service';
 import * as labFulfillmentService from '../../services/labFulfillment.service';
 import * as billingService from '../../services/billing.service';
+import { openHospitalDirections } from '../../utils/navigation';
 import DoctorBooking from './DoctorBooking';
 import StatusBadge from '../../components/common/StatusBadge';
 import PaymentModal from '../../components/common/PaymentModal';
@@ -748,6 +749,16 @@ export default function HospitalWorkspace() {
             </>
           )}
         </div>
+        {hospital && (
+          <button
+            onClick={() => openHospitalDirections(hospital)}
+            title="Get Directions"
+            className="ml-1 flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg transition-colors flex-shrink-0"
+          >
+            <Navigation className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Directions</span>
+          </button>
+        )}
       </header>
 
       {/* Desktop Nav */}

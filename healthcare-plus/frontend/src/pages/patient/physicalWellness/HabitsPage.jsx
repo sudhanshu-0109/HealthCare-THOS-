@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { localDateStr } from "../PhysicalHealth.jsx";
+import { isDemoPatient, getUserPwKey } from "../../../data/physicalWellnessMockData.js";
 
 // ─── Storage ──────────────────────────────────────────────────────────
-const SK_DEFS = "pw_habit_defs_v2";
-const SK_LOGS = "pw_habit_logs_v2";
+const BASE_SK_DEFS = "pw_habit_defs_v2";
+const BASE_SK_LOGS = "pw_habit_logs_v2";
 
 function readJson(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -32,11 +33,46 @@ function getLast7Days() {
 
 const EMOJI_OPTIONS = ["✅","🥗","💧","😴","🏃","🧘","📚","🥤","🚫","🧴","💊","🍎","🚶","🛌","🎯"];
 
-export default function HabitsPage({ streak, last4, checkins }) {
+const DEMO_HABITS = [
+  { id: "h1", name: "Clean Diet", emoji: "🥗", createdAt: "2026-09-01" },
+  { id: "h2", name: "8hrs Sleep", emoji: "😴", createdAt: "2026-09-01" },
+  { id: "h3", name: "Hydration (2.5L)", emoji: "💧", createdAt: "2026-09-01" },
+];
+
+export default function HabitsPage({ streak, last4, checkins, user }) {
+  const isDemo = isDemoPatient(user);
+  const keyDefs = useMemo(() => getUserPwKey(BASE_SK_DEFS, user), [user]);
+  const keyLogs = useMemo(() => getUserPwKey(BASE_SK_LOGS, user), [user]);
+
   // ── Habit definitions ──
-  const [habits, setHabits] = useState(() => readJson(SK_DEFS, []));
+  const [habits, setHabits] = useState(() => {
+    const stored = readJson(keyDefs, null);
+    if (stored !== null) return stored;
+    if (isDemo) {
+      writeJson(keyDefs, DEMO_HABITS);
+      return DEMO_HABITS;
+    }
+    return [];
+  });
+
   // ── Daily tick logs: { "2026-09-03": [habitId, ...] } ──
-  const [logs, setLogs] = useState(() => readJson(SK_LOGS, {}));
+  const [logs, setLogs] = useState(() => {
+    const stored = readJson(keyLogs, null);
+    if (stored !== null) return stored;
+    if (isDemo) {
+      // Seed last 4 days for Arjun Mehta
+      const demoLogs = {};
+      const d = new Date();
+      for (let i = 1; i <= 4; i++) {
+        const past = new Date(d);
+        past.setDate(past.getDate() - i);
+        demoLogs[localDateStr(past)] = ["h1", "h2", "h3"];
+      }
+      writeJson(keyLogs, demoLogs);
+      return demoLogs;
+    }
+    return {};
+  });
 
   // ── Add-habit modal ──
   const [showAdd, setShowAdd] = useState(false);
@@ -56,11 +92,11 @@ export default function HabitsPage({ streak, last4, checkins }) {
           ? todayLogs.filter(id => id !== habitId)
           : [...todayLogs, habitId],
       };
-      writeJson(SK_LOGS, next);
+      writeJson(keyLogs, next);
       window.dispatchEvent(new CustomEvent('pw-checkin-updated'));
       return next;
     });
-  }, [today]);
+  }, [today, keyLogs]);
 
   // ── Add new habit ──
   const addHabit = () => {
@@ -69,7 +105,7 @@ export default function HabitsPage({ streak, last4, checkins }) {
     const habit = { id: Date.now().toString(), name, emoji: newEmoji, createdAt: today };
     setHabits(prev => {
       const next = [...prev, habit];
-      writeJson(SK_DEFS, next);
+      writeJson(keyDefs, next);
       return next;
     });
     setNewName("");
@@ -81,7 +117,7 @@ export default function HabitsPage({ streak, last4, checkins }) {
   const removeHabit = (habitId) => {
     setHabits(prev => {
       const next = prev.filter(h => h.id !== habitId);
-      writeJson(SK_DEFS, next);
+      writeJson(keyDefs, next);
       return next;
     });
     // Also purge from all logs
@@ -91,7 +127,7 @@ export default function HabitsPage({ streak, last4, checkins }) {
         const filtered = ids.filter(id => id !== habitId);
         if (filtered.length) next[date] = filtered;
       });
-      writeJson(SK_LOGS, next);
+      writeJson(keyLogs, next);
       return next;
     });
   };

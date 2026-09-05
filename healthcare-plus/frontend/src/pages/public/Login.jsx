@@ -355,7 +355,7 @@ export default function Login() {
               </div>
 
               {/* Google Login */}
-              <GoogleLoginButton />
+              <GoogleLoginButton role={selectedRole} onError={(msg) => setError(msg)} />
 
               {/* Privacy Notice */}
               <div className="mt-4 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 font-medium">

@@ -1,6 +1,8 @@
 import prisma from '../prisma/client.js';
 import { ApiError } from '../utils/ApiError.js';
 import { createStaffUser } from './auth.service.js';
+import { calculateCrowdStatus } from './hospitalSearch.service.js';
+
 
 export const getAllHospitals = async () => {
   const hospitals = await prisma.hospital.findMany({
@@ -50,17 +52,26 @@ export const getHospitals = async () => {
       }
     },
   });
-  
-  return hospitals.map(h => {
-    const admin = h.hospitalAdmins[0]?.user;
-    return {
-      ...h,
-      status: 'ACTIVE',
-      doctors: h._count.doctors,
-      patients: h._count.appointments,
-      admin: admin ? { name: admin.fullName, email: admin.email } : null
-    };
-  });
+
+  // Enrich with real-time crowd status concurrently
+  const enriched = await Promise.all(
+    hospitals.map(async (h) => {
+      const admin = h.hospitalAdmins[0]?.user;
+      const crowd = await calculateCrowdStatus(h.id);
+      return {
+        ...h,
+        crowd,
+        status: 'ACTIVE',
+        doctors: h._count.doctors,
+        doctorCount: h._count.doctors,
+        patients: h._count.appointments,
+        lowestFee: null, // optional: calculate from doctors if needed
+        admin: admin ? { name: admin.fullName, email: admin.email } : null,
+      };
+    })
+  );
+
+  return enriched;
 };
 
 export const getHospitalById = async (id, allowInactive = false) => {

@@ -10,7 +10,9 @@ import {
   calculateBmi,
   getNextMondayDateStr,
   formatMondayDate,
+  getUserPwKey,
 } from "../../data/physicalWellnessMockData.js";
+import useAuthStore from "../../store/authStore.js";
 
 function bmiCategoryColor(bmi) {
   if (!bmi) return "text-[var(--muted-foreground)]";
@@ -20,7 +22,8 @@ function bmiCategoryColor(bmi) {
   return "text-rose-600";
 }
 
-export default function MondayBiometricsModal({ isOpen, onClose, onSaved, isManualUpdate = false }) {
+export default function MondayBiometricsModal({ isOpen, onClose, onSaved, isManualUpdate = false, user = null }) {
+  const authUser = user || useAuthStore.getState().user;
   const [weight, setWeight] = useState("");
   const [weightUnit, setWeightUnit] = useState("kg");
   const [height, setHeight] = useState("");
@@ -32,7 +35,8 @@ export default function MondayBiometricsModal({ isOpen, onClose, onSaved, isManu
   useEffect(() => {
     if (!isOpen) return;
     try {
-      const raw = localStorage.getItem("pw_profile_v2");
+      const key = getUserPwKey("pw_profile_v2", authUser);
+      const raw = localStorage.getItem(key);
       if (raw) {
         const p = JSON.parse(raw);
         if (p.weight) setWeight(p.weight);
@@ -42,7 +46,7 @@ export default function MondayBiometricsModal({ isOpen, onClose, onSaved, isManu
       }
     } catch {}
     setSaved(false);
-  }, [isOpen]);
+  }, [isOpen, authUser]);
 
   if (!isOpen) return null;
 
@@ -51,7 +55,7 @@ export default function MondayBiometricsModal({ isOpen, onClose, onSaved, isManu
 
   const handleSave = () => {
     if (!canSave) return;
-    saveBiometricsEntry({ weight, weightUnit, height, heightUnit, note });
+    saveBiometricsEntry({ weight, weightUnit, height, heightUnit, note }, authUser);
     setSaved(true);
     if (onSaved) onSaved();
     setTimeout(() => onClose(), 1200);

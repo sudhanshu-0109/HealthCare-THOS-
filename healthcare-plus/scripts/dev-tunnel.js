@@ -128,11 +128,11 @@ function spawnAndWait(label, command, args, cwd, readyPattern, timeoutMs) {
 
 // ─── Start backend ────────────────────────────────────────────────────────
 console.log(`\n${c.cyan}${c.bold}Healthcare+ Tunnel -- Starting...${c.reset}\n`);
-log('backend', `Starting Express on :${BACKEND_PORT}`);
+log('backend', `Starting Express on :${BACKEND_PORT} (with --watch)`);
 await spawnAndWait(
   'backend',
   'node',
-  ['src/server.js'],
+  ['--watch', 'src/server.js'],
   BACKEND_DIR,
   /healthcare\+ API running|Health:/i,
   60000

@@ -1,6 +1,7 @@
 import React from "react";
 import { computeAvgReadiness } from "../PhysicalHealth.jsx";
 import { localDateStr } from "../PhysicalHealth.jsx";
+import { isWeeklyAssessmentDue } from "../../../data/physicalWellnessMockData.js";
 import useAuthStore from "../../../store/authStore.js";
 
 /** Local today string — avoids UTC midnight shift for IST users. */
@@ -66,8 +67,15 @@ function goalWorkoutSummary(goal) {
 export default function DashboardPage({
   profile, checkins, todayCheckin, streak, last4 = [], workouts,
   onStartCheckIn, onViewWorkout, onViewPlan, onViewProgress,
+  onOpenWeeklyAssessment,
 }) {
   const { user } = useAuthStore();
+
+  // Active equipment context
+  const activeEq = todayCheckin?.equipment || profile?.equipment || ["No Equipment"];
+  const equipmentBadge = activeEq.includes("No Equipment")
+    ? "🤸 Bodyweight Only"
+    : `🏋️ ${activeEq.join(", ")}`;
 
   // Name priority: onboarding profile firstName → auth user fullName first word → 'there'
   const name =
@@ -110,6 +118,8 @@ export default function DashboardPage({
   })();
   const completedThisWeek = workouts.filter(w => w.date >= weekStart && w.completed).length;
 
+  const isAssessmentDue = isWeeklyAssessmentDue(user);
+
   return (
     <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8">
       {/* ── Greeting header ── */}
@@ -134,6 +144,31 @@ export default function DashboardPage({
           </div>
         </div>
       </div>
+
+      {/* ── Weekly Monday Journey Banner ── */}
+      {isAssessmentDue && (
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-md flex items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🗓️</span>
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">
+                Weekly Monday Journey Update Due
+              </div>
+              <p className="text-sm font-semibold">
+                Adjust your available equipment, biometrics & weekly fitness goals.
+              </p>
+            </div>
+          </div>
+          {onOpenWeeklyAssessment && (
+            <button
+              onClick={onOpenWeeklyAssessment}
+              className="px-4 py-2 rounded-xl bg-white text-emerald-800 text-xs font-bold shadow-xs hover:bg-emerald-50 transition cursor-pointer shrink-0"
+            >
+              Start Monday Update →
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Main two-column card grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -328,8 +363,12 @@ export default function DashboardPage({
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2">
-              {[commitment, workout.tag, primaryGoal, profile?.environment || "Home"].map(tag => (
-                <span key={tag} className="text-[10px] font-semibold text-[var(--foreground)] bg-[var(--muted)] px-2.5 py-1 rounded-full">
+              {[commitment, workout.tag, primaryGoal, equipmentBadge].map(tag => (
+                <span key={tag} className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${
+                  tag === equipmentBadge
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "text-[var(--foreground)] bg-[var(--muted)]"
+                }`}>
                   {tag}
                 </span>
               ))}

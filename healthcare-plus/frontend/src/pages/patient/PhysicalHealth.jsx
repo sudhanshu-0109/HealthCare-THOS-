@@ -31,7 +31,18 @@ import AssistantPage from "./physicalWellness/AssistantPage.jsx";
 import SettingsPage from "./physicalWellness/SettingsPage.jsx";
 import WaveformBackground from "../../components/physicalWellness/WaveformBackground.jsx";
 import MondayBiometricsModal from "../../components/physicalWellness/MondayBiometricsModal.jsx";
-import { ensureLivePhysicalStreakData, generatePersonalizedDailyPlan, isMondayBiometricsDue } from "../../data/physicalWellnessMockData.js";
+import WeeklyAssessmentModal from "../../components/physicalWellness/WeeklyAssessmentModal.jsx";
+import {
+  ensureLivePhysicalStreakData,
+  generatePersonalizedDailyPlan,
+  isMondayBiometricsDue,
+  isWeeklyAssessmentDue,
+  isDemoPatient,
+  getUserPwKey,
+  saveBiometricsEntry,
+  SK_BIOMETRICS,
+} from "../../data/physicalWellnessMockData.js";
+import useAuthStore from "../../store/authStore.js";
 
 // ─── Storage keys ───────────────────────────────────────────────────
 const SK_ONBOARDED   = "pw_onboarded_v2";
@@ -110,7 +121,7 @@ export function computeStreak(checkins = []) {
 }
 
 /** Get last 4 calendar days (oldest→newest) with their check-in data */
-export function getLast4Days(checkins) {
+export function getLast4Days(checkins = []) {
   return Array.from({ length: 4 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (3 - i));
@@ -132,12 +143,36 @@ const NAV_PAGES = ["dashboard", "weekly-plan", "habits", "progress", "assistant"
 export default function PhysicalHealth() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isDemo = isDemoPatient(user);
+
+  const keyOnboarded = getUserPwKey(SK_ONBOARDED, user);
+  const keyProfile   = getUserPwKey(SK_PROFILE, user);
+  const keyCheckins  = getUserPwKey(SK_CHECKINS, user);
+  const keyWorkouts  = getUserPwKey(SK_WORKOUTS, user);
+
+  // If demo patient Arjun Mehta, seed demo data once
+  useEffect(() => {
+    if (isDemo) {
+      ensureLivePhysicalStreakData(user);
+    }
+  }, [isDemo, user]);
 
   // ── Persisted profile (from onboarding) ──
-  const [profile, setProfile] = useState(() => readJson(SK_PROFILE, null));
-  const [isFirstTime, setIsFirstTime] = useState(() => localStorage.getItem(SK_ONBOARDED) !== "true");
+  const [profile, setProfile] = useState(() => {
+    if (isDemo) {
+      ensureLivePhysicalStreakData(user);
+    }
+    return readJson(keyProfile, null);
+  });
 
-  const defaultPage = localStorage.getItem(SK_ONBOARDED) === "true" ? "dashboard" : "entry";
+  const [isFirstTime, setIsFirstTime] = useState(() => {
+    if (isDemo) return false;
+    return localStorage.getItem(keyOnboarded) !== "true";
+  });
+
+  const isOnboarded = isDemo || localStorage.getItem(keyOnboarded) === "true";
+  const defaultPage = isOnboarded ? "dashboard" : "entry";
 
   // ── Page routing synchronized with URL & browser history ──
   const [page, setPage] = useState(() => searchParams.get("page") || defaultPage);
@@ -175,37 +210,89 @@ export default function PhysicalHealth() {
 
   // ── Check-in history ──
   const [checkins, setCheckins] = useState(() => {
-    ensureLivePhysicalStreakData();
-    return readJson(SK_CHECKINS, []);
+    if (isDemo) {
+      ensureLivePhysicalStreakData(user);
+    }
+    return readJson(keyCheckins, []);
   });
 
-  const saveCheckin = useCallback((scores) => {
+  const saveCheckin = useCallback((scoresOrData, maybeEquipment) => {
+    let scores = scoresOrData;
+    let equipment = maybeEquipment;
+    if (scoresOrData && typeof scoresOrData === 'object' && scoresOrData.scores) {
+      scores = scoresOrData.scores;
+      equipment = scoresOrData.equipment || maybeEquipment;
+    }
+    if (!equipment || !Array.isArray(equipment) || equipment.length === 0) {
+      equipment = profile?.equipment || ["No Equipment"];
+    }
+    if (equipment.includes("No Equipment")) {
+      equipment = ["No Equipment"];
+    }
+
     const date = todayStr();
     const avgReadiness = computeAvgReadiness(scores);
     const result = computeResult(scores);
-    const entry = { date, scores, avgReadiness, result, ts: Date.now() };
+    const entry = { date, scores, avgReadiness, result, equipment, ts: Date.now() };
     setCheckins(prev => {
       const next = [...prev.filter(c => c.date !== date), entry];
-      writeJson(SK_CHECKINS, next);
+      writeJson(keyCheckins, next);
       window.dispatchEvent(new CustomEvent('pw-checkin-updated'));
       return next;
     });
+
+    // Ensure baseline biometrics entry exists if user has profile weight & height
+    if (profile && profile.weight && profile.height) {
+      try {
+        const bioKey = getUserPwKey(SK_BIOMETRICS, user);
+        const rawBio = localStorage.getItem(bioKey);
+        const bioList = rawBio ? JSON.parse(rawBio) : [];
+        if (bioList.length === 0) {
+          saveBiometricsEntry({
+            weight: profile.weight,
+            weightUnit: profile.weightUnit || 'kg',
+            height: profile.height,
+            heightUnit: profile.heightUnit || 'cm',
+            note: 'Initial profile baseline',
+          }, user);
+        }
+      } catch {}
+    }
+
+    // Also record daily session in workout consistency if not already logged today
+    setWorkouts(prev => {
+      if (!prev.some(w => w.date === date && w.completed)) {
+        const wEntry = {
+          date,
+          completed: true,
+          type: "daily-movement",
+          title: "Daily Movement & Wellness Check-in",
+          feedback: { rating: scores.energy, notes: "Daily log completed" },
+          ts: Date.now(),
+        };
+        const next = [...prev, wEntry];
+        writeJson(keyWorkouts, next);
+        return next;
+      }
+      return prev;
+    });
+
     return entry;
-  }, []);
+  }, [keyCheckins, keyWorkouts, profile, user]);
 
   // ── Workout history ──
-  const [workouts, setWorkouts] = useState(() => readJson(SK_WORKOUTS, []));
+  const [workouts, setWorkouts] = useState(() => readJson(keyWorkouts, []));
 
   const saveWorkout = useCallback((feedback) => {
     const date = todayStr();
     const entry = { date, completed: true, feedback, ts: Date.now() };
     setWorkouts(prev => {
       const next = [...prev.filter(w => w.date !== date), entry];
-      writeJson(SK_WORKOUTS, next);
+      writeJson(keyWorkouts, next);
       window.dispatchEvent(new CustomEvent('pw-checkin-updated'));
       return next;
     });
-  }, []);
+  }, [keyWorkouts]);
 
   // ── Derived values passed to pages ──
   const streak = computeStreak(checkins);
@@ -219,7 +306,26 @@ export default function PhysicalHealth() {
   );
 
   // ── Biometrics Modal ──
-  const [biometricsOpen, setBiometricsOpen] = useState(() => isMondayBiometricsDue());
+  const [biometricsOpen, setBiometricsOpen] = useState(() => isMondayBiometricsDue(user));
+
+  // ── Weekly Monday Assessment Modal ──
+  const [weeklyAssessmentOpen, setWeeklyAssessmentOpen] = useState(() => isWeeklyAssessmentDue(user));
+
+  // Sync profile when assessment or external update occurs
+  useEffect(() => {
+    const handleAssessmentUpdated = (e) => {
+      const updated = e.detail;
+      if (updated) {
+        setProfile(prev => ({ ...prev, ...updated }));
+      }
+    };
+    window.addEventListener("pw-assessment-updated", handleAssessmentUpdated);
+    window.addEventListener("pw-profile-updated", handleAssessmentUpdated);
+    return () => {
+      window.removeEventListener("pw-assessment-updated", handleAssessmentUpdated);
+      window.removeEventListener("pw-profile-updated", handleAssessmentUpdated);
+    };
+  }, []);
 
   const showLayout = NAV_PAGES.includes(page);
 
@@ -231,6 +337,7 @@ export default function PhysicalHealth() {
           <EntryPage
             isFirstTime={isFirstTime}
             profile={profile}
+            user={user}
             streak={streak}
             todayCheckin={todayCheckin}
             onGetStarted={() => go("onboarding")}
@@ -245,7 +352,18 @@ export default function PhysicalHealth() {
           <OnboardingPage
             onComplete={(data) => {
               setProfile(data);
-              writeJson(SK_PROFILE, data);
+              writeJson(keyProfile, data);
+              if (data.weight && data.height) {
+                try {
+                  saveBiometricsEntry({
+                    weight: data.weight,
+                    weightUnit: data.weightUnit || 'kg',
+                    height: data.height,
+                    heightUnit: data.heightUnit || 'cm',
+                    note: 'Onboarding baseline',
+                  }, user);
+                } catch {}
+              }
               go("plan-gen");
             }}
           />
@@ -260,7 +378,7 @@ export default function PhysicalHealth() {
             profile={profile}
             onStart={() => {
               setIsFirstTime(false);
-              localStorage.setItem(SK_ONBOARDED, "true");
+              localStorage.setItem(keyOnboarded, "true");
               go("dashboard");
             }}
           />
@@ -279,14 +397,16 @@ export default function PhysicalHealth() {
             onViewWorkout={() => go("today-workout")}
             onViewPlan={() => go("weekly-plan")}
             onViewProgress={() => go("progress")}
+            onOpenWeeklyAssessment={() => setWeeklyAssessmentOpen(true)}
           />
         );
 
       case "checkin":
         return (
           <CheckInPage
-            onComplete={(scores) => {
-              saveCheckin(scores);
+            profile={profile}
+            onComplete={(scores, equipment) => {
+              saveCheckin(scores, equipment);
               go("readiness");
             }}
             onBack={() => handleBack(isFirstTime ? "entry" : "dashboard")}
@@ -350,6 +470,7 @@ export default function PhysicalHealth() {
             streak={streak}
             last4={last4}
             checkins={checkins}
+            user={user}
           />
         );
 
@@ -360,6 +481,8 @@ export default function PhysicalHealth() {
             workouts={workouts}
             streak={streak}
             profile={profile}
+            user={user}
+            onOpenWeeklyAssessment={() => setWeeklyAssessmentOpen(true)}
           />
         );
 
@@ -368,6 +491,7 @@ export default function PhysicalHealth() {
           <WeeklyReviewPage
             checkins={checkins}
             workouts={workouts}
+            user={user}
             onBack={() => go("weekly-plan")}
             onViewNextWeek={() => go("weekly-plan")}
           />
@@ -379,9 +503,11 @@ export default function PhysicalHealth() {
             profile={profile}
             todayCheckin={todayCheckin}
             workouts={workouts}
+            user={user}
             onStartWorkout={() => go("today-workout")}
             onUpdateCheckIn={() => go("checkin")}
             onOpenBiometrics={() => setBiometricsOpen(true)}
+            onOpenWeeklyAssessment={() => setWeeklyAssessmentOpen(true)}
             onViewReview={() => go("weekly-review")}
           />
         );
@@ -394,11 +520,23 @@ export default function PhysicalHealth() {
             streak={streak}
             workouts={workouts}
             todayCheckin={todayCheckin}
+            todayPlan={todayPlan}
+            user={user}
           />
         );
 
       case "settings":
-        return <SettingsPage onBack={() => go("dashboard")} />;
+        return (
+          <SettingsPage
+            profile={profile}
+            user={user}
+            onSaveProfile={(newProf) => {
+              setProfile(newProf);
+              writeJson(keyProfile, newProf);
+            }}
+            onBack={() => go("dashboard")}
+          />
+        );
 
       default:
         return (
@@ -413,6 +551,7 @@ export default function PhysicalHealth() {
             onViewWorkout={() => go("today-workout")}
             onViewPlan={() => go("weekly-plan")}
             onViewProgress={() => go("progress")}
+            onOpenWeeklyAssessment={() => setWeeklyAssessmentOpen(true)}
           />
         );
     }
@@ -439,7 +578,20 @@ export default function PhysicalHealth() {
         isOpen={biometricsOpen}
         onClose={() => setBiometricsOpen(false)}
         onSaved={() => setBiometricsOpen(false)}
-        isManualUpdate={!isMondayBiometricsDue()}
+        isManualUpdate={!isMondayBiometricsDue(user)}
+        user={user}
+      />
+
+      {/* ── Weekly Monday Journey Assessment Modal ── */}
+      <WeeklyAssessmentModal
+        isOpen={weeklyAssessmentOpen}
+        onClose={() => setWeeklyAssessmentOpen(false)}
+        onCompleted={(assessment) => {
+          setProfile(assessment);
+          setWeeklyAssessmentOpen(false);
+        }}
+        isManualUpdate={!isWeeklyAssessmentDue(user)}
+        user={user}
       />
     </div>
   );

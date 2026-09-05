@@ -55,10 +55,20 @@ export default function OnboardingPage({ onComplete }) {
 
   const update = (field, value) => setData(d => ({ ...d, [field]: value }));
   const toggleEquipment = (item) => {
-    setData(d => ({
-      ...d,
-      equipment: d.equipment.includes(item) ? d.equipment.filter(e => e !== item) : [...d.equipment, item]
-    }));
+    if (item === "No Equipment") {
+      setData(d => ({ ...d, equipment: ["No Equipment"] }));
+      return;
+    }
+    setData(d => {
+      const withoutNoEq = d.equipment.filter(e => e !== "No Equipment");
+      const next = withoutNoEq.includes(item)
+        ? withoutNoEq.filter(e => e !== item)
+        : [...withoutNoEq, item];
+      return {
+        ...d,
+        equipment: next.length === 0 ? ["No Equipment"] : next,
+      };
+    });
   };
   const toggleConsideration = (item) => {
     if (item === "None of These") { setData(d => ({ ...d, considerations: ["None of These"] })); return; }
@@ -279,7 +289,17 @@ export default function OnboardingPage({ onComplete }) {
           </button>
         )}
         <button
-          onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : onComplete(data)}
+          onClick={() => {
+            if (step < steps.length - 1) {
+              setStep(s => s + 1);
+            } else {
+              const finalData = {
+                ...data,
+                equipment: Array.isArray(data.equipment) && data.equipment.length > 0 ? data.equipment : ["No Equipment"],
+              };
+              onComplete(finalData);
+            }
+          }}
           disabled={!canContinue()}
           className="flex-1 bg-[var(--primary)] text-white font-semibold py-3.5 rounded-2xl text-sm hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
         >

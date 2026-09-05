@@ -2,48 +2,51 @@
  * components/auth/GoogleLoginButton.jsx — Google OAuth button using @react-oauth/google.
  */
 
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin } from '@react-oauth/google';
 import * as authService from '../../services/auth.service';
 import useAuthStore from '../../store/authStore';
 import { ROLE_HOME_ROUTES } from '../../utils/constants';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
 
-const GoogleLoginButtonInner = ({ role, onError }) => {
+const GoogleLoginButton = ({ role = 'PATIENT', onError }) => {
   const setAuth = useAuthStore((state) => state.setAuth);
   const navigate = useNavigate();
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   const handleSuccess = async (credentialResponse) => {
+    if (!credentialResponse?.credential) {
+      if (onError) onError('No credential received from Google. Please try again.');
+      return;
+    }
     try {
       const response = await authService.googleAuth({ idToken: credentialResponse.credential, role });
-      const { user, accessToken } = response.data;
+      const { user, accessToken } = response.data?.data || response.data;
 
       setAuth({ user, accessToken });
       const targetRoute = ROLE_HOME_ROUTES[user.role] || '/dashboard';
       navigate(targetRoute);
     } catch (err) {
-      if (onError) onError(err.message || 'Google authentication failed.');
+      const data = err.response?.data;
+      let msg = 'Google authentication failed.';
+      if (typeof data?.message === 'string') {
+        msg = data.message;
+      } else if (typeof data?.error === 'string') {
+        msg = data.error;
+      } else if (err.message) {
+        msg = err.message;
+      }
+      if (onError) onError(msg);
     }
   };
 
-  return (
-    <div className="w-full flex justify-center">
-      <GoogleLogin
-        onSuccess={handleSuccess}
-        onError={() => {
-          if (onError) onError('Google login popup was closed or failed.');
-        }}
-        shape="rectangular"
-        theme="outline"
-        size="large"
-        text="continue_with"
-      />
-    </div>
-  );
-};
-
-const GoogleLoginButton = ({ role, onError }) => {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const handleError = () => {
+    const isTunnel = window.location.hostname.includes('trycloudflare.com') || window.location.hostname.includes('loca.lt');
+    if (isTunnel) {
+      if (onError) onError(`Google Sign-In: The tunnel URL (${window.location.origin}) is not registered in Google Cloud Console. Please open http://localhost:5173 or add this tunnel URL to Authorized JavaScript Origins.`);
+    } else {
+      if (onError) onError('Google Sign-In popup was closed or origin is not authorized in Google Cloud Console.');
+    }
+  };
 
   if (!clientId) {
     // Fallback UI when VITE_GOOGLE_CLIENT_ID is not configured in .env
@@ -67,9 +70,16 @@ const GoogleLoginButton = ({ role, onError }) => {
   }
 
   return (
-    <GoogleOAuthProvider clientId={clientId}>
-      <GoogleLoginButtonInner role={role} onError={onError} />
-    </GoogleOAuthProvider>
+    <div className="w-full flex justify-center">
+      <GoogleLogin
+        onSuccess={handleSuccess}
+        onError={handleError}
+        shape="rectangular"
+        theme="outline"
+        size="large"
+        text="continue_with"
+      />
+    </div>
   );
 };
 

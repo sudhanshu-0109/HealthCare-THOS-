@@ -30,6 +30,21 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // ── Zod validation errors ────────────────────────────────────────────────
+  if (err.name === 'ZodError' || err.issues) {
+    const issues = err.issues || err.errors || [];
+    const formattedErrors = issues.reduce((acc, curr) => {
+      const field = curr.path?.join('.') || 'body';
+      acc[field] = curr.message;
+      return acc;
+    }, {});
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: formattedErrors,
+    });
+  }
+
   // ── Prisma known request errors ───────────────────────────────────────────
   if (err.code) {
     switch (err.code) {

@@ -621,15 +621,15 @@ export default function WellnessCompanion() {
   const firstName = user?.fullName?.split(' ')[0] || 'there';
 
   const [messages,      setMessages]      = useState(() => {
-    const ci = loadTodayCheckIn();
-    const acts = loadActivityLog();
-    const strk = calculateStreak();
-    return [buildContextualGreeting({ checkIn: ci, firstName: 'there', recentActivities: acts, streak: strk })];
+    const ci = loadTodayCheckIn(user);
+    const acts = loadActivityLog(user);
+    const strk = calculateStreak(user);
+    return [buildContextualGreeting({ checkIn: ci, firstName, recentActivities: acts, streak: strk })];
   });
   const [inputValue,    setInputValue]    = useState('');
   const [isTyping,      setIsTyping]      = useState(false);
   const [conversation,  setConversation]  = useState(null);
-  const [lastCheckIn,   setLastCheckIn]   = useState(() => loadTodayCheckIn());
+  const [lastCheckIn,   setLastCheckIn]   = useState(() => loadTodayCheckIn(user));
   const [apiMode,       setApiMode]       = useState(false);
 
   // ActivityPlayer state
@@ -647,15 +647,15 @@ export default function WellnessCompanion() {
       if (prev.some(m => m.role === 'user')) return prev;
       if (prev.length <= 1 && (!prev[0] || prev[0].id?.startsWith('greeting'))) {
         return [buildContextualGreeting({
-          checkIn: lastCheckIn || loadTodayCheckIn(),
+          checkIn: lastCheckIn || loadTodayCheckIn(user),
           firstName,
-          recentActivities: loadActivityLog(),
-          streak: calculateStreak(),
+          recentActivities: loadActivityLog(user),
+          streak: calculateStreak(user),
         })];
       }
       return prev;
     });
-  }, [firstName, lastCheckIn]);
+  }, [firstName, lastCheckIn, user]);
 
   // Scroll ONLY the inner chat messages container to the bottom; the main browser page remains static
   useEffect(() => {
@@ -699,7 +699,7 @@ export default function WellnessCompanion() {
       icon,
       durationMin: completedItem.duration,
       startedAt:   activityStartRef.current ?? new Date().toISOString(),
-    });
+    }, user);
 
     // Send a supportive feedback message into the chat
     setMessages(prev => [...prev, {
@@ -718,9 +718,9 @@ export default function WellnessCompanion() {
 
   // Init conversation and opening greeting
   useEffect(() => {
-    const ci = loadTodayCheckIn();
-    const acts = loadActivityLog();
-    const strk = calculateStreak();
+    const ci = loadTodayCheckIn(user);
+    const acts = loadActivityLog(user);
+    const strk = calculateStreak(user);
     const contextualGreeting = buildContextualGreeting({
       checkIn: ci,
       firstName,
@@ -769,7 +769,7 @@ export default function WellnessCompanion() {
     })();
 
     // Load last check-in for LiveContext (local first, then API sync)
-    const localCI = loadTodayCheckIn();
+    const localCI = loadTodayCheckIn(user);
     if (localCI) setLastCheckIn(localCI);
 
     (async () => {
@@ -792,7 +792,7 @@ export default function WellnessCompanion() {
 
     // Listen to focus and storage so checking in on the Home tab immediately updates Live Context here
     const handleSync = () => {
-      const updated = loadTodayCheckIn();
+      const updated = loadTodayCheckIn(user);
       if (updated) setLastCheckIn(updated);
     };
     window.addEventListener('storage', handleSync);
@@ -801,7 +801,7 @@ export default function WellnessCompanion() {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('focus', handleSync);
     };
-  }, []);
+  }, [user, firstName]);
 
   // ── Send message ─────────────────────────────────────────────────────────
   const sendMessage = async (text) => {

@@ -1,640 +1,519 @@
 /**
  * components/emergency/LiveTrackingMap.jsx — Uber/Ola-style ambulance live tracker.
  *
- * Map:      Google Maps JavaScript API  (@googlemaps/js-api-loader)
- * Routing:  Google Maps Directions API  (real road routes, distance, ETA)
- * Location: Props from EmergencyTracking.jsx, driven by real Socket.IO updates
+ * Map:      Leaflet.js + OpenStreetMap tiles (completely free, no API key)
+ * Routing:  OSRM REST API — router.project-osrm.org (free, real road routes, no key)
+ * Location: Live coordinates streamed over Socket.IO (watchPosition)
  *
- * Props:
- *   patientLat, patientLng   — real patient GPS
- *   driverLat,  driverLng    — live ambulance GPS (updated via socket)
- *   status                   — EmergencyStatus string
- *   driverName, vehicleNumber
- *   distanceKm, etaMin       — passed down; updated by onRouteUpdate callback
- *   onRouteUpdate({ distanceKm, etaMin }) — called after each Directions fetch
- *   socketConnected          — boolean from parent (shows reconnecting banner)
- *
- * Required Google Cloud APIs:
- *   - Maps JavaScript API
- *   - Directions API
- *
- * API Key: VITE_GOOGLE_MAPS_API_KEY in frontend/.env (git-ignored, never hardcoded)
+ * Phases:
+ *   Phase A (Ambulance → Patient): Destination = Patient pickup
+ *   Phase B (Ambulance → Hospital): Destination = Assigned hospital
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { loadGoogleMaps } from '../../utils/googleMapsLoader';
-import { MapPin, Ambulance, Navigation, AlertTriangle, RefreshCw, WifiOff } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import {
+  resolveTripDestination,
+  calculateBearing,
+  ARRIVAL_THRESHOLD_METERS,
+  isValidCoord,
+} from "../../utils/emergencyRouting";
+import { MapPin, Navigation, RefreshCw, WifiOff, Building2 } from "lucide-react";
 
-// ── Coordinate validation ─────────────────────────────────────────────────────
-const isValidCoord = (lat, lng) =>
-  Number.isFinite(lat) &&
-  Number.isFinite(lng) &&
-  lat >= -90 && lat <= 90 &&
-  lng >= -180 && lng <= 180;
+const OSRM_BASE = "https://router.project-osrm.org/route/v1/driving";
 
-// ── Haversine distance (metres) ───────────────────────────────────────────────
-const haversineM = (lat1, lng1, lat2, lng2) => {
-  const R = 6371000;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+/** Override: recalculate route from OSRM every 8 seconds if driver has deviated */
+const REROUTE_INTERVAL_MS = 8000;
+/** Trigger reroute if driver is >25m from the stored polyline */
+const REROUTE_DEVIATION_M = 25;
 
-// ── Smooth marker movement via requestAnimationFrame ─────────────────────────
-// Interpolates a google.maps.marker.AdvancedMarkerElement between two positions.
-const animateMarker = (marker, fromLat, fromLng, toLat, toLng, durationMs = 800) => {
-  const start = performance.now();
-  const step = (now) => {
-    const t = Math.min((now - start) / durationMs, 1);
-    // cubic ease-in-out
-    const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    const lat = fromLat + (toLat - fromLat) * ease;
-    const lng = fromLng + (toLng - fromLng) * ease;
-    marker.position = { lat, lng };
-    if (t < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-};
-
-// ── Create patient marker element — pulsing red dot ───────────────────────────
-const makePatientEl = () => {
-  // Inject pulse keyframe once
-  if (!document.getElementById('hc-map-pulse-style')) {
-    const s = document.createElement('style');
-    s.id = 'hc-map-pulse-style';
-    s.textContent = '@keyframes hc-ping{75%,100%{transform:scale(2.4);opacity:0}}';
-    document.head.appendChild(s);
+/**
+ * Find the index of the closest point on a [[lat,lng]] polyline to a given
+ * coordinate, using a cos(lat)-corrected distance metric so the result is
+ * accurate in metres regardless of latitude (fixes C1).
+ */
+function findNearestPointIndex(lat, lng, latlngs) {
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < latlngs.length; i++) {
+    const dLat = latlngs[i][0] - lat;
+    const dLng = (latlngs[i][1] - lng) * cosLat; // scale lng to match lat in metres
+    const d = dLat * dLat + dLng * dLng;
+    if (d < bestDist) { bestDist = d; best = i; }
   }
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:28px;height:28px;cursor:default;';
+  return best;
+}
 
-  const ring = document.createElement('div');
-  ring.style.cssText =
-    'position:absolute;inset:0;border-radius:9999px;background:rgba(239,68,68,0.3);' +
-    'animation:hc-ping 1.6s cubic-bezier(0,0,0.2,1) infinite;';
+/**
+ * Compute total road distance in km for a [[lat,lng]] polyline segment.
+ */
+function polylineDistanceKm(points) {
+  let km = 0;
+  for (let i = 1; i < points.length; i++) {
+    km += haversineKm(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+  }
+  return km;
+}
 
-  const dot = document.createElement('div');
-  dot.style.cssText =
-    'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
-    'width:16px;height:16px;border-radius:9999px;background:#ef4444;' +
-    'border:2.5px solid #ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
-  const label = document.createElement('div');
-  label.textContent = 'You';
-  label.style.cssText =
-    'position:absolute;top:100%;left:50%;transform:translateX(-50%);' +
-    'margin-top:3px;white-space:nowrap;font-size:10px;font-weight:700;' +
-    'color:#ef4444;text-shadow:0 1px 3px rgba(0,0,0,0.8);';
+function makeAmbulanceIcon(heading = 0, vehicleNumber = "") {
+  return L.divIcon({
+    className: "",
+    html: `<div style="position:relative;width:48px;height:54px;display:flex;flex-direction:column;align-items:center;">
+      <div style="transform:rotate(${heading}deg);width:44px;height:44px;background:#0ea5e9;border-radius:12px;border:2.5px solid #fff;box-shadow:0 2px 12px rgba(14,165,233,0.55);display:flex;align-items:center;justify-content:center;transition:transform 0.4s ease;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+          <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+          <line x1="9" y1="9" x2="9" y2="13"/><line x1="7" y1="11" x2="11" y2="11"/>
+        </svg>
+      </div>
+      ${vehicleNumber ? `<div style="font-size:9px;font-weight:700;color:#0f172a;background:#e0f2fe;border-radius:4px;padding:1px 4px;margin-top:2px;white-space:nowrap;max-width:60px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${vehicleNumber}</div>` : ""}
+    </div>`,
+    iconSize: [48, 54],
+    iconAnchor: [24, 27],
+  });
+}
 
-  wrap.appendChild(ring);
-  wrap.appendChild(dot);
-  wrap.appendChild(label);
-  return wrap;
-};
+function makePatientIcon(isPickedUp = false) {
+  const bg = isPickedUp ? "#14b8a6" : "#ef4444";
+  const label = isPickedUp ? "Picked Up" : "You (Pickup)";
+  return L.divIcon({
+    className: "",
+    html: `<div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:36px;height:36px;background:${bg};border-radius:50%;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;position:relative;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        <div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;background:#ef4444;border-radius:50%;border:2px solid #fff;animation:lm-ping 1.4s infinite;"></div>
+      </div>
+      <div style="margin-top:3px;font-size:10px;font-weight:700;color:#fff;background:${bg};padding:2px 6px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.3);white-space:nowrap;">${label}</div>
+    </div>`,
+    iconSize: [60, 58],
+    iconAnchor: [30, 20],
+  });
+}
 
-// ── Create ambulance marker element — SVG icon ────────────────────────────────
-const makeAmbulanceEl = () => {
-  const wrap = document.createElement('div');
-  wrap.style.cssText =
-    'position:relative;display:flex;flex-direction:column;align-items:center;cursor:default;';
+function makeHospitalIcon(name = "Hospital") {
+  return L.divIcon({
+    className: "",
+    html: `<div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:40px;height:40px;background:#0d9488;border-radius:10px;border:2.5px solid #fff;box-shadow:0 2px 10px rgba(13,148,136,0.5);display:flex;align-items:center;justify-content:center;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="6" x2="12" y2="12"/><line x1="9" y1="9" x2="15" y2="9"/><rect x="9" y="14" width="6" height="8"/>
+        </svg>
+      </div>
+      <div style="margin-top:3px;font-size:9px;font-weight:700;color:#fff;background:#0d9488;padding:2px 5px;border-radius:5px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3);">${name}</div>
+    </div>`,
+    iconSize: [60, 56],
+    iconAnchor: [30, 22],
+  });
+}
 
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', '36');
-  svg.setAttribute('height', '36');
-  svg.setAttribute('viewBox', '0 0 36 36');
-  svg.style.cssText = 'filter:drop-shadow(0 2px 6px rgba(0,0,0,0.45));';
-  svg.innerHTML =
-    '<rect x="3" y="12" width="30" height="18" rx="3" fill="#0891b2"/>' +
-    '<rect x="16" y="6" width="17" height="12" rx="2" fill="#0e7490"/>' +
-    '<circle cx="10" cy="20" r="5" fill="white"/>' +
-    '<rect x="8.5" y="17" width="3" height="6" rx="0.5" fill="#ef4444"/>' +
-    '<rect x="7" y="18.5" width="6" height="3" rx="0.5" fill="#ef4444"/>' +
-    '<rect x="19" y="8" width="12" height="7" rx="1.5" fill="#bae6fd" opacity="0.9"/>' +
-    '<circle cx="8" cy="30" r="3" fill="#1e293b"/>' +
-    '<circle cx="8" cy="30" r="1.5" fill="#475569"/>' +
-    '<circle cx="28" cy="30" r="3" fill="#1e293b"/>' +
-    '<circle cx="28" cy="30" r="1.5" fill="#475569"/>' +
-    '<rect x="12" y="4" width="6" height="3" rx="1" fill="#ef4444"/>' +
-    '<rect x="19" y="4" width="6" height="3" rx="1" fill="#3b82f6"/>';
+function injectLeafletStyles() {
+  if (document.getElementById("hc-leaflet-styles")) return;
+  const s = document.createElement("style");
+  s.id = "hc-leaflet-styles";
+  s.textContent = `
+    @keyframes lm-ping { 0%{transform:scale(1);opacity:1} 75%,100%{transform:scale(2.2);opacity:0} }
+    .leaflet-container { font-family:inherit; }
+    .leaflet-control-attribution { font-size:10px !important; }
+    .leaflet-control-attribution a { color:#0ea5e9 !important; }
+  `;
+  document.head.appendChild(s);
+}
 
-  const label = document.createElement('div');
-  label.textContent = '🚑 Ambulance';
-  label.style.cssText =
-    'margin-top:2px;white-space:nowrap;font-size:10px;font-weight:700;' +
-    'color:#0891b2;text-shadow:0 1px 3px rgba(0,0,0,0.8);';
-
-  wrap.appendChild(svg);
-  wrap.appendChild(label);
-  return wrap;
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
+function animateMarkerTo(marker, fromLat, fromLng, toLat, toLng, durationMs) {
+  const start = performance.now();
+  const dLat = toLat - fromLat;
+  const dLng = toLng - fromLng;
+  function step(now) {
+    const t = Math.min(1, (now - start) / durationMs);
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    marker.setLatLng([fromLat + dLat * ease, fromLng + dLng * ease]);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
 
 export default function LiveTrackingMap({
-  patientLat,
-  patientLng,
-  driverLat,
-  driverLng,
-  status,
-  driverName,
-  vehicleNumber,
-  distanceKm,
-  etaMin,
+  patientLat, patientLng,
+  driverLat, driverLng, driverHeading,
+  hospitalLat, hospitalLng, hospitalName, hospitalAddress,
+  status: _status = "EN_ROUTE",
+  driverName, vehicleNumber,
+  distanceKm, etaMin,
+  socketConnected = true,
+  height = "420px",
+  showTelemetryBar = true,
   onRouteUpdate,
-  socketConnected,
 }) {
-  const _status = status || 'SEARCHING';
-  const _socketConnected = socketConnected !== false; // default true
-
   const mapContainerRef = useRef(null);
-  const mapRef = useRef(null);               // google.maps.Map instance
-  const mapsApiRef = useRef(null);           // google.maps namespace
-  const patientMarkerRef = useRef(null);     // AdvancedMarkerElement for patient
-  const driverMarkerRef = useRef(null);      // AdvancedMarkerElement for driver
-  const driverPosRef = useRef(null);         // { lat, lng } last rendered driver position
-  const directionsRendererRef = useRef(null);
+  const mapRef = useRef(null);
+  const patientMarkerRef = useRef(null);
+  const driverMarkerRef = useRef(null);
+  const hospitalMarkerRef = useRef(null);
+  const driverPosRef = useRef(null);
+  const currentHeadingRef = useRef(driverHeading || 0);
+  const routePolylineRef = useRef(null);
   const initialFitDoneRef = useRef(false);
   const lastRouteFetchRef = useRef(0);
-  const lastRoutePosRef = useRef(null);
+  const routePointsRef = useRef([]);
+  const prevPhaseRef = useRef(null);
+  const prevDestCoordRef = useRef(null);
   const isFollowingRef = useRef(true);
+  const fetchAbortRef = useRef(null);
+  /** Last distance (km) reported by OSRM — kept so fallback haversine is never used
+   *  as the displayed value when an old polyline exists (fixes C2). */
+  const lastGoodDistRef = useRef(null);
+  /** Last [lat,lng] where camera was updated — prevents rapid-fire setView (fixes C5). */
+  const lastCameraPosRef = useRef(null);
+  /** User zoom before a phase transition so we can restore it afterwards (fixes M1). */
+  const savedZoomRef = useRef(null);
 
   const [mapReady, setMapReady] = useState(false);
-  const [mapError, setMapError] = useState(false);
-  const [mapErrorMsg, setMapErrorMsg] = useState('');
-  const [retryKey, setRetryKey] = useState(0);
   const [isFollowing, setIsFollowing] = useState(true);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState(false);
 
-  const hasPatient = isValidCoord(patientLat, patientLng);
+  const targetDestination = resolveTripDestination(
+    _status,
+    { lat: patientLat, lng: patientLng },
+    { lat: hospitalLat, lng: hospitalLng, name: hospitalName, address: hospitalAddress }
+  );
   const hasDriver = isValidCoord(driverLat, driverLng);
-  const statusLabel = String(_status).replace(/_/g, ' ');
+  const hasDestination = targetDestination.hasCoord;
+  const hasPatient = isValidCoord(patientLat, patientLng);
+  const hasHospital = isValidCoord(hospitalLat, hospitalLng);
 
-  // ── Map initialisation — once per mount (or retry) ────────────────────────
+  // Map init
   useEffect(() => {
-    if (!mapContainerRef.current) return undefined;
-    let cancelled = false;
+    if (!mapContainerRef.current || mapRef.current) return;
+    injectLeafletStyles();
+    const initialCenter = hasDriver
+      ? [driverLat, driverLng]
+      : hasDestination
+        ? [targetDestination.lat, targetDestination.lng]
+        : [22.3072, 73.1812];
 
-    // Destroy stale instance on retry
-    if (mapRef.current) {
-      if (directionsRendererRef.current) {
-        directionsRendererRef.current.setMap(null);
-        directionsRendererRef.current = null;
-      }
-      if (patientMarkerRef.current) {
-        patientMarkerRef.current.map = null;
-        patientMarkerRef.current = null;
-      }
-      if (driverMarkerRef.current) {
-        driverMarkerRef.current.map = null;
-        driverMarkerRef.current = null;
-      }
-      mapRef.current = null;
-      mapsApiRef.current = null;
-      initialFitDoneRef.current = false;
-      setMapReady(false);
-    }
-
-    setMapError(false);
-    setMapErrorMsg('');
-
-    loadGoogleMaps()
-      .then((maps) => {
-        if (cancelled || !mapContainerRef.current) return;
-        mapsApiRef.current = maps;
-
-        const initialCenter = hasPatient
-          ? { lat: patientLat, lng: patientLng }
-          : hasDriver
-            ? { lat: driverLat, lng: driverLng }
-            : { lat: 22.3072, lng: 73.1812 }; // Vadodara fallback
-
-        const map = new maps.Map(mapContainerRef.current, {
-          center: initialCenter,
-          zoom: (hasPatient || hasDriver) ? 14 : 5,
-          mapId: 'healthcare_emergency_map',
-          disableDefaultUI: true,   // we supply our own controls
-          gestureHandling: 'greedy',
-          clickableIcons: false,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-        });
-
-        // Stop auto-follow when user manually interacts with the map
-        const stopFollowing = () => {
-          if (isFollowingRef.current) {
-            isFollowingRef.current = false;
-            setIsFollowing(false);
-          }
-        };
-        map.addListener('dragstart', stopFollowing);
-        map.addListener('zoom_changed', () => {
-          // Only stop following on programmatic zoom changes triggered by user
-          // We can't tell the difference easily, so we check a flag
-          if (!isFollowingRef._programmatic) stopFollowing();
-        });
-
-        // Directions renderer — draws real road route
-        const renderer = new maps.DirectionsRenderer({
-          map,
-          suppressMarkers: true, // we draw our own markers
-          polylineOptions: {
-            strokeColor: '#0891b2',
-            strokeWeight: 4,
-            strokeOpacity: 0.85,
-          },
-        });
-        directionsRendererRef.current = renderer;
-
-        mapRef.current = map;
-        if (!cancelled) setMapReady(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('[LiveTrackingMap] Google Maps load error:', err.message);
-        setMapErrorMsg(err.message || 'Google Maps could not be loaded.');
-        setMapError(true);
-      });
-
+    const map = L.map(mapContainerRef.current, {
+      center: initialCenter, zoom: 14, zoomControl: false, attributionControl: true,
+    });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    map.on("dragstart", () => { isFollowingRef.current = false; setIsFollowing(false); });
+    mapRef.current = map;
+    setMapReady(true);
     return () => {
-      cancelled = true;
-      // Markers and renderer are cleaned up inside the effect when retryKey changes
+      if (fetchAbortRef.current) fetchAbortRef.current.abort();
+      map.remove();
+      mapRef.current = null;
+      patientMarkerRef.current = null;
+      driverMarkerRef.current = null;
+      hospitalMarkerRef.current = null;
+      routePolylineRef.current = null;
+      initialFitDoneRef.current = false;
+      routePointsRef.current = [];
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── Fetch real road route via Google Directions Service ───────────────────
-  const fetchRoute = useCallback(() => {
-    const maps = mapsApiRef.current;
-    const map = mapRef.current;
-    if (!maps || !map || !mapReady) return;
-    if (!hasPatient || !hasDriver) return;
+  // Fetch road route from OSRM — always starts from current driver position → destination.
+  // Trims the displayed polyline from the driver's nearest point so stale segments vanish.
+  const fetchRoute = useCallback(
+    (forceRecalculate = false) => {
+      const map = mapRef.current;
+      if (!map || !mapReady || !hasDriver || !hasDestination) return;
+      const now = Date.now();
+      const elapsed = now - lastRouteFetchRef.current;
+      let needsReroute = forceRecalculate;
 
-    const now = Date.now();
-    const THROTTLE_MS = 15000; // 15 seconds minimum between fetches
-    const MIN_MOVE_M = 150;    // 150 metres minimum driver movement
+      // Check deviation from stored route
+      if (!needsReroute && routePointsRef.current.length > 0) {
+        const nearIdx = findNearestPointIndex(driverLat, driverLng, routePointsRef.current);
+        const [nLat, nLng] = routePointsRef.current[nearIdx];
+        const devM = haversineKm(driverLat, driverLng, nLat, nLng) * 1000;
+        if (devM > REROUTE_DEVIATION_M && elapsed >= REROUTE_INTERVAL_MS) needsReroute = true;
+      }
+      if (routePointsRef.current.length === 0) needsReroute = true;
 
-    const elapsed = now - lastRouteFetchRef.current;
-    const movedEnough = !lastRoutePosRef.current ||
-      haversineM(
-        lastRoutePosRef.current.lat, lastRoutePosRef.current.lng,
-        driverLat, driverLng
-      ) >= MIN_MOVE_M;
+      if (!needsReroute) {
+        // No full reroute needed — trim the displayed polyline from current position
+        // and recompute remaining distance from the trimmed segment.
+        if (routePointsRef.current.length > 1) {
+          const nearIdx = findNearestPointIndex(driverLat, driverLng, routePointsRef.current);
+          const remaining = routePointsRef.current.slice(nearIdx);
+          if (remaining.length > 1 && routePolylineRef.current) {
+            routePolylineRef.current.setLatLngs(remaining);
+            const distKm = polylineDistanceKm(remaining);
+            // Only update if meaningful change (>50m) to avoid jitter in the UI panel
+            if (lastGoodDistRef.current === null || Math.abs(distKm - lastGoodDistRef.current) > 0.05) {
+              lastGoodDistRef.current = distKm;
+              const speedKmh = 30;
+              const etaMins = Math.max(1, Math.ceil((distKm / speedKmh) * 60));
+              if (onRouteUpdate) onRouteUpdate({ distanceKm: distKm, etaMin: etaMins, phase: targetDestination.phase, target: targetDestination.type });
+            }
+          }
+        }
+        return;
+      }
 
-    if (elapsed < THROTTLE_MS && !movedEnough) return;
+      // Full reroute from OSRM
+      if (fetchAbortRef.current) fetchAbortRef.current.abort();
+      const ctrl = new AbortController();
+      fetchAbortRef.current = ctrl;
+      lastRouteFetchRef.current = now;
+      setRouteLoading(true);
+      setRouteError(false);
 
-    lastRouteFetchRef.current = now;
-    lastRoutePosRef.current = { lat: driverLat, lng: driverLng };
-
-    setRouteLoading(true);
-    setRouteError(false);
-
-    const directionsService = new maps.DirectionsService();
-    directionsService.route(
-      {
-        origin: { lat: driverLat, lng: driverLng },
-        destination: { lat: patientLat, lng: patientLng },
-        travelMode: maps.TravelMode.DRIVING,
-        drivingOptions: {
-          departureTime: new Date(),
-          trafficModel: maps.TrafficModel.BEST_GUESS,
-        },
-      },
-      (result, dirStatus) => {
-        setRouteLoading(false);
-        if (dirStatus === maps.DirectionsStatus.OK && result.routes[0]) {
-          directionsRendererRef.current?.setDirections(result);
-
-          const leg = result.routes[0].legs[0];
-          const calcDistKm = leg.distance.value / 1000;
-          const calcEtaMin = Math.ceil(
-            (leg.duration_in_traffic?.value ?? leg.duration.value) / 60
-          );
-          if (onRouteUpdate) onRouteUpdate({ distanceKm: calcDistKm, etaMin: calcEtaMin });
-
-          // Fit bounds on very first successful route (uses route bounding box)
-          if (!initialFitDoneRef.current && isFollowingRef.current) {
-            map.fitBounds(result.routes[0].bounds, 80);
+      const url = `${OSRM_BASE}/${driverLng},${driverLat};${targetDestination.lng},${targetDestination.lat}?overview=full&geometries=geojson`;
+      fetch(url, { signal: ctrl.signal })
+        .then((res) => { if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`); return res.json(); })
+        .then((data) => {
+          fetchAbortRef.current = null;
+          setRouteLoading(false);
+          const route = data.routes?.[0];
+          if (!route) { setRouteError(true); return; }
+          // All coords from OSRM are already from current driver position → destination,
+          // so no trimming needed on fresh fetch.
+          const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+          routePointsRef.current = latlngs;
+          const distKm = route.distance / 1000;
+          const etaMins = Math.max(1, Math.ceil(route.duration / 60));
+          lastGoodDistRef.current = distKm; // cache for C2 fallback guard
+          if (routePolylineRef.current) {
+            routePolylineRef.current.setLatLngs(latlngs);
+          } else {
+            routePolylineRef.current = L.polyline(latlngs, {
+              color: "#0ea5e9",
+              weight: 6,
+              opacity: 0.92,
+              lineJoin: "round",
+              lineCap: "round",
+            }).addTo(map);
+            routePolylineRef.current.bringToBack();
+          }
+          if ((!initialFitDoneRef.current || forceRecalculate) && isFollowingRef.current) {
+            map.fitBounds(routePolylineRef.current.getBounds(), { padding: [70, 70] });
+            // M1: restore saved zoom after phase transition so the view doesn't reset abruptly
+            if (savedZoomRef.current != null && forceRecalculate) {
+              requestAnimationFrame(() => {
+                if (mapRef.current) mapRef.current.setZoom(savedZoomRef.current, { animate: false });
+                savedZoomRef.current = null;
+              });
+            }
             initialFitDoneRef.current = true;
           }
-        } else {
-          console.warn('[LiveTrackingMap] Google Directions failed:', dirStatus, '— straight-line fallback');
+          if (onRouteUpdate) onRouteUpdate({ distanceKm: distKm, etaMin: etaMins, distanceMeters: route.distance, durationSeconds: route.duration, phase: targetDestination.phase, target: targetDestination.type });
+        })
+        .catch((err) => {
+          fetchAbortRef.current = null;
+          if (err.name === "AbortError") return;
+          setRouteLoading(false);
           setRouteError(true);
-          // Clear stale route
-          directionsRendererRef.current?.setDirections({ routes: [] });
+          console.warn("[LiveTrackingMap] OSRM error:", err.message);
+          // Fallback: use last OSRM-computed distance if we have one; otherwise haversine.
+          // This prevents a stale haversine value appearing when OSRM is temporarily down.
+          if (onRouteUpdate && hasDriver && hasDestination) {
+            if (lastGoodDistRef.current !== null) {
+              // Keep last known good value; just refresh ETA estimate
+              const fbKm = lastGoodDistRef.current;
+              if (onRouteUpdate) onRouteUpdate({ distanceKm: fbKm, etaMin: Math.max(1, Math.ceil((fbKm / 30) * 60)), phase: targetDestination.phase, target: targetDestination.type });
+            } else {
+              // No cached value yet — haversine as last resort
+              const fbKm = haversineKm(driverLat, driverLng, targetDestination.lat, targetDestination.lng);
+              onRouteUpdate({ distanceKm: fbKm, etaMin: Math.max(1, Math.ceil((fbKm / 30) * 60)), distanceMeters: fbKm * 1000, durationSeconds: null, phase: targetDestination.phase, target: targetDestination.type });
+            }
+          }
+          // Allow retry sooner on error
+          lastRouteFetchRef.current = now - REROUTE_INTERVAL_MS + 3000;
+        });
+    },
+    [driverLat, driverLng, targetDestination, hasDriver, hasDestination, onRouteUpdate, mapReady]
+  );
 
-          // Fallback: draw a straight-line polyline
-          new maps.Polyline({
-            path: [
-              { lat: driverLat, lng: driverLng },
-              { lat: patientLat, lng: patientLng },
-            ],
-            geodesic: true,
-            strokeColor: '#f59e0b',
-            strokeWeight: 3,
-            strokeOpacity: 0.8,
-            map,
-          });
-
-          // Fallback distance/ETA via Haversine
-          const fallbackKm = haversineM(driverLat, driverLng, patientLat, patientLng) / 1000;
-          const fallbackEta = Math.max(1, Math.round((fallbackKm / 40) * 60));
-          if (onRouteUpdate) onRouteUpdate({ distanceKm: fallbackKm, etaMin: fallbackEta });
+  // Sync markers + phase transitions
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    // Patient
+    if (hasPatient) {
+      const pos = [patientLat, patientLng];
+      const icon = makePatientIcon(targetDestination.isPhaseB);
+      if (!patientMarkerRef.current) { patientMarkerRef.current = L.marker(pos, { icon, zIndexOffset: 10 }).addTo(map); }
+      else { patientMarkerRef.current.setLatLng(pos); patientMarkerRef.current.setIcon(icon); }
+    }
+    // Hospital (Phase B)
+    if (targetDestination.isPhaseB && hasHospital) {
+      const pos = [hospitalLat, hospitalLng];
+      if (!hospitalMarkerRef.current) { hospitalMarkerRef.current = L.marker(pos, { icon: makeHospitalIcon(hospitalName || targetDestination.name), zIndexOffset: 15 }).addTo(map); }
+      else hospitalMarkerRef.current.setLatLng(pos);
+    } else if (!targetDestination.isPhaseB && hospitalMarkerRef.current) {
+      hospitalMarkerRef.current.remove(); hospitalMarkerRef.current = null;
+    }
+    // Ambulance
+    if (hasDriver) {
+      let heading = driverHeading != null ? Number(driverHeading) : null;
+      if (heading == null && driverPosRef.current) {
+        const c = calculateBearing(driverPosRef.current[0], driverPosRef.current[1], driverLat, driverLng);
+        heading = c ?? currentHeadingRef.current;
+      } else if (heading != null) currentHeadingRef.current = heading;
+      const icon = makeAmbulanceIcon(currentHeadingRef.current, vehicleNumber);
+      if (!driverMarkerRef.current) {
+        driverMarkerRef.current = L.marker([driverLat, driverLng], { icon, zIndexOffset: 25 }).addTo(map);
+        driverPosRef.current = [driverLat, driverLng];
+      } else {
+        const [pLat, pLng] = driverPosRef.current || [driverLat, driverLng];
+        animateMarkerTo(driverMarkerRef.current, pLat, pLng, driverLat, driverLng, 900);
+        driverMarkerRef.current.setIcon(icon);
+        driverPosRef.current = [driverLat, driverLng];
+      }
+      // Clear route once ambulance has reached patient — no more route to show
+      if (['REACHED_PATIENT', 'PICKUP_PENDING_CONFIRMATION'].includes(_status)) {
+        if (routePolylineRef.current) {
+          routePolylineRef.current.remove();
+          routePolylineRef.current = null;
+          routePointsRef.current = [];
+          lastGoodDistRef.current = null;
         }
       }
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driverLat, driverLng, patientLat, patientLng, hasPatient, hasDriver, onRouteUpdate, mapReady]);
-
-  // ── Sync markers and viewport whenever coords change ──────────────────────
-  useEffect(() => {
-    const maps = mapsApiRef.current;
-    const map = mapRef.current;
-    if (!mapReady || !maps || !map) return;
-
-    // Patient marker — created once, position updated thereafter
-    if (hasPatient) {
-      const pos = { lat: patientLat, lng: patientLng };
-      if (!patientMarkerRef.current) {
-        patientMarkerRef.current = new maps.marker.AdvancedMarkerElement({
-          map,
-          position: pos,
-          content: makePatientEl(),
-          zIndex: 10,
-        });
-      } else {
-        patientMarkerRef.current.position = pos;
+      // C5: Camera — only update if ambulance moved >5m since last camera position
+      // to avoid rapid-fire setView calls that block Leaflet's RAF queue on mobile.
+      if (isFollowingRef.current && initialFitDoneRef.current) {
+        const lastCam = lastCameraPosRef.current;
+        const movedEnough = !lastCam || haversineKm(lastCam[0], lastCam[1], driverLat, driverLng) * 1000 > 5;
+        if (movedEnough) {
+          lastCameraPosRef.current = [driverLat, driverLng];
+          const distM = hasDestination
+            ? haversineKm(driverLat, driverLng, targetDestination.lat, targetDestination.lng) * 1000
+            : null;
+          if (distM != null && distM < 200) {
+            map.setView([driverLat, driverLng], 18, { animate: true, duration: 0.6 });
+          } else if (distM != null && distM < 600) {
+            map.setView([driverLat, driverLng], 17, { animate: true, duration: 0.6 });
+          } else if (distM != null && distM < 1500) {
+            map.setView([driverLat, driverLng], 16, { animate: true, duration: 0.6 });
+          } else {
+            map.panTo([driverLat, driverLng], { animate: true, duration: 0.8 });
+          }
+        }
       }
     }
-
-    // Ambulance marker — smooth animation to new position
-    if (hasDriver) {
-      const pos = { lat: driverLat, lng: driverLng };
-      if (!driverMarkerRef.current) {
-        driverMarkerRef.current = new maps.marker.AdvancedMarkerElement({
-          map,
-          position: pos,
-          content: makeAmbulanceEl(),
-          zIndex: 20,
-        });
-        driverPosRef.current = pos;
-      } else {
-        const from = driverPosRef.current || pos;
-        animateMarker(
-          driverMarkerRef.current,
-          from.lat, from.lng,
-          driverLat, driverLng,
-          800
-        );
-        driverPosRef.current = pos;
-      }
-
-      // Pan to follow ambulance if follow mode is active
-      if (isFollowingRef.current) {
-        map.panTo(pos);
-      }
+    // Phase change → clear old route, save zoom first (M1)
+    let forceRecalc = false;
+    if (prevPhaseRef.current !== targetDestination.phase) {
+      forceRecalc = true;
+      prevPhaseRef.current = targetDestination.phase;
+      // Save zoom before clearing so we can restore after fitBounds
+      if (mapRef.current) savedZoomRef.current = mapRef.current.getZoom();
+      if (routePolylineRef.current) { routePolylineRef.current.remove(); routePolylineRef.current = null; routePointsRef.current = []; initialFitDoneRef.current = false; lastGoodDistRef.current = null; }
     }
+    const destKey = `${targetDestination.lat},${targetDestination.lng}`;
+    if (prevDestCoordRef.current !== destKey) { forceRecalc = true; prevDestCoordRef.current = destKey; }
+    fetchRoute(forceRecalc);
+  }, [mapReady, patientLat, patientLng, driverLat, driverLng, driverHeading, hospitalLat, hospitalLng, hospitalName, targetDestination, vehicleNumber, hasPatient, hasDriver, hasHospital, fetchRoute]);
 
-    // Initial fit-bounds when both markers first appear (before first route fetch)
-    if (hasPatient && hasDriver && !initialFitDoneRef.current) {
-      const bounds = new maps.LatLngBounds();
-      bounds.extend({ lat: patientLat, lng: patientLng });
-      bounds.extend({ lat: driverLat, lng: driverLng });
-      isFollowingRef._programmatic = true;
-      map.fitBounds(bounds, 80);
-      isFollowingRef._programmatic = false;
-      // fitBounds fires zoom_changed; mark initial fit
-      initialFitDoneRef.current = true;
-    } else if (hasPatient && !hasDriver && !initialFitDoneRef.current) {
-      isFollowingRef._programmatic = true;
-      map.panTo({ lat: patientLat, lng: patientLng });
-      map.setZoom(14);
-      isFollowingRef._programmatic = false;
-      initialFitDoneRef.current = true;
-    }
-
-    // Throttled Google Directions route fetch
-    fetchRoute();
-  }, [mapReady, patientLat, patientLng, driverLat, driverLng, hasPatient, hasDriver, fetchRoute]);
-
-  // ── Re-center / Follow Ambulance handler ─────────────────────────────────
   const handleRecenter = () => {
     isFollowingRef.current = true;
     setIsFollowing(true);
-    const maps = mapsApiRef.current;
     const map = mapRef.current;
-    if (!map || !maps) return;
-
-    isFollowingRef._programmatic = true;
-    if (hasPatient && hasDriver) {
-      const bounds = new maps.LatLngBounds();
-      bounds.extend({ lat: patientLat, lng: patientLng });
-      bounds.extend({ lat: driverLat, lng: driverLng });
-      map.fitBounds(bounds, 80);
-    } else if (hasDriver) {
-      map.panTo({ lat: driverLat, lng: driverLng });
-      map.setZoom(15);
-    } else if (hasPatient) {
-      map.panTo({ lat: patientLat, lng: patientLng });
-      map.setZoom(14);
-    }
-    isFollowingRef._programmatic = false;
+    if (!map) return;
+    if (routePolylineRef.current) map.fitBounds(routePolylineRef.current.getBounds(), { padding: [70, 70] });
+    else if (hasDriver && hasDestination) map.fitBounds([[driverLat, driverLng], [targetDestination.lat, targetDestination.lng]], { padding: [70, 70] });
+    else if (hasDriver) map.setView([driverLat, driverLng], 16);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // Show arrival urgency indicator only during active EN_ROUTE state
+  const isArriving = distanceKm != null && distanceKm * 1000 <= ARRIVAL_THRESHOLD_METERS && _status === 'EN_ROUTE';
+
   return (
-    <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm">
-
-      {/* ── Map viewport — must always have explicit height ─────────────── */}
-      <div className="relative bg-slate-100" style={{ height: '320px' }}>
-
-        {/*
-         * Google Maps canvas container.
-         * CRITICAL: Must always be in the DOM (not conditional) so the ref
-         * is always valid during useEffect. Error overlay uses z-index.
-         */}
-        <div
-          ref={mapContainerRef}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-          }}
-        />
-
-        {/* ── Error fallback — sits ON TOP of map (z-index) ──────────────── */}
-        {mapError && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 p-6 text-center bg-slate-50/98">
-            <div className="w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center">
-              <MapPin className="w-7 h-7 text-slate-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-700">Live map unavailable</p>
-              <p className="text-xs text-slate-400 mt-0.5 max-w-xs leading-relaxed">
-                {mapErrorMsg || 'Google Maps could not be loaded. Check your network or API key configuration.'}
-              </p>
-            </div>
-            {/* Coordinate fallback — always shows real GPS data */}
-            <div className="grid grid-cols-2 gap-3 w-full max-w-xs text-left">
-              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-                <span className="block text-[10px] uppercase text-slate-400 mb-0.5">
-                  {'📍 You'}
-                </span>
-                <span className="text-xs font-mono text-slate-700">
-                  {hasPatient
-                    ? Number(patientLat).toFixed(4) + ', ' + Number(patientLng).toFixed(4)
-                    : '—'}
-                </span>
-              </div>
-              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-                <span className="block text-[10px] uppercase text-slate-400 mb-0.5">
-                  {'🚑 Ambulance'}
-                </span>
-                <span className="text-xs font-mono text-cyan-700">
-                  {hasDriver
-                    ? Number(driverLat).toFixed(4) + ', ' + Number(driverLng).toFixed(4)
-                    : 'Awaiting…'}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                initialFitDoneRef.current = false;
-                lastRouteFetchRef.current = 0;
-                lastRoutePosRef.current = null;
-                setRetryKey((k) => k + 1);
-              }}
-              className="flex items-center gap-1.5 text-xs text-cyan-600 hover:text-cyan-800 transition-colors font-medium"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Retry map
-            </button>
+    <div className="relative rounded-2xl overflow-hidden border border-slate-200/80 bg-slate-100 shadow-lg flex flex-col" style={{ minHeight: height }}>
+      <div className="relative flex-1" style={{ height }}>
+        <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" />
+        {!hasDriver && (
+          <div className="absolute inset-0 z-[400] flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white">
+            <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center"><MapPin className="w-6 h-6 text-slate-400" /></div>
+            <p className="text-sm font-bold text-slate-200">Waiting for ambulance location…</p>
+            <p className="text-xs text-slate-400">Map will activate once driver goes online</p>
           </div>
         )}
-
-        {/* ── Loading skeleton ─────────────────────────────────────────── */}
-        {!mapError && !mapReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-100/80 pointer-events-none">
-            <div className="flex items-center gap-2 text-slate-500 text-sm bg-white px-4 py-2 rounded-full shadow-sm">
-              <Navigation className="w-4 h-4 animate-pulse text-cyan-500" />
-              Loading live map…
+        {routeLoading && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur-sm text-slate-800 text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md flex items-center gap-1.5">
+            <RefreshCw className="w-3 h-3 animate-spin text-cyan-500" /> Calculating road route…
+          </div>
+        )}
+        {routeError && !routeLoading && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-amber-500/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md flex items-center gap-1.5">
+            <RefreshCw className="w-3 h-3" /> Retrying route…
+          </div>
+        )}
+        {isArriving && (
+          <div className="absolute top-3 left-3 z-[1000] bg-amber-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-lg animate-pulse flex items-center gap-1.5">
+            🚑 Ambulance Arriving!
+          </div>
+        )}
+        {!socketConnected && (
+          <div className="absolute top-3 right-3 z-[1000] bg-red-600/90 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-full shadow flex items-center gap-1.5">
+            <WifiOff className="w-3 h-3" /> Reconnecting…
+          </div>
+        )}
+        {hasDriver && (
+          <div className="absolute top-3 left-3 z-[1000]">
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold shadow-md ${
+              _status === 'EN_ROUTE' ? 'bg-cyan-600 text-white'
+              : _status === 'REACHED_PATIENT' ? 'bg-amber-500 text-white'
+              : _status === 'PICKUP_PENDING_CONFIRMATION' ? 'bg-amber-600 text-white'
+              : _status === 'PICKED_UP' ? 'bg-teal-600 text-white'
+              : _status === 'DRIVER_ASSIGNED' ? 'bg-blue-600 text-white'
+              : 'bg-slate-800 text-white'
+            }`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              {_status === 'DRIVER_ASSIGNED' ? 'DRIVER ASSIGNED'
+                : _status === 'EN_ROUTE' ? 'EN ROUTE'
+                : _status === 'REACHED_PATIENT' ? 'AT PICKUP'
+                : _status === 'PICKUP_PENDING_CONFIRMATION' ? 'PICKUP PENDING'
+                : _status === 'PICKED_UP' ? 'TO HOSPITAL'
+                : String(_status).replace(/_/g, ' ')}
             </div>
           </div>
         )}
-
-        {/* ── Socket disconnected banner ────────────────────────────────── */}
-        {!_socketConnected && mapReady && (
-          <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-center gap-2 px-3 py-1.5 bg-amber-500/95 text-white text-xs font-semibold pointer-events-none">
-            <WifiOff className="w-3.5 h-3.5" />
-            Live location temporarily disconnected — reconnecting…
-          </div>
+        {!isFollowing && hasDriver && (
+          <button onClick={handleRecenter} className="absolute bottom-16 right-3 z-[1000] w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-cyan-600 hover:bg-cyan-50 transition-colors border border-slate-200" title="Re-center map">
+            <Navigation className="w-4 h-4" />
+          </button>
         )}
-
-        {/* ── Status pill ──────────────────────────────────────────────── */}
-        <div className="absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 border border-slate-200 shadow-sm pointer-events-none">
-          <span
-            className={
-              'w-1.5 h-1.5 rounded-full ' +
-              (_status === 'ARRIVED' ? 'bg-emerald-500' : 'bg-red-500 animate-pulse')
-            }
-          />
-          <span className="text-xs font-semibold text-slate-700">{statusLabel}</span>
-        </div>
-
-        {/* ── Route-loading badge ──────────────────────────────────────── */}
-        {routeLoading && mapReady && (
-          <div className="absolute top-3 right-12 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/90 text-white shadow-sm pointer-events-none">
-            <span className="text-[10px] font-semibold">Calculating route…</span>
-          </div>
-        )}
-
-        {/* ── Route-error badge (straight-line fallback notice) ────────── */}
-        {routeError && !routeLoading && mapReady && (
-          <div className="absolute top-3 right-12 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 border border-amber-300 shadow-sm pointer-events-none">
-            <AlertTriangle className="w-3 h-3 text-amber-600" />
-            <span className="text-[10px] font-semibold text-amber-700">Straight-line only</span>
-          </div>
-        )}
-
-        {/* ── Map legend ───────────────────────────────────────────────── */}
-        {mapReady && (
-          <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/95 border border-slate-200 shadow-sm text-xs text-slate-600">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 border border-white flex-shrink-0" />
-              You
-            </div>
-            {hasDriver && (
-              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/95 border border-slate-200 shadow-sm text-xs text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 border border-white flex-shrink-0" />
-                Ambulance
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Follow / Re-center button ─────────────────────────────────── */}
-        {mapReady && (
-          <div className="absolute bottom-3 right-3 z-10">
-            <button
-              onClick={handleRecenter}
-              className={
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-md font-semibold text-xs border transition-colors pointer-events-auto ' +
-                (isFollowing
-                  ? 'bg-cyan-600 text-white border-cyan-600 hover:bg-cyan-700'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50')
-              }
-            >
-              <Navigation className="w-3 h-3" />
-              {isFollowing ? 'Following' : 'Follow Ambulance'}
-            </button>
-          </div>
+        {isFollowing && hasDriver && (
+          <button onClick={() => { isFollowingRef.current = false; setIsFollowing(false); }} className="absolute bottom-16 right-3 z-[1000] flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 text-white text-[11px] font-bold rounded-full shadow-lg hover:bg-cyan-700 transition-colors">
+            <Navigation className="w-3 h-3" /> Following
+          </button>
         )}
       </div>
-
-      {/* ── ETA / Distance / Vehicle telemetry ───────────────────────────── */}
-      <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
-        <div className="p-3 text-center">
-          <div className="flex items-center justify-center gap-1 text-[10px] uppercase text-slate-400 mb-0.5">
-            <Ambulance className="w-3 h-3" /> Vehicle
+      {showTelemetryBar && hasDriver && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-900 border-t border-slate-700 text-white text-xs flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {distanceKm != null && <span className="font-mono font-bold text-cyan-400">{Number(distanceKm).toFixed(1)} km</span>}
+            {etaMin != null && <span className="text-slate-300">ETA <span className="font-mono font-bold text-white">{etaMin} min</span></span>}
+            {driverName && <span className="text-slate-400">· {driverName}</span>}
           </div>
-          <p className="text-sm font-bold text-slate-800 font-mono truncate">
-            {vehicleNumber || '—'}
-          </p>
-        </div>
-        <div className="p-3 text-center">
-          <div className="text-[10px] uppercase text-slate-400 mb-0.5">Distance</div>
-          <p className="text-sm font-bold text-slate-800">
-            {distanceKm != null ? Number(distanceKm).toFixed(1) + ' km' : '—'}
-          </p>
-        </div>
-        <div className="p-3 text-center">
-          <div className="text-[10px] uppercase text-slate-400 mb-0.5">ETA</div>
-          <p className="text-sm font-bold text-cyan-700">
-            {etaMin != null ? etaMin + ' min' : '—'}
-          </p>
-        </div>
-      </div>
-
-      {/* ── Live-location status note ─────────────────────────────────────── */}
-      {(driverName || vehicleNumber) && !mapError && (
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-100 bg-slate-50">
-          <span
-            className={
-              'w-2 h-2 rounded-full flex-shrink-0 ' +
-              (_socketConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400')
-            }
-          />
-          <span className="text-xs text-slate-500">
-            {_socketConnected
-              ? 'Ambulance position updates live as the driver moves.'
-              : 'Live updates paused — reconnecting…'}
-          </span>
+          <div className="flex items-center gap-1.5 text-slate-400">
+            {targetDestination.isPhaseB ? <Building2 className="w-3.5 h-3.5 text-teal-400" /> : <MapPin className="w-3.5 h-3.5 text-red-400" />}
+            <span>{targetDestination.isPhaseB ? hospitalName || "Hospital" : "Pickup Point"}</span>
+          </div>
         </div>
       )}
     </div>

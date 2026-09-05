@@ -17,6 +17,7 @@ router.post('/location', ctrl.updateLocation);
 router.post('/requests/:id/accept', ctrl.acceptRequest);
 router.post('/requests/:id/reject', ctrl.rejectRequest);
 router.post('/requests/:id/en-route', ctrl.markEnRoute);
+router.post('/requests/:id/reached', ctrl.markReachedPatient);  // Backup manual trigger
 router.post('/requests/:id/picked-up', ctrl.markPickedUp);
 router.post('/requests/:id/arrived', ctrl.markArrived);
 

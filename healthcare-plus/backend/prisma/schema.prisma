@@ -73,6 +73,8 @@ enum EmergencyStatus {
   SEARCHING
   DRIVER_ASSIGNED
   EN_ROUTE
+  REACHED_PATIENT           // Auto-triggered when ambulance <= 100m from patient
+  PICKUP_PENDING_CONFIRMATION // Driver marked pickup; awaiting patient's confirmation
   PICKED_UP
   ARRIVED
   CANCELLED
@@ -393,7 +395,10 @@ model Hospital {
   id                String   @id @default(uuid())
   name              String
   address           String
+  locality          String?  // Neighbourhood / area within city (e.g. "Alkapuri", "Race Course")
   city              String
+  state             String?  @default("Gujarat")
+  country           String?  @default("India")
   latitude          Float
   longitude         Float
   contactPhone      String
@@ -402,6 +407,12 @@ model Hospital {
   workingHoursClose String?
   specialities      String[]
   averageRating     Float?   @default(0)
+  hospitalType      String?  @default("Private")   // "Private" | "Government" | "Trust"
+  ownershipType     String?                         // "Corporate" | "Charitable" | "Govt"
+  ratingSource      String?                         // "Google Maps" | "Justdial" | "Internal"
+  totalReviews      Int?     @default(0)
+  isDemoEntity      Boolean  @default(true)         // All real-world-ref hospitals are demo entities
+  notes             String?                         // Internal notes / source confidence
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -578,9 +589,15 @@ model EmergencyRequest {
   ambulance              Ambulance? @relation(fields: [ambulanceId], references: [id])
   destinationHospitalId  String?
   acceptedAt             DateTime?
+  reachedPatientAt       DateTime?  // Stamped when auto-proximity (<=100m) or manual reached
+  pickupConfirmedAt      DateTime?  // Stamped when patient confirms pickup
   pickedUpAt             DateTime?
   arrivedAt              DateTime?
   cancelReason           String?
+  // Real-time location cache — updated on every driver GPS event so patients
+  // can recover the last known ambulance position after a page refresh.
+  lastDriverLat          Float?
+  lastDriverLng          Float?
 
   @@index([patientId])
   @@index([status])

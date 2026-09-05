@@ -1,18 +1,32 @@
 import prisma from '../prisma/client.js';
 import { searchHospitals } from './hospitalSearch.service.js';
-import { dispatchRequest } from './emergencyDispatch.service.js';
+import { dispatchRequest, confirmPatientPickup as dispatchConfirmPickup } from './emergencyDispatch.service.js';
+import { ApiError } from '../utils/ApiError.js';
 
 // emit helper — re-uses the Socket.IO instance registered by sockets/index.js
 let _io = null;
 export const setEmergencyIo = (io) => { _io = io; };
 const _emit = (room, event, data) => { if (_io) _io.to(room).emit(event, data); };
 
+/** Statuses that indicate an unresolved / active emergency (can't create another). */
+const PRE_TERMINAL_STATUSES = ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'REACHED_PATIENT', 'PICKUP_PENDING_CONFIRMATION', 'PICKED_UP'];
 
 export const createEmergencyRequest = async (patientId, data) => {
   const { latitude, longitude, hospitalId } = data;
-  
+
+  // ── Duplicate SOS Guard ───────────────────────────────────────────────────
+  // If the patient already has a live emergency, return it instead of creating
+  // another. This prevents double-SOS from rapid taps or page refreshes.
+  const existing = await prisma.emergencyRequest.findFirst({
+    where: { patientId, status: { in: PRE_TERMINAL_STATUSES } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (existing) {
+    console.info(`[EmergencyService] Duplicate SOS suppressed — returning active request ${existing.id} (status: ${existing.status})`);
+    return existing;
+  }
+
   let targetHospitalId = hospitalId;
-  
   if (!targetHospitalId) {
     const nearestHospitals = await searchHospitals(latitude, longitude, 100);
     if (nearestHospitals.length > 0) {
@@ -30,7 +44,7 @@ export const createEmergencyRequest = async (patientId, data) => {
     }
   });
 
-  // Phase 13: Begin dispatch immediately (non-blocking — dispatch updates socket rooms)
+  // Begin dispatch immediately (non-blocking)
   dispatchRequest(request.id).catch((err) => {
     console.error('[EmergencyDispatch] Dispatch failed after create:', err.message);
   });
@@ -38,31 +52,27 @@ export const createEmergencyRequest = async (patientId, data) => {
   return request;
 };
 
-
 export const getEmergencyRequests = async (hospitalId) => {
   return prisma.emergencyRequest.findMany({
     where: { hospitalId },
     orderBy: { createdAt: 'desc' },
     include: {
-      patient: { 
-        select: { 
-          fullName: true, 
+      patient: {
+        select: {
+          fullName: true,
           email: true,
           patientProfile: { select: { phone: true } }
-        } 
+        }
       }
     }
   });
 };
 
 export const getActiveEmergency = async (patientId) => {
-  // NOTE: 'PENDING' is NOT a valid EmergencyStatus enum value in the Prisma schema.
-  // Including it in the `in` filter causes a Prisma runtime error → 500.
-  // Valid active statuses are: REQUESTED, SEARCHING, DRIVER_ASSIGNED, EN_ROUTE, PICKED_UP.
   return prisma.emergencyRequest.findFirst({
     where: {
       patientId,
-      status: { in: ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'PICKED_UP'] },
+      status: { in: PRE_TERMINAL_STATUSES },
     },
     orderBy: { createdAt: 'desc' },
     include: {
@@ -77,12 +87,10 @@ export const getActiveEmergency = async (patientId) => {
 
 /**
  * cancelEmergencyRequest — patient cancels their own active emergency.
- * Only allowed in pre-terminal statuses. Emits socket event to tracking room.
- * @param {string} requestId
- * @param {string} patientId — the authenticated patient's User id.
+ * Only allowed in pre-pickup statuses. Emits socket event to tracking room.
  */
 export const cancelEmergencyRequest = async (requestId, patientId) => {
-  const CANCELLABLE = ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE'];
+  const CANCELLABLE = ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'EN_ROUTE', 'REACHED_PATIENT'];
   const request = await prisma.emergencyRequest.findUnique({ where: { id: requestId } });
   if (!request) throw new Error('Emergency request not found.');
   if (request.patientId !== patientId) throw new Error('Not your emergency request.');
@@ -105,6 +113,13 @@ export const cancelEmergencyRequest = async (requestId, patientId) => {
   return updated;
 };
 
+/**
+ * confirmEmergencyPickup — patient confirms they are in the ambulance.
+ * Delegates to dispatchService which handles the PICKUP_PENDING_CONFIRMATION → PICKED_UP transition.
+ */
+export const confirmEmergencyPickup = async (requestId, patientId) => {
+  return dispatchConfirmPickup(requestId, patientId);
+};
 
 export const getMyEmergencies = async (patientId) => {
   return prisma.emergencyRequest.findMany({

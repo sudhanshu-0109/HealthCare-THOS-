@@ -1,0 +1,2602 @@
+[
+  {
+    "id": "0001",
+    "name": "3/4 sit-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0001.gif"
+  },
+  {
+    "id": "0002",
+    "name": "45° side bend",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0002.gif"
+  },
+  {
+    "id": "0003",
+    "name": "air bike",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0003.gif"
+  },
+  {
+    "id": "1512",
+    "name": "all fours squad stretch",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1512.gif"
+  },
+  {
+    "id": "0006",
+    "name": "alternate heel touchers",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0006.gif"
+  },
+  {
+    "id": "1368",
+    "name": "ankle circles",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1368.gif"
+  },
+  {
+    "id": "3293",
+    "name": "archer pull up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3293.gif"
+  },
+  {
+    "id": "3294",
+    "name": "archer push up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3294.gif"
+  },
+  {
+    "id": "2355",
+    "name": "arm slingers hanging bent knee legs",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2355.gif"
+  },
+  {
+    "id": "2333",
+    "name": "arm slingers hanging straight legs",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2333.gif"
+  },
+  {
+    "id": "3214",
+    "name": "arms apart circular toe touch (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3214.gif"
+  },
+  {
+    "id": "3204",
+    "name": "arms overhead full sit-up (male)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3204.gif"
+  },
+  {
+    "id": "3220",
+    "name": "astride jumps (male)",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3220.gif"
+  },
+  {
+    "id": "3672",
+    "name": "back and forth step",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3672.gif"
+  },
+  {
+    "id": "3297",
+    "name": "back lever",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3297.gif"
+  },
+  {
+    "id": "1405",
+    "name": "back pec stretch",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1405.gif"
+  },
+  {
+    "id": "1473",
+    "name": "backward jump",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1473.gif"
+  },
+  {
+    "id": "0020",
+    "name": "balance board",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0020.gif"
+  },
+  {
+    "id": "3212",
+    "name": "basic toe touch (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3212.gif"
+  },
+  {
+    "id": "3360",
+    "name": "bear crawl",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3360.gif"
+  },
+  {
+    "id": "0129",
+    "name": "bench dip (knees bent)",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0129.gif"
+  },
+  {
+    "id": "1399",
+    "name": "bench dip on floor",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1399.gif"
+  },
+  {
+    "id": "0130",
+    "name": "bench hip extension",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0130.gif"
+  },
+  {
+    "id": "3019",
+    "name": "bench pull-ups",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3019.gif"
+  },
+  {
+    "id": "3639",
+    "name": "bent knee lying twist (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3639.gif"
+  },
+  {
+    "id": "1770",
+    "name": "biceps leg concentration curl",
+    "target": "biceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1770.gif"
+  },
+  {
+    "id": "0139",
+    "name": "biceps narrow pull-ups",
+    "target": "biceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0139.gif"
+  },
+  {
+    "id": "0140",
+    "name": "biceps pull-up",
+    "target": "biceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0140.gif"
+  },
+  {
+    "id": "0137",
+    "name": "body-up",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0137.gif"
+  },
+  {
+    "id": "3543",
+    "name": "bodyweight drop jump squat",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3543.gif"
+  },
+  {
+    "id": "3544",
+    "name": "bodyweight incline side plank",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3544.gif"
+  },
+  {
+    "id": "1771",
+    "name": "bodyweight kneeling triceps extension",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1771.gif"
+  },
+  {
+    "id": "1769",
+    "name": "bodyweight side lying biceps curl",
+    "target": "biceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1769.gif"
+  },
+  {
+    "id": "3168",
+    "name": "bodyweight squatting row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3168.gif"
+  },
+  {
+    "id": "3167",
+    "name": "bodyweight squatting row (with towel)",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3167.gif"
+  },
+  {
+    "id": "1373",
+    "name": "bodyweight standing calf raise",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1373.gif"
+  },
+  {
+    "id": "3156",
+    "name": "bodyweight standing close-grip one arm row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3156.gif"
+  },
+  {
+    "id": "3158",
+    "name": "bodyweight standing close-grip row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3158.gif"
+  },
+  {
+    "id": "3162",
+    "name": "bodyweight standing one arm row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3162.gif"
+  },
+  {
+    "id": "3161",
+    "name": "bodyweight standing one arm row (with towel)",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3161.gif"
+  },
+  {
+    "id": "3166",
+    "name": "bodyweight standing row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3166.gif"
+  },
+  {
+    "id": "3165",
+    "name": "bodyweight standing row (with towel)",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3165.gif"
+  },
+  {
+    "id": "0138",
+    "name": "bottoms-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0138.gif"
+  },
+  {
+    "id": "1374",
+    "name": "box jump down with one leg stabilization",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1374.gif"
+  },
+  {
+    "id": "2466",
+    "name": "bridge - mountain climber (cross body)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2466.gif"
+  },
+  {
+    "id": "1160",
+    "name": "burpee",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1160.gif"
+  },
+  {
+    "id": "0870",
+    "name": "butt-ups",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0870.gif"
+  },
+  {
+    "id": "1494",
+    "name": "butterfly yoga pose",
+    "target": "adductors",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1494.gif"
+  },
+  {
+    "id": "1407",
+    "name": "calf push stretch with hands against wall",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1407.gif"
+  },
+  {
+    "id": "1377",
+    "name": "calf stretch with hands against wall",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1377.gif"
+  },
+  {
+    "id": "2963",
+    "name": "captains chair straight leg raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2963.gif"
+  },
+  {
+    "id": "1548",
+    "name": "chair leg extended stretch",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1548.gif"
+  },
+  {
+    "id": "1271",
+    "name": "chest and front of shoulder stretch",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1271.gif"
+  },
+  {
+    "id": "0251",
+    "name": "chest dip",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0251.gif"
+  },
+  {
+    "id": "1430",
+    "name": "chest dip (on dip-pull-up cage)",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1430.gif"
+  },
+  {
+    "id": "2462",
+    "name": "chest dip on straight bar",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2462.gif"
+  },
+  {
+    "id": "3216",
+    "name": "chest tap push-up (male)",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3216.gif"
+  },
+  {
+    "id": "1326",
+    "name": "chin-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1326.gif"
+  },
+  {
+    "id": "0253",
+    "name": "chin-ups (narrow parallel grip)",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0253.gif"
+  },
+  {
+    "id": "0257",
+    "name": "circles knee stretch",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0257.gif"
+  },
+  {
+    "id": "1273",
+    "name": "clap push up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1273.gif"
+  },
+  {
+    "id": "0258",
+    "name": "clock push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0258.gif"
+  },
+  {
+    "id": "1327",
+    "name": "close grip chin-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1327.gif"
+  },
+  {
+    "id": "0259",
+    "name": "close-grip push-up",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0259.gif"
+  },
+  {
+    "id": "2398",
+    "name": "close-grip push-up (on knees)",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2398.gif"
+  },
+  {
+    "id": "0260",
+    "name": "cocoons",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0260.gif"
+  },
+  {
+    "id": "1468",
+    "name": "crab twist toe touch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1468.gif"
+  },
+  {
+    "id": "0262",
+    "name": "cross body crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0262.gif"
+  },
+  {
+    "id": "0267",
+    "name": "crunch (hands overhead)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0267.gif"
+  },
+  {
+    "id": "0274",
+    "name": "crunch floor",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0274.gif"
+  },
+  {
+    "id": "3016",
+    "name": "curl-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3016.gif"
+  },
+  {
+    "id": "3769",
+    "name": "curtsey squat",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3769.gif"
+  },
+  {
+    "id": "0276",
+    "name": "dead bug",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0276.gif"
+  },
+  {
+    "id": "0277",
+    "name": "decline crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0277.gif"
+  },
+  {
+    "id": "0279",
+    "name": "decline push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0279.gif"
+  },
+  {
+    "id": "0282",
+    "name": "decline sit-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0282.gif"
+  },
+  {
+    "id": "0283",
+    "name": "diamond push-up",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0283.gif"
+  },
+  {
+    "id": "0284",
+    "name": "donkey calf raise",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0284.gif"
+  },
+  {
+    "id": "1275",
+    "name": "drop push up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1275.gif"
+  },
+  {
+    "id": "1167",
+    "name": "dynamic chest stretch (male)",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1167.gif"
+  },
+  {
+    "id": "3287",
+    "name": "elbow dips",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3287.gif"
+  },
+  {
+    "id": "1772",
+    "name": "elbow lift - reverse push-up",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1772.gif"
+  },
+  {
+    "id": "0443",
+    "name": "elbow-to-knee",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0443.gif"
+  },
+  {
+    "id": "3292",
+    "name": "elevator",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3292.gif"
+  },
+  {
+    "id": "3303",
+    "name": "flag",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3303.gif"
+  },
+  {
+    "id": "0456",
+    "name": "flexion leg sit up (bent knee)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0456.gif"
+  },
+  {
+    "id": "0457",
+    "name": "flexion leg sit up (straight arm)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0457.gif"
+  },
+  {
+    "id": "0459",
+    "name": "flutter kicks",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0459.gif"
+  },
+  {
+    "id": "1472",
+    "name": "forward jump",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1472.gif"
+  },
+  {
+    "id": "3470",
+    "name": "forward lunge (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3470.gif"
+  },
+  {
+    "id": "2429",
+    "name": "frog crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2429.gif"
+  },
+  {
+    "id": "3301",
+    "name": "frog planche",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3301.gif"
+  },
+  {
+    "id": "3296",
+    "name": "front lever",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3296.gif"
+  },
+  {
+    "id": "3295",
+    "name": "front lever reps",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3295.gif"
+  },
+  {
+    "id": "0464",
+    "name": "front plank with twist",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0464.gif"
+  },
+  {
+    "id": "3315",
+    "name": "full maltese",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3315.gif"
+  },
+  {
+    "id": "3299",
+    "name": "full planche",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3299.gif"
+  },
+  {
+    "id": "3327",
+    "name": "full planche push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3327.gif"
+  },
+  {
+    "id": "0466",
+    "name": "gironda sternum chin",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0466.gif"
+  },
+  {
+    "id": "3561",
+    "name": "glute bridge march",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3561.gif"
+  },
+  {
+    "id": "3523",
+    "name": "glute bridge two legs on bench (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3523.gif"
+  },
+  {
+    "id": "3193",
+    "name": "glute-ham raise",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3193.gif"
+  },
+  {
+    "id": "0467",
+    "name": "gorilla chin",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0467.gif"
+  },
+  {
+    "id": "0469",
+    "name": "groin crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0469.gif"
+  },
+  {
+    "id": "3221",
+    "name": "half knee bends (male)",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3221.gif"
+  },
+  {
+    "id": "3202",
+    "name": "half sit-up (male)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3202.gif"
+  },
+  {
+    "id": "1511",
+    "name": "hamstring stretch",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1511.gif"
+  },
+  {
+    "id": "3218",
+    "name": "hands clasped circular toe touch (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3218.gif"
+  },
+  {
+    "id": "3215",
+    "name": "hands reversed clasped circular toe touch (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3215.gif"
+  },
+  {
+    "id": "3302",
+    "name": "handstand",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3302.gif"
+  },
+  {
+    "id": "0471",
+    "name": "handstand push-up",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0471.gif"
+  },
+  {
+    "id": "1764",
+    "name": "hanging leg hip raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1764.gif"
+  },
+  {
+    "id": "0472",
+    "name": "hanging leg raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0472.gif"
+  },
+  {
+    "id": "1761",
+    "name": "hanging oblique knee raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1761.gif"
+  },
+  {
+    "id": "0473",
+    "name": "hanging pike",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0473.gif"
+  },
+  {
+    "id": "0474",
+    "name": "hanging straight leg hip raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0474.gif"
+  },
+  {
+    "id": "0475",
+    "name": "hanging straight leg raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0475.gif"
+  },
+  {
+    "id": "0476",
+    "name": "hanging straight twisting leg hip raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0476.gif"
+  },
+  {
+    "id": "3636",
+    "name": "high knee against wall",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3636.gif"
+  },
+  {
+    "id": "0484",
+    "name": "hip raise (bent knee)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0484.gif"
+  },
+  {
+    "id": "1418",
+    "name": "hug keens to chest",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1418.gif"
+  },
+  {
+    "id": "0489",
+    "name": "hyperextension",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0489.gif"
+  },
+  {
+    "id": "0488",
+    "name": "hyperextension (on bench)",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0488.gif"
+  },
+  {
+    "id": "3289",
+    "name": "impossible dips",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3289.gif"
+  },
+  {
+    "id": "1471",
+    "name": "inchworm",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1471.gif"
+  },
+  {
+    "id": "3698",
+    "name": "inchworm v. 2",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3698.gif"
+  },
+  {
+    "id": "0490",
+    "name": "incline close-grip push-up",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0490.gif"
+  },
+  {
+    "id": "0491",
+    "name": "incline leg hip raise (leg straight)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0491.gif"
+  },
+  {
+    "id": "0492",
+    "name": "incline push up depth jump",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0492.gif"
+  },
+  {
+    "id": "0493",
+    "name": "incline push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0493.gif"
+  },
+  {
+    "id": "3785",
+    "name": "incline push-up (on box)",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3785.gif"
+  },
+  {
+    "id": "0494",
+    "name": "incline reverse grip push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0494.gif"
+  },
+  {
+    "id": "3011",
+    "name": "incline scapula push up",
+    "target": "serratus anterior",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3011.gif"
+  },
+  {
+    "id": "0495",
+    "name": "incline twisting sit-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0495.gif"
+  },
+  {
+    "id": "0496",
+    "name": "inverse leg curl (bench support)",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0496.gif"
+  },
+  {
+    "id": "2400",
+    "name": "inverse leg curl (on pull-up cable machine)",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2400.gif"
+  },
+  {
+    "id": "0499",
+    "name": "inverted row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0499.gif"
+  },
+  {
+    "id": "2300",
+    "name": "inverted row bent knees",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2300.gif"
+  },
+  {
+    "id": "2298",
+    "name": "inverted row on bench",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2298.gif"
+  },
+  {
+    "id": "0497",
+    "name": "inverted row v. 2",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0497.gif"
+  },
+  {
+    "id": "0498",
+    "name": "inverted row with straps",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0498.gif"
+  },
+  {
+    "id": "1419",
+    "name": "iron cross stretch",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1419.gif"
+  },
+  {
+    "id": "1297",
+    "name": "isometric chest squeeze",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1297.gif"
+  },
+  {
+    "id": "0500",
+    "name": "isometric wipers",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0500.gif"
+  },
+  {
+    "id": "0501",
+    "name": "jack burpee",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0501.gif"
+  },
+  {
+    "id": "3224",
+    "name": "jack jump (male)",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3224.gif"
+  },
+  {
+    "id": "0507",
+    "name": "jackknife sit-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0507.gif"
+  },
+  {
+    "id": "0508",
+    "name": "janda sit-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0508.gif"
+  },
+  {
+    "id": "0514",
+    "name": "jump squat",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0514.gif"
+  },
+  {
+    "id": "0513",
+    "name": "jump squat v. 2",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0513.gif"
+  },
+  {
+    "id": "0555",
+    "name": "kick out sit",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0555.gif"
+  },
+  {
+    "id": "0558",
+    "name": "kipping muscle up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0558.gif"
+  },
+  {
+    "id": "3640",
+    "name": "knee touch crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3640.gif"
+  },
+  {
+    "id": "1346",
+    "name": "kneeling lat stretch",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1346.gif"
+  },
+  {
+    "id": "3239",
+    "name": "kneeling plank tap shoulder (male)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3239.gif"
+  },
+  {
+    "id": "3211",
+    "name": "kneeling push-up (male)",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3211.gif"
+  },
+  {
+    "id": "3288",
+    "name": "korean dips",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3288.gif"
+  },
+  {
+    "id": "3418",
+    "name": "l-pull-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3418.gif"
+  },
+  {
+    "id": "3419",
+    "name": "l-sit on floor",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3419.gif"
+  },
+  {
+    "id": "3300",
+    "name": "lean planche",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3300.gif"
+  },
+  {
+    "id": "2271",
+    "name": "left hook. boxing",
+    "target": "delts",
+    "bodyPart": "shoulders",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2271.gif"
+  },
+  {
+    "id": "0570",
+    "name": "leg pull in flat bench",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0570.gif"
+  },
+  {
+    "id": "1576",
+    "name": "leg up hamstring stretch",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1576.gif"
+  },
+  {
+    "id": "3013",
+    "name": "low glute bridge on floor",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3013.gif"
+  },
+  {
+    "id": "1352",
+    "name": "lower back curl",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1352.gif"
+  },
+  {
+    "id": "3582",
+    "name": "lunge with jump",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3582.gif"
+  },
+  {
+    "id": "1688",
+    "name": "lunge with twist",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1688.gif"
+  },
+  {
+    "id": "0613",
+    "name": "lying (side) quads stretch",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0613.gif"
+  },
+  {
+    "id": "2312",
+    "name": "lying elbow to knee",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2312.gif"
+  },
+  {
+    "id": "0620",
+    "name": "lying leg raise flat bench",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0620.gif"
+  },
+  {
+    "id": "0865",
+    "name": "lying leg-hip raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0865.gif"
+  },
+  {
+    "id": "0624",
+    "name": "march sit (wall)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0624.gif"
+  },
+  {
+    "id": "0627",
+    "name": "mixed grip chin-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0627.gif"
+  },
+  {
+    "id": "3217",
+    "name": "modified hindu push-up (male)",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3217.gif"
+  },
+  {
+    "id": "1421",
+    "name": "modified push up to lower arms",
+    "target": "forearms",
+    "bodyPart": "lower arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1421.gif"
+  },
+  {
+    "id": "0628",
+    "name": "monster walk",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0628.gif"
+  },
+  {
+    "id": "0630",
+    "name": "mountain climber",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0630.gif"
+  },
+  {
+    "id": "0631",
+    "name": "muscle up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0631.gif"
+  },
+  {
+    "id": "1401",
+    "name": "muscle-up (on vertical bar)",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1401.gif"
+  },
+  {
+    "id": "1403",
+    "name": "neck side stretch",
+    "target": "levator scapulae",
+    "bodyPart": "neck",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1403.gif"
+  },
+  {
+    "id": "0634",
+    "name": "negative crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0634.gif"
+  },
+  {
+    "id": "1495",
+    "name": "oblique crunch v. 2",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1495.gif"
+  },
+  {
+    "id": "0635",
+    "name": "oblique crunches floor",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0635.gif"
+  },
+  {
+    "id": "1355",
+    "name": "one arm against wall",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1355.gif"
+  },
+  {
+    "id": "0638",
+    "name": "one arm chin-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0638.gif"
+  },
+  {
+    "id": "0639",
+    "name": "one arm dip",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0639.gif"
+  },
+  {
+    "id": "1773",
+    "name": "one arm towel row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1773.gif"
+  },
+  {
+    "id": "1386",
+    "name": "one leg donkey calf raise",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1386.gif"
+  },
+  {
+    "id": "1387",
+    "name": "one leg floor calf raise",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1387.gif"
+  },
+  {
+    "id": "1476",
+    "name": "one leg squat",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1476.gif"
+  },
+  {
+    "id": "0642",
+    "name": "outside leg kick push-up",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0642.gif"
+  },
+  {
+    "id": "0643",
+    "name": "overhead triceps stretch",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0643.gif"
+  },
+  {
+    "id": "3147",
+    "name": "pelvic tilt",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3147.gif"
+  },
+  {
+    "id": "1422",
+    "name": "pelvic tilt into bridge",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1422.gif"
+  },
+  {
+    "id": "3662",
+    "name": "pike-to-cobra push-up",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3662.gif"
+  },
+  {
+    "id": "1306",
+    "name": "plyo push up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1306.gif"
+  },
+  {
+    "id": "1687",
+    "name": "posterior step to overhead reach",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1687.gif"
+  },
+  {
+    "id": "3119",
+    "name": "potty squat",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3119.gif"
+  },
+  {
+    "id": "3132",
+    "name": "potty squat with support",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3132.gif"
+  },
+  {
+    "id": "3665",
+    "name": "power point plank",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3665.gif"
+  },
+  {
+    "id": "3203",
+    "name": "prisoner half sit-up (male)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3203.gif"
+  },
+  {
+    "id": "0651",
+    "name": "pull up (neutral grip)",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0651.gif"
+  },
+  {
+    "id": "0652",
+    "name": "pull-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0652.gif"
+  },
+  {
+    "id": "1689",
+    "name": "push and pull bodyweight",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1689.gif"
+  },
+  {
+    "id": "3638",
+    "name": "push to run",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3638.gif"
+  },
+  {
+    "id": "0662",
+    "name": "push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0662.gif"
+  },
+  {
+    "id": "0659",
+    "name": "push-up (wall)",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0659.gif"
+  },
+  {
+    "id": "0658",
+    "name": "push-up (wall) v. 2",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0658.gif"
+  },
+  {
+    "id": "0661",
+    "name": "push-up inside leg kick",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0661.gif"
+  },
+  {
+    "id": "1467",
+    "name": "push-up on lower arms",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1467.gif"
+  },
+  {
+    "id": "3145",
+    "name": "push-up plus",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3145.gif"
+  },
+  {
+    "id": "0664",
+    "name": "push-up to side plank",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0664.gif"
+  },
+  {
+    "id": "3533",
+    "name": "quads",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3533.gif"
+  },
+  {
+    "id": "3201",
+    "name": "quarter sit-up",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3201.gif"
+  },
+  {
+    "id": "3552",
+    "name": "quick feet v. 2",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3552.gif"
+  },
+  {
+    "id": "0666",
+    "name": "raise single arm push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0666.gif"
+  },
+  {
+    "id": "0668",
+    "name": "rear decline bridge",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0668.gif"
+  },
+  {
+    "id": "0669",
+    "name": "rear deltoid stretch",
+    "target": "delts",
+    "bodyPart": "shoulders",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0669.gif"
+  },
+  {
+    "id": "0670",
+    "name": "rear pull-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0670.gif"
+  },
+  {
+    "id": "0872",
+    "name": "reverse crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0872.gif"
+  },
+  {
+    "id": "0672",
+    "name": "reverse dip",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0672.gif"
+  },
+  {
+    "id": "0674",
+    "name": "reverse grip pull-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0674.gif"
+  },
+  {
+    "id": "1423",
+    "name": "reverse hyper on flat bench",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1423.gif"
+  },
+  {
+    "id": "3663",
+    "name": "reverse plank with leg lift",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3663.gif"
+  },
+  {
+    "id": "0677",
+    "name": "ring dips",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0677.gif"
+  },
+  {
+    "id": "2571",
+    "name": "rocking frog stretch",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2571.gif"
+  },
+  {
+    "id": "0678",
+    "name": "rocky pull-up pulldown",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0678.gif"
+  },
+  {
+    "id": "0685",
+    "name": "run",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0685.gif"
+  },
+  {
+    "id": "0684",
+    "name": "run (equipment)",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0684.gif"
+  },
+  {
+    "id": "1585",
+    "name": "runners stretch",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1585.gif"
+  },
+  {
+    "id": "0687",
+    "name": "russian twist",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0687.gif"
+  },
+  {
+    "id": "3012",
+    "name": "scapula dips",
+    "target": "traps",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3012.gif"
+  },
+  {
+    "id": "3021",
+    "name": "scapula push-up",
+    "target": "serratus anterior",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3021.gif"
+  },
+  {
+    "id": "0688",
+    "name": "scapular pull-up",
+    "target": "traps",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0688.gif"
+  },
+  {
+    "id": "3219",
+    "name": "scissor jumps (male)",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3219.gif"
+  },
+  {
+    "id": "1390",
+    "name": "seated calf stretch (male)",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1390.gif"
+  },
+  {
+    "id": "1424",
+    "name": "seated glute stretch",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1424.gif"
+  },
+  {
+    "id": "0689",
+    "name": "seated leg raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0689.gif"
+  },
+  {
+    "id": "0690",
+    "name": "seated lower back stretch",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0690.gif"
+  },
+  {
+    "id": "2567",
+    "name": "seated piriformis stretch",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2567.gif"
+  },
+  {
+    "id": "0691",
+    "name": "seated side crunch (wall)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0691.gif"
+  },
+  {
+    "id": "1587",
+    "name": "seated wide angle pose sequence",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1587.gif"
+  },
+  {
+    "id": "0697",
+    "name": "self assisted inverse leg curl",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0697.gif"
+  },
+  {
+    "id": "1766",
+    "name": "self assisted inverse leg curl",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1766.gif"
+  },
+  {
+    "id": "0696",
+    "name": "self assisted inverse leg curl (on floor)",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0696.gif"
+  },
+  {
+    "id": "3222",
+    "name": "semi squat jump (male)",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3222.gif"
+  },
+  {
+    "id": "3656",
+    "name": "short stride run",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3656.gif"
+  },
+  {
+    "id": "1763",
+    "name": "shoulder grip pull-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1763.gif"
+  },
+  {
+    "id": "3699",
+    "name": "shoulder tap",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3699.gif"
+  },
+  {
+    "id": "0699",
+    "name": "shoulder tap push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0699.gif"
+  },
+  {
+    "id": "1774",
+    "name": "side bridge hip abduction",
+    "target": "abductors",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1774.gif"
+  },
+  {
+    "id": "0705",
+    "name": "side bridge v. 2",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0705.gif"
+  },
+  {
+    "id": "0709",
+    "name": "side hip (on parallel bars)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0709.gif"
+  },
+  {
+    "id": "0710",
+    "name": "side hip abduction",
+    "target": "abductors",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0710.gif"
+  },
+  {
+    "id": "1358",
+    "name": "side lying floor stretch",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1358.gif"
+  },
+  {
+    "id": "3667",
+    "name": "side lying hip adduction (male)",
+    "target": "adductors",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3667.gif"
+  },
+  {
+    "id": "1775",
+    "name": "side plank hip adduction",
+    "target": "adductors",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1775.gif"
+  },
+  {
+    "id": "0716",
+    "name": "side push neck stretch",
+    "target": "levator scapulae",
+    "bodyPart": "neck",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0716.gif"
+  },
+  {
+    "id": "0717",
+    "name": "side push-up",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0717.gif"
+  },
+  {
+    "id": "0721",
+    "name": "side wrist pull stretch",
+    "target": "forearms",
+    "bodyPart": "lower arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0721.gif"
+  },
+  {
+    "id": "0720",
+    "name": "side-to-side chin",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0720.gif"
+  },
+  {
+    "id": "3213",
+    "name": "side-to-side toe touch (male)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3213.gif"
+  },
+  {
+    "id": "0725",
+    "name": "single arm push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0725.gif"
+  },
+  {
+    "id": "3645",
+    "name": "single leg bridge with outstretched leg",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3645.gif"
+  },
+  {
+    "id": "0730",
+    "name": "single leg platform slide",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0730.gif"
+  },
+  {
+    "id": "1759",
+    "name": "single leg squat (pistol) male",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1759.gif"
+  },
+  {
+    "id": "1489",
+    "name": "sissy squat",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1489.gif"
+  },
+  {
+    "id": "0735",
+    "name": "sit-up v. 2",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0735.gif"
+  },
+  {
+    "id": "3679",
+    "name": "sit-up with arms on chest",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3679.gif"
+  },
+  {
+    "id": "3361",
+    "name": "skater hops",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3361.gif"
+  },
+  {
+    "id": "3671",
+    "name": "ski step",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3671.gif"
+  },
+  {
+    "id": "3304",
+    "name": "skin the cat",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3304.gif"
+  },
+  {
+    "id": "1362",
+    "name": "sphinx",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1362.gif"
+  },
+  {
+    "id": "0778",
+    "name": "spider crawl push up",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0778.gif"
+  },
+  {
+    "id": "1363",
+    "name": "spine stretch",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1363.gif"
+  },
+  {
+    "id": "2329",
+    "name": "spine twist",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2329.gif"
+  },
+  {
+    "id": "2368",
+    "name": "split squats",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2368.gif"
+  },
+  {
+    "id": "1685",
+    "name": "squat to overhead reach",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1685.gif"
+  },
+  {
+    "id": "1686",
+    "name": "squat to overhead reach with twist",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1686.gif"
+  },
+  {
+    "id": "3291",
+    "name": "stalder press",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3291.gif"
+  },
+  {
+    "id": "3669",
+    "name": "standing archer",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3669.gif"
+  },
+  {
+    "id": "1490",
+    "name": "standing calf raise (on a staircase)",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1490.gif"
+  },
+  {
+    "id": "1397",
+    "name": "standing calves",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1397.gif"
+  },
+  {
+    "id": "1398",
+    "name": "standing calves calf stretch",
+    "target": "calves",
+    "bodyPart": "lower legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1398.gif"
+  },
+  {
+    "id": "0794",
+    "name": "standing lateral stretch",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0794.gif"
+  },
+  {
+    "id": "1364",
+    "name": "standing pelvic tilt",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1364.gif"
+  },
+  {
+    "id": "0795",
+    "name": "standing single leg curl",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0795.gif"
+  },
+  {
+    "id": "3223",
+    "name": "star jump (male)",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3223.gif"
+  },
+  {
+    "id": "3314",
+    "name": "straddle maltese",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3314.gif"
+  },
+  {
+    "id": "3298",
+    "name": "straddle planche",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3298.gif"
+  },
+  {
+    "id": "1427",
+    "name": "straight leg outer hip abductor",
+    "target": "abductors",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1427.gif"
+  },
+  {
+    "id": "0803",
+    "name": "superman push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0803.gif"
+  },
+  {
+    "id": "0805",
+    "name": "suspended abdominal fallout",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0805.gif"
+  },
+  {
+    "id": "0806",
+    "name": "suspended push-up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0806.gif"
+  },
+  {
+    "id": "0807",
+    "name": "suspended reverse crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0807.gif"
+  },
+  {
+    "id": "0808",
+    "name": "suspended row",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0808.gif"
+  },
+  {
+    "id": "0809",
+    "name": "suspended split squat",
+    "target": "quads",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0809.gif"
+  },
+  {
+    "id": "3433",
+    "name": "swimmer kicks v. 2 (male)",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3433.gif"
+  },
+  {
+    "id": "3318",
+    "name": "swing 360",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3318.gif"
+  },
+  {
+    "id": "1753",
+    "name": "three bench dip",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1753.gif"
+  },
+  {
+    "id": "0814",
+    "name": "triceps dip",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0814.gif"
+  },
+  {
+    "id": "0812",
+    "name": "triceps dip (bench leg)",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0812.gif"
+  },
+  {
+    "id": "0813",
+    "name": "triceps dip (between benches)",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0813.gif"
+  },
+  {
+    "id": "0815",
+    "name": "triceps dips floor",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0815.gif"
+  },
+  {
+    "id": "0816",
+    "name": "triceps press",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0816.gif"
+  },
+  {
+    "id": "0817",
+    "name": "triceps stretch",
+    "target": "triceps",
+    "bodyPart": "upper arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0817.gif"
+  },
+  {
+    "id": "0871",
+    "name": "tuck crunch",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0871.gif"
+  },
+  {
+    "id": "1466",
+    "name": "twist hip lift",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1466.gif"
+  },
+  {
+    "id": "2802",
+    "name": "twisted leg raise",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2802.gif"
+  },
+  {
+    "id": "2801",
+    "name": "twisted leg raise (female)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2801.gif"
+  },
+  {
+    "id": "3231",
+    "name": "two toe touch (male)",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3231.gif"
+  },
+  {
+    "id": "1365",
+    "name": "upper back stretch",
+    "target": "upper back",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1365.gif"
+  },
+  {
+    "id": "1366",
+    "name": "upward facing dog",
+    "target": "spine",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1366.gif"
+  },
+  {
+    "id": "3420",
+    "name": "v-sit on floor",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3420.gif"
+  },
+  {
+    "id": "0826",
+    "name": "vertical leg raise (on parallel bars)",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0826.gif"
+  },
+  {
+    "id": "3655",
+    "name": "walking high knees lunge",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3655.gif"
+  },
+  {
+    "id": "1460",
+    "name": "walking lunge",
+    "target": "glutes",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1460.gif"
+  },
+  {
+    "id": "3637",
+    "name": "wheel run",
+    "target": "cardiovascular system",
+    "bodyPart": "cardio",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/3637.gif"
+  },
+  {
+    "id": "1429",
+    "name": "wide grip pull-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1429.gif"
+  },
+  {
+    "id": "1367",
+    "name": "wide grip rear pull-up",
+    "target": "lats",
+    "bodyPart": "back",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1367.gif"
+  },
+  {
+    "id": "1311",
+    "name": "wide hand push up",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1311.gif"
+  },
+  {
+    "id": "2363",
+    "name": "wide-grip chest dip on high parallel bars",
+    "target": "pectorals",
+    "bodyPart": "chest",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/2363.gif"
+  },
+  {
+    "id": "0858",
+    "name": "wind sprints",
+    "target": "abs",
+    "bodyPart": "waist",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/0858.gif"
+  },
+  {
+    "id": "1604",
+    "name": "world greatest stretch",
+    "target": "hamstrings",
+    "bodyPart": "upper legs",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1604.gif"
+  },
+  {
+    "id": "1428",
+    "name": "wrist circles",
+    "target": "forearms",
+    "bodyPart": "lower arms",
+    "equipment": "body weight",
+    "gifUrl": "https://raw.githubusercontent.com/omercotkd/exercises-gifs/main/assets/1428.gif"
+  }
+]

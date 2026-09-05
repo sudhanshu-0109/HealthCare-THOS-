@@ -11,6 +11,10 @@ export const getMyEmergencies = () => api.get('/emergency/history');
 export const cancelEmergencyRequest = (requestId) =>
   api.post(`/emergency/${requestId}/cancel`);
 
+export const confirmPickup = (requestId) =>
+  api.post(`/emergency/${requestId}/confirm-pickup`);
+
+
 export const searchHospitals = (lat, lng, radius) =>
   api.get('/hospitals/search', { params: { lat, lng, radius } });
 

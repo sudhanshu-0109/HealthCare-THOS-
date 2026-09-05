@@ -4,6 +4,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { haversineKm } from '../../utils/distance';
+import { openHospitalDirections } from '../../utils/navigation';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Home, User, Calendar, Pill, FlaskConical, CreditCard,
@@ -300,9 +301,19 @@ function HospitalCard({ hospital, onSelect }) {
             <span className={`px-1.5 py-0.5 rounded-full border text-xs ${crowd.badge}`}>{crowd.label}</span>
           </span>
         </div>
-        <button className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold rounded-lg transition-colors">
-          View
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            title="Get Directions"
+            onClick={(e) => { e.stopPropagation(); openHospitalDirections(hospital); }}
+            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+          >
+            <Navigation className="w-3 h-3" />
+            Directions
+          </button>
+          <button className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold rounded-lg transition-colors">
+            View
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -314,67 +325,75 @@ function HospitalCard({ hospital, onSelect }) {
 function HomeTab({ user, navigate, onSOSSent }) {
   const [search, setSearch] = useState('');
   const [showAll, setShowAll] = useState(false);
-  const [hospitals, setHospitals] = useState([]);
+  const [rawHospitals, setRawHospitals] = useState([]); // API response, immutable after load
+  const [hospitals, setHospitals] = useState([]);       // with live distance labels, sorted
   const [loadingHospitals, setLoadingHospitals] = useState(true);
   const [error, setError] = useState(null);
-  const { coords } = useGeolocation();
+  const { location, loading: gpsLoading } = useGeolocation();
 
-  // Vadodara city centre — used as fallback when GPS is unavailable
+  // Vadodara city centre — fallback when GPS is denied / unavailable
   const VADODARA_LAT = 22.3072;
   const VADODARA_LNG = 73.1812;
 
-  const load = async () => {
-    setLoadingHospitals(true);
-    setError(null);
-    try {
-      const res = await patientService.getNearbyHospitals(coords?.latitude, coords?.longitude);
-      const raw = res.data || [];
+  // ── Step 1: Fetch hospital list ONCE on mount (no GPS dependency) ─────────
+  useEffect(() => {
+    (async () => {
+      setLoadingHospitals(true);
+      setError(null);
+      try {
+        const res = await patientService.getNearbyHospitals();
+        setRawHospitals(res.data || []);
+      } catch (err) {
+        setError(err.message || 'Failed to load hospitals.');
+      } finally {
+        setLoadingHospitals(false);
+      }
+    })();
+  }, []); // fetch once
 
-      // Use real GPS if available, otherwise fall back to Vadodara centre
-      const userLat = coords?.latitude ?? VADODARA_LAT;
-      const userLng = coords?.longitude ?? VADODARA_LNG;
+  // ── Step 2: Recompute distances + sort every time GPS position changes ────
+  // This runs immediately when rawHospitals loads, AND again on every GPS update
+  useEffect(() => {
+    if (rawHospitals.length === 0) return;
 
-      // Compute real haversine distance for each hospital and sort nearest → farthest
-      const withDistance = raw
-        .map((h) => {
-          const km = haversineKm(userLat, userLng, h.latitude, h.longitude);
-          const distanceLabel = km == null
+    const userLat = location?.latitude ?? VADODARA_LAT;
+    const userLng = location?.longitude ?? VADODARA_LNG;
+    const hasRealGPS = !!(location?.latitude);
+
+    const withDistance = rawHospitals
+      .map((h) => {
+        const km = haversineKm(userLat, userLng, h.latitude, h.longitude);
+        const distanceLabel =
+          km == null
             ? null
             : km < 1
-              ? `${Math.round(km * 1000)} m away`
-              : `${km.toFixed(1)} km away`;
-          return { ...h, _distanceKm: km ?? 9999, distance: distanceLabel };
-        })
-        .sort((a, b) => a._distanceKm - b._distanceKm);
+            ? `${Math.round(km * 1000)} m away`
+            : `${km.toFixed(1)} km away`;
+        return {
+          ...h,
+          _distanceKm: km ?? 9999,
+          distance: distanceLabel,
+          _distanceSource: hasRealGPS ? 'gps' : 'fallback',
+        };
+      })
+      .sort((a, b) => a._distanceKm - b._distanceKm);
 
-      setHospitals(withDistance);
-    } catch (err) {
-      setError(err.message || 'Failed to load hospitals.');
-    } finally {
-      setLoadingHospitals(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setHospitals(withDistance);
+  }, [rawHospitals, location]); // re-run whenever GPS moves
 
   const filtered = hospitals.filter((h) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    // Match on hospital name
     if (h.name?.toLowerCase().includes(q)) return true;
-    // Match on departments array (new enriched API)
     if (h.departments?.some((d) => d.name?.toLowerCase().includes(q))) return true;
-    // Match on legacy specialities string array
     if (h.specialities?.some((s) => s?.toLowerCase().includes(q))) return true;
     return false;
   });
 
   // When the user is searching show all matches; otherwise cap at 6 unless showAll
-  const visible = search ? filtered : (showAll ? filtered : filtered.slice(0, 6));
+  const visible = search ? filtered : showAll ? filtered : filtered.slice(0, 6);
   const hasMore = !search && filtered.length > 6;
+  const usingFallback = !location?.latitude && !gpsLoading;
 
   const handleHospitalSelect = (hospital) => {
     navigate(`/hospitals/${hospital.id}`);
@@ -434,7 +453,7 @@ function HomeTab({ user, navigate, onSOSSent }) {
           )}
         </div>
 
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-1">
           <h2 className="font-semibold text-slate-900 text-sm">
             {search
               ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''} for "${search}"`
@@ -451,6 +470,32 @@ function HomeTab({ user, navigate, onSOSSent }) {
           )}
         </div>
 
+        {/* Live GPS status indicator */}
+        <div className="flex items-center gap-1.5 mb-3">
+          {gpsLoading ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+              </span>
+              <span className="text-xs text-slate-400">Locating you…</span>
+            </>
+          ) : location?.latitude ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-xs text-emerald-600 font-medium">Sorted by your live location</span>
+            </>
+          ) : (
+            <>
+              <span className="inline-flex rounded-full h-2 w-2 bg-slate-300" />
+              <span className="text-xs text-slate-400">Sorted by Vadodara centre (GPS unavailable)</span>
+            </>
+          )}
+        </div>
+
         {loadingHospitals ? (
           <div className="flex items-center justify-center py-8 text-slate-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading hospitals…
@@ -460,7 +505,7 @@ function HomeTab({ user, navigate, onSOSSent }) {
             <AlertCircle className="w-5 h-5 text-red-400 mx-auto mb-2" />
             <p className="text-sm text-red-600 mb-2">{error}</p>
             <button
-              onClick={load}
+              onClick={() => window.location.reload()}
               className="text-xs text-red-600 hover:underline flex items-center gap-1 mx-auto"
             >
               <RefreshCw className="w-3 h-3" /> Retry

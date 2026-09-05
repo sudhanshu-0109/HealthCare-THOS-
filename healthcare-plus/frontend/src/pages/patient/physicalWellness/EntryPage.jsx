@@ -1,7 +1,16 @@
 import React from "react";
-import { mockUser, mockHabits, mockWeeklyPlan } from "../../../data/physicalWellnessMockData.js";
+import { mockWeeklyPlan } from "../../../data/physicalWellnessMockData.js";
 
-export default function EntryPage({ isFirstTime, onGetStarted, onStartCheckIn, onViewPlan, onViewProgress }) {
+export default function EntryPage({
+  isFirstTime,
+  user,
+  profile,
+  streak = 0,
+  onGetStarted,
+  onStartCheckIn,
+  onViewPlan,
+  onViewProgress,
+}) {
   if (isFirstTime) {
     return (
       <div className="min-h-full flex flex-col">
@@ -49,6 +58,15 @@ export default function EntryPage({ isFirstTime, onGetStarted, onStartCheckIn, o
     return "Good evening";
   })();
 
+  const name =
+    profile?.firstName ||
+    profile?.name ||
+    user?.fullName?.split(' ')[0] ||
+    user?.name?.split(' ')[0] ||
+    'there';
+
+  const currentStreak = streak || 0;
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 lg:px-8 lg:py-12">
       {/* Greeting */}
@@ -56,22 +74,24 @@ export default function EntryPage({ isFirstTime, onGetStarted, onStartCheckIn, o
         <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wide mb-1">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
         </p>
-        <h1 className="font-display text-3xl lg:text-4xl text-[var(--foreground)] mb-1">{greeting}, {mockUser.name}</h1>
-        <p className="text-[var(--muted-foreground)] text-sm">{mockHabits.streaks.current}-day streak 🔥 Keep the momentum!</p>
+        <h1 className="font-display text-3xl lg:text-4xl text-[var(--foreground)] mb-1">{greeting}, {name}</h1>
+        <p className="text-[var(--muted-foreground)] text-sm">
+          {currentStreak > 0 ? `${currentStreak}-day streak 🔥 Keep the momentum!` : "Start your streak with today's check-in!"}
+        </p>
       </div>
 
       {/* Streak + weekly progress */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-xs">
           <p className="text-xs text-[var(--muted-foreground)] mb-1">Current Streak</p>
-          <p className="text-3xl font-bold text-[var(--foreground)]">{mockHabits.streaks.current}</p>
+          <p className="text-3xl font-bold text-[var(--foreground)]">{currentStreak}</p>
           <p className="text-xs text-[var(--muted-foreground)] mt-0.5">days</p>
         </div>
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-xs">
           <p className="text-xs text-[var(--muted-foreground)] mb-1">This Week</p>
           <p className="text-3xl font-bold text-[var(--foreground)]">
             {mockWeeklyPlan.filter(d => d.status === "completed").length}
-            <span className="text-lg font-normal text-[var(--muted-foreground)]">/{mockWeeklyPlan.filter(d => d.type === "workout").length}</span>
+            <span className="text-lg font-normal text-[var(--muted-foreground)]">/{mockWeeklyPlan.filter(d => d.type === "workout").length || 3}</span>
           </p>
           <p className="text-xs text-[var(--muted-foreground)] mt-0.5">workouts done</p>
         </div>
@@ -80,11 +100,11 @@ export default function EntryPage({ isFirstTime, onGetStarted, onStartCheckIn, o
       {/* Today's workout preview */}
       <div className="bg-[var(--primary)] rounded-2xl p-5 mb-6 text-white shadow-md">
         <p className="text-xs text-white/60 uppercase tracking-wider mb-2">Today's Workout</p>
-        <h2 className="text-xl font-semibold mb-1">{today?.focus}</h2>
+        <h2 className="text-xl font-semibold mb-1">{today?.focus || "Daily Movement"}</h2>
         <div className="flex items-center gap-4 mb-5 text-sm text-white/70">
-          <span>{today?.duration} min</span>
+          <span>{today?.duration || 30} min</span>
           <span>·</span>
-          <span>{today?.difficulty}</span>
+          <span>{today?.difficulty || "Moderate"}</span>
         </div>
         <button
           onClick={onStartCheckIn}

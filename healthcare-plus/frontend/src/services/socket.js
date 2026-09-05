@@ -147,7 +147,9 @@ export const joinPatientRoom = () => {
 export const joinEmergencyRoom = (requestId) => {
   const s = getSocket();
   if (!requestId) return;
-  joinIntents.set(`emergency:${requestId}`, { event: 'join-emergency-room', payload: { requestId } });
+  const key = `emergency:${requestId}`;
+  // Always update the stored intent so reconnects use it; emit to current socket
+  joinIntents.set(key, { event: 'join-emergency-room', payload: { requestId } });
   if (s) s.emit('join-emergency-room', { requestId });
 };
 

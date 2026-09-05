@@ -47,8 +47,29 @@ export const verifyOtpSchema = z.object({
 });
 
 export const googleAuthSchema = z.object({
-  idToken: z.string().min(1, 'Google ID token is required'),
+  idToken: z.union([
+    z.string(),
+    z.record(z.any()),
+  ]).optional(),
   role: z.enum(['PATIENT', 'DOCTOR', 'HOSPITAL_ADMIN', 'RECEPTIONIST', 'PHARMACIST', 'LAB_STAFF', 'AMBULANCE_DRIVER', 'SUPER_ADMIN']).optional(),
+  credential: z.string().optional(),
+}).transform((data) => {
+  let token = data.idToken;
+  let role = data.role;
+  if (typeof token === 'object' && token !== null) {
+    if (token.role && !role) role = token.role;
+    token = token.idToken || token.credential || '';
+  }
+  if (!token && data.credential) {
+    token = data.credential;
+  }
+  return {
+    idToken: typeof token === 'string' ? token : '',
+    role: role || 'PATIENT',
+  };
+}).refine((data) => typeof data.idToken === 'string' && data.idToken.length > 0, {
+  message: 'Google ID token is required',
+  path: ['idToken'],
 });
 
 export const forgotPasswordSchema = z.object({

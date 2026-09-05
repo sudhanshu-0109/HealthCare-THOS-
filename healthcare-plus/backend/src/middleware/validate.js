@@ -13,9 +13,10 @@ export const validate = (schema) => (req, res, next) => {
     req.body = parsed; // Use parsed & sanitized data
     next();
   } catch (err) {
-    if (err.errors) {
-      const formattedErrors = err.errors.reduce((acc, curr) => {
-        const field = curr.path.join('.');
+    const issues = err.issues || err.errors;
+    if (issues && Array.isArray(issues)) {
+      const formattedErrors = issues.reduce((acc, curr) => {
+        const field = curr.path?.join('.') || 'body';
         acc[field] = curr.message;
         return acc;
       }, {});

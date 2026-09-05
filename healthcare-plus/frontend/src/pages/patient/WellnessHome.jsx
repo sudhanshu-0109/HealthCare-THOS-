@@ -91,20 +91,39 @@ export default function WellnessHome() {
   const { user }  = useAuthStore();
   const firstName = user?.fullName?.split(' ')[0] || 'there';
 
-  // ── Check-in state — initialised from localStorage so it survives refresh ──
-  const [selectedMood, setSelectedMood] = useState(() => loadTodayCheckIn()?.mood    ?? null);
-  const [energy,       setEnergy]       = useState(() => loadTodayCheckIn()?.energy  ?? 5);
-  const [stress,       setStress]       = useState(() => loadTodayCheckIn()?.stressLevel ?? 7);
-  const [motivation,   setMotivation]   = useState(() => loadTodayCheckIn()?.motivation  ?? 5);
-  const [checkedIn,    setCheckedIn]    = useState(() => loadTodayCheckIn() !== null);
+  // ── Check-in state — initialised from localStorage scoped to user ──
+  const [selectedMood, setSelectedMood] = useState(() => loadTodayCheckIn(user)?.mood    ?? null);
+  const [energy,       setEnergy]       = useState(() => loadTodayCheckIn(user)?.energy  ?? 5);
+  const [stress,       setStress]       = useState(() => loadTodayCheckIn(user)?.stressLevel ?? 7);
+  const [motivation,   setMotivation]   = useState(() => loadTodayCheckIn(user)?.motivation  ?? 5);
+  const [checkedIn,    setCheckedIn]    = useState(() => loadTodayCheckIn(user) !== null);
   const [submitting,   setSubmitting]   = useState(false);
 
   // ── Programs from API ───────────────────────────────────────────────────
   const [programs,        setPrograms]        = useState([]);
   const [programsLoading, setProgramsLoading] = useState(true);
 
-  // ── Streak — initialised from calculateStreak and cache ─────────────────
-  const [streak, setStreak] = useState(() => calculateStreak() || loadProgressCache()?.currentStreak || 0);
+  // ── Streak — initialised from calculateStreak and cache scoped to user ─
+  const [streak, setStreak] = useState(() => calculateStreak(user) || loadProgressCache(user)?.currentStreak || 0);
+
+  // Re-sync whenever auth user changes
+  useEffect(() => {
+    const today = loadTodayCheckIn(user);
+    if (today) {
+      setSelectedMood(today.mood);
+      setEnergy(today.energy ?? 5);
+      setStress(today.stressLevel ?? today.stress ?? 7);
+      setMotivation(today.motivation ?? 5);
+      setCheckedIn(true);
+    } else {
+      setSelectedMood(null);
+      setEnergy(5);
+      setStress(7);
+      setMotivation(5);
+      setCheckedIn(false);
+    }
+    setStreak(calculateStreak(user) || loadProgressCache(user)?.currentStreak || 0);
+  }, [user]);
 
   // ── Activity player ─────────────────────────────────────────────────────
   // `activeItem` is the object passed directly to ActivityPlayer as `item`
@@ -114,8 +133,6 @@ export default function WellnessHome() {
   const [recIndex, setRecIndex] = useState(0);
 
   // ── Sync check-in state with API on mount ──────────────────────────────
-  // localStorage is already loaded as initial state (survives refresh).
-  // This effect only UPGRADES state if the API has a more recent entry.
   useEffect(() => {
     if (checkedIn) return; // already know we checked in — skip API call
     (async () => {
@@ -139,14 +156,14 @@ export default function WellnessHome() {
               stress:      latest.stressLevel ?? latest.stress ?? stress,
               stressLevel: latest.stressLevel ?? latest.stress ?? stress,
               motivation:  latest.motivation ?? motivation,
-            });
+            }, user);
           }
         }
       } catch {
         // API unavailable — localStorage state is authoritative
       }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, checkedIn]);
 
   // ── Fetch programs on mount ─────────────────────────────────────────────
   useEffect(() => {
@@ -156,7 +173,6 @@ export default function WellnessHome() {
         const res  = await mhService.getPrograms();
         const data = res?.data ?? res;
         if (Array.isArray(data) && data.length > 0) setPrograms(data);
-        // else: leave programs = [] → show empty state
       } catch {
         // show empty state
       } finally {
@@ -172,19 +188,19 @@ export default function WellnessHome() {
         const res  = await mhService.getProgress();
         const data = res?.data ?? res;
         if (data) {
-          const localStreak = calculateStreak();
+          const localStreak = calculateStreak(user);
           const effectiveStreak = Math.max(Number(data.currentStreak || 0), localStreak);
           setStreak(effectiveStreak);
           saveProgressCache({
             ...data,
             currentStreak: effectiveStreak,
-          });
+          }, user);
         }
       } catch {
-        setStreak(calculateStreak());
+        setStreak(calculateStreak(user));
       }
     })();
-  }, []);
+  }, [user]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleCheckIn = async () => {
@@ -205,7 +221,7 @@ export default function WellnessHome() {
     };
 
     // ① Persist locally FIRST & update streak immediately — guarantees check-in survives refresh
-    const updatedStreak = saveCheckIn(payload);
+    const updatedStreak = saveCheckIn(payload, user);
     setStreak(updatedStreak || 1);
     setCheckedIn(true);  // optimistic UI — don't wait for API
     setSubmitting(false);
@@ -249,11 +265,11 @@ export default function WellnessHome() {
       icon,
       durationMin: completedItem.duration, // minutes (as passed in)
       startedAt:   activityStartRef.current ?? new Date().toISOString(),
-    });
+    }, user);
 
     const dayNum = DNA_JOURNEY_TITLES_TO_DAY?.[completedItem.title];
     if (dayNum) {
-      markProgramDayCompleted(dayNum);
+      markProgramDayCompleted(dayNum, undefined, user);
     }
 
     // Also try to submit to the API (fire-and-forget)
@@ -266,15 +282,15 @@ export default function WellnessHome() {
   // ── Derived dynamic recommendations based on mood, energy, stress, motivation ──
   const recommendations = useMemo(() => {
     return getPersonalizedRecommendations({
-      mood: selectedMood || loadTodayCheckIn()?.mood || 'neutral',
+      mood: selectedMood || loadTodayCheckIn(user)?.mood || 'neutral',
       energy,
       stress,
       motivation,
     });
-  }, [selectedMood, energy, stress, motivation]);
+  }, [selectedMood, energy, stress, motivation, user]);
 
   const rec = recommendations[recIndex % recommendations.length] || recommendations[0];
-  const todayLiveCI = loadTodayCheckIn();
+  const todayLiveCI = loadTodayCheckIn(user);
   const currentMood = MOODS.find(m => m.id === selectedMood) || MOODS.find(m => m.id === todayLiveCI?.mood) || MOODS[2];
   const activeMoodScore = currentMood?.score ?? todayLiveCI?.moodScore ?? 5;
   const moodScore10 = calculateCompositeMoodScore({
@@ -289,7 +305,7 @@ export default function WellnessHome() {
   // Keep synced on focus, storage, & live check-in updates
   useEffect(() => {
     const handleSync = () => {
-      const today = loadTodayCheckIn();
+      const today = loadTodayCheckIn(user);
       if (today) {
         setSelectedMood(today.mood);
         setEnergy(today.energy ?? 6);
@@ -304,7 +320,7 @@ export default function WellnessHome() {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('mw-checkin-updated', handleSync);
     };
-  }, []);
+  }, [user]);
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
