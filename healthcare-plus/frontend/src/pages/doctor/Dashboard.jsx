@@ -4,12 +4,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Activity, Stethoscope, FlaskConical,
   Pill, CheckCircle2, Clock, Plus, Trash2, X,
   Loader2, Calendar, AlertCircle, RefreshCw, ChevronRight,
-  ArrowRight, User, ChevronDown, FileText, Video, Wifi, MapPin, Building2
+  ArrowRight, User, ChevronDown, FileText, Video, Wifi, MapPin, Building2,
+  CalendarDays, Phone, BadgeCheck
 } from 'lucide-react';
 import DashboardShell from '../../components/layout/DashboardShell';
 import useAuthStore from '../../store/authStore';
@@ -23,16 +24,25 @@ import api from '../../services/api';
 import {
   getSocket, joinDoctorQueue, leaveDoctorQueue, onSocketEvent
 } from '../../services/socket';
-import EmptyState from '../../components/common/EmptyState';
 import StatusBadge from '../../components/common/StatusBadge';
+import EmptyState from '../../components/common/EmptyState';
 
 const NAV_ITEMS = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview', shortLabel: 'Overview' },
+  { id: 'appointments', icon: CalendarDays, label: 'Appointments', shortLabel: 'Appts' },
   { id: 'queue', icon: Users, label: 'Patient Queue', shortLabel: 'Queue' },
   { id: 'history', icon: Calendar, label: 'History', shortLabel: 'History' },
 ];
 
-const today = new Date().toISOString().split('T')[0];
+const getLocalDateString = (d = new Date()) => {
+  const dateObj = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d;
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const today = getLocalDateString();
 
 // ── Shared Loading / Error helpers ────────────────────────────────────────────
 
@@ -466,7 +476,8 @@ function QueueTab({ doctorProfile }) {
 
   const handleCallNext = () => doAction(async () => {
     const res = await queueService.callNext();
-    showSuccess(`Called token T-${res.data?.token?.tokenNumber}`);
+    const tokenNum = res.data?.tokenNumber || res.data?.token?.tokenNumber || '';
+    showSuccess(`Called token ${tokenNum ? `T-${tokenNum}` : 'successfully'}`);
   }, 'call-next');
 
   const handleStartConsultation = (token) => doAction(async () => {
@@ -735,11 +746,19 @@ function QueueTab({ doctorProfile }) {
 
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 
-function OverviewTab({ doctorProfile, queue }) {
+function OverviewTab({ doctorProfile, queue, onNavigate }) {
   const waiting = queue.filter((t) => t.status === 'WAITING').length;
   const completed = queue.filter((t) => t.status === 'COMPLETED').length;
   const inProgress = queue.filter((t) => t.status === 'IN_PROGRESS').length;
   const total = queue.length;
+
+  // Fetch today's confirmed appointment count
+  const [todayApptCount, setTodayApptCount] = useState(null);
+  useEffect(() => {
+    api.get('/appointments/doctor/mine', { params: { status: 'CONFIRMED', date: today, limit: 50 } })
+      .then((res) => setTodayApptCount((res.data?.appointments || []).length))
+      .catch(() => setTodayApptCount(0));
+  }, []);
 
   const stats = [
     { label: "Today's Total", value: total, icon: Users, color: 'bg-teal-50 text-teal-700 border border-teal-100' },
@@ -762,7 +781,9 @@ function OverviewTab({ doctorProfile, queue }) {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
-            {doctorProfile?.user?.fullName ? `Dr. ${doctorProfile.user.fullName}` : 'Doctor Workspace'} 👨‍⚕️
+            {doctorProfile?.user?.fullName
+              ? (doctorProfile.user.fullName.startsWith('Dr.') ? doctorProfile.user.fullName : `Dr. ${doctorProfile.user.fullName}`)
+              : 'Doctor Workspace'} 👨‍⚕️
           </h1>
 
           <p className="text-slate-300 text-xs sm:text-sm font-medium mt-1">
@@ -793,6 +814,27 @@ function OverviewTab({ doctorProfile, queue }) {
         })}
       </div>
 
+      {/* Today's Appointments Banner */}
+      <button
+        onClick={() => onNavigate?.('appointments')}
+        className="w-full bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-2xl p-4 flex items-center gap-3 hover:from-teal-100 hover:to-emerald-100 transition-all text-left group"
+      >
+        <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <CalendarDays className="w-5 h-5 text-teal-700" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-extrabold text-teal-900">
+            {todayApptCount === null
+              ? 'Loading appointments…'
+              : todayApptCount === 0
+              ? 'No appointments today'
+              : `${todayApptCount} appointment${todayApptCount !== 1 ? 's' : ''} today`}
+          </p>
+          <p className="text-xs text-teal-600 font-medium mt-0.5">Tap to view all confirmed bookings</p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-teal-500 group-hover:translate-x-0.5 transition-transform" />
+      </button>
+
       {/* Profile Card */}
       {doctorProfile && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-2xs">
@@ -813,6 +855,178 @@ function OverviewTab({ doctorProfile, queue }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Appointments Tab ───────────────────────────────────────────────────────────
+
+/**
+ * AppointmentsTab — Shows all confirmed appointments for this doctor
+ * (both OFFLINE and ONLINE, today and future).
+ * Uses GET /appointments/doctor/mine (doctor-scoped, no PATIENT role conflict).
+ */
+function AppointmentsTab({ doctorProfile }) {
+  const navigate = useNavigate();
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('ALL'); // ALL | ONLINE | OFFLINE
+
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = { status: 'CONFIRMED', limit: 50 };
+      if (filter !== 'ALL') params.consultationType = filter;
+      const res = await api.get('/appointments/doctor/mine', { params });
+      setAppointments(res.data?.appointments || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load appointments.');
+    } finally {
+      setLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
+
+  // Group by date
+  const grouped = appointments.reduce((acc, apt) => {
+    const dateKey = getLocalDateString(apt.scheduledDate);
+    if (!acc[dateKey]) acc[dateKey] = [];
+    acc[dateKey].push(apt);
+    return acc;
+  }, {});
+
+  const sortedDates = Object.keys(grouped).sort();
+
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    const todayStr = getLocalDateString();
+    const tomorrowStr = getLocalDateString(new Date(Date.now() + 86400000));
+    if (dateStr === todayStr) return 'Today';
+    if (dateStr === tomorrowStr) return 'Tomorrow';
+    return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 lg:pb-6 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-extrabold text-slate-900 text-lg tracking-tight">My Appointments</h2>
+          <p className="text-xs text-slate-400 font-medium mt-0.5">Confirmed bookings from patients</p>
+        </div>
+        <button
+          onClick={fetchAppointments}
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+        </button>
+      </div>
+
+      {/* Filter Pills */}
+      <div className="flex gap-2">
+        {['ALL', 'OFFLINE', 'ONLINE'].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
+              filter === f
+                ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {f === 'ALL' ? 'All' : f === 'OFFLINE' ? '🏥 In-Person' : '🎥 Online'}
+          </button>
+        ))}
+      </div>
+
+      {loading && <LoadingCard />}
+      {error && <ErrorCard message={error} onRetry={fetchAppointments} />}
+
+      {!loading && !error && appointments.length === 0 && (
+        <EmptyState
+          icon={CalendarDays}
+          title="No appointments booked"
+          description="When patients book appointments with you, they'll appear here."
+        />
+      )}
+
+      {/* Grouped by Date */}
+      {!loading && !error && sortedDates.map((dateKey) => (
+        <div key={dateKey}>
+          {/* Date header */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
+              {formatDate(dateKey)}
+            </span>
+            <span className="text-[10px] text-slate-400 font-semibold">
+              {new Date(dateKey + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            <span className="ml-auto text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">
+              {grouped[dateKey].length} appt{grouped[dateKey].length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {grouped[dateKey].map((apt) => {
+              const isOnline = apt.consultationType === 'ONLINE';
+              const patientName = apt.patient?.fullName || 'Patient';
+              return (
+                <div
+                  key={apt.id}
+                  className={`bg-white rounded-2xl border p-4 flex items-center gap-3 shadow-2xs hover:shadow-md transition-all ${
+                    isOnline ? 'border-violet-200' : 'border-slate-200'
+                  }`}
+                >
+                  {/* Type indicator */}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    isOnline ? 'bg-violet-100' : 'bg-teal-100'
+                  }`}>
+                    {isOnline
+                      ? <Video className="w-5 h-5 text-violet-600" />
+                      : <Stethoscope className="w-5 h-5 text-teal-600" />
+                    }
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="font-extrabold text-slate-900 text-sm truncate">{patientName}</p>
+                      <span className={`flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                        isOnline ? 'bg-violet-100 text-violet-700' : 'bg-teal-100 text-teal-700'
+                      }`}>
+                        {isOnline ? <><Wifi className="w-2.5 h-2.5" /> Online</> : <><MapPin className="w-2.5 h-2.5" /> In-Person</>}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-semibold flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {apt.scheduledTime}
+                      {apt.queueToken && (
+                        <span className="ml-2 text-amber-600 font-bold">· Token T-{apt.queueToken.tokenNumber}</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Action */}
+                  {isOnline ? (
+                    <button
+                      onClick={() => navigate(`/doctor/video-consultation/${apt.id}`)}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <Video className="w-3 h-3" /> Join
+                    </button>
+                  ) : (
+                    <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-xl bg-teal-50 border border-teal-100">
+                      <BadgeCheck className="w-4 h-4 text-teal-600" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -875,7 +1089,21 @@ function HistoryTab() {
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function DoctorDashboard() {
-  const [activeItem, setActiveItem] = useState('overview');
+  const location = useLocation();
+  const getInitialTab = () => {
+    const p = location.pathname.toLowerCase();
+    if (p.includes('appointment')) return 'appointments';
+    if (p.includes('queue')) return 'queue';
+    if (p.includes('history')) return 'history';
+    return 'overview';
+  };
+  const [activeItem, setActiveItem] = useState(getInitialTab);
+
+  useEffect(() => {
+    const tab = getInitialTab();
+    if (tab) setActiveItem(tab);
+  }, [location.pathname]);
+
   const [doctorProfile, setDoctorProfile] = useState(null);
   const [queue, setQueue] = useState([]);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -905,10 +1133,11 @@ export default function DoctorDashboard() {
 
   const renderContent = () => {
     switch (activeItem) {
-      case 'overview': return <OverviewTab doctorProfile={doctorProfile} queue={queue} />;
+      case 'overview': return <OverviewTab doctorProfile={doctorProfile} queue={queue} onNavigate={setActiveItem} />;
+      case 'appointments': return <AppointmentsTab doctorProfile={doctorProfile} />;
       case 'queue': return <QueueTab doctorProfile={doctorProfile} />;
       case 'history': return <HistoryTab />;
-      default: return <OverviewTab doctorProfile={doctorProfile} queue={queue} />;
+      default: return <OverviewTab doctorProfile={doctorProfile} queue={queue} onNavigate={setActiveItem} />;
     }
   };
 

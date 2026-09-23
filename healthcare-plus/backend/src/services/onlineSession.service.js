@@ -86,7 +86,7 @@ export const joinSession = async (appointmentId, callerId) => {
     throw ApiError.badRequest('Appointment is not confirmed. Cannot join session.');
   }
 
-  const TERMINAL = ['COMPLETED', 'CANCELLED', 'EXPIRED'];
+  const TERMINAL = ['COMPLETED', 'CANCELLED', 'EXPIRED', 'ENDED'];
   if (TERMINAL.includes(session.status)) {
     throw ApiError.badRequest(`Session has already ended (status: ${session.status}).`);
   }
@@ -200,13 +200,13 @@ export const endSession = async (appointmentId, doctorUserId, reason = null) => 
     throw ApiError.forbidden('This session does not belong to you.');
   }
 
-  if (session.status === 'COMPLETED') return session;
+  if (session.status === 'COMPLETED' || session.status === 'ENDED') return session;
 
   const now = new Date();
 
   const updated = await prisma.onlineSession.update({
     where: { appointmentId },
-    data: { status: 'COMPLETED', endedAt: now, endedReason: reason },
+    data: { status: 'ENDED', endedAt: now, endedReason: reason },
     select: SESSION_SELECT,
   });
 

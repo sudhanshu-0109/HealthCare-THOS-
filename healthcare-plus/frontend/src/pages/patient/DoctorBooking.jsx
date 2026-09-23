@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, CheckCircle2, ChevronRight, Loader2, CreditCard, AlertCircle,
   MapPin, Video, Users, Clock,
@@ -37,8 +37,11 @@ const getDates = () => {
   for (let i = 0; i < 7; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
     dates.push({
-      full: d.toISOString().split('T')[0],
+      full: `${year}-${month}-${day}`,
       day: d.toLocaleDateString('en-US', { weekday: 'short' }),
       date: d.getDate(),
       month: d.toLocaleDateString('en-US', { month: 'short' }),
@@ -56,8 +59,9 @@ const formatSlotLabel = (hhmm) => {
   return `${h12}:${m.toString().padStart(2, '0')} ${period}`;
 };
 
-export default function DoctorBooking({ doctor, hospital, onBack }) {
+export default function DoctorBooking({ doctor: doctorProp, hospital: hospitalProp, onBack }) {
   const navigate = useNavigate();
+  const params = useParams(); // { hospitalId, doctorId } when used as a route
   const [step, setStep] = useState(STEPS.SLOT);
   const [selectedDate, setSelectedDate] = useState(getDates()[0]);
   const [selectedTime, setSelectedTime] = useState(null);
@@ -70,7 +74,47 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState(null);
+  // Self-fetched doctor/hospital when rendered as a standalone route (no props passed)
+  const [fetchedDoctor, setFetchedDoctor] = useState(null);
+  const [fetchedHospital, setFetchedHospital] = useState(null);
+  const [routeDataLoading, setRouteDataLoading] = useState(false);
   const dates = getDates();
+
+  // Effective doctor & hospital: prefer props (when embedded in HospitalWorkspace),
+  // fall back to self-fetched data (when rendered as a standalone route).
+  const doctor = doctorProp || fetchedDoctor;
+  const hospital = hospitalProp || fetchedHospital;
+
+  // When rendered as a standalone route (/hospitals/:hospitalId/doctors/:doctorId/book),
+  // fetch doctor and hospital data from the API using URL params.
+  useEffect(() => {
+    if (doctorProp || !params.doctorId) return; // already have doctor from props
+    let cancelled = false;
+    setRouteDataLoading(true);
+    // No GET /doctors/:id — use list endpoint filtered by hospitalId and pick the matching one
+    const doctorFetch = params.hospitalId
+      ? api.get('/doctors', { params: { hospitalId: params.hospitalId } }).catch(() => null)
+      : Promise.resolve(null);
+    const hospitalFetch = params.hospitalId
+      ? api.get(`/hospitals/${params.hospitalId}`).catch(() => null)
+      : Promise.resolve(null);
+    Promise.all([doctorFetch, hospitalFetch])
+      .then(([doctorsRes, hospitalRes]) => {
+        if (cancelled) return;
+        // Find the specific doctor matching doctorId from URL
+        const doctorsList = Array.isArray(doctorsRes?.data) ? doctorsRes.data
+                          : Array.isArray(doctorsRes?.data?.doctors) ? doctorsRes.data.doctors
+                          : [];
+        const foundDoctor = doctorsList.find(d => d.id === params.doctorId);
+        if (foundDoctor) setFetchedDoctor(foundDoctor);
+        // Hospital data
+        const h = hospitalRes?.data?.hospital || hospitalRes?.data || hospitalRes;
+        if (h && typeof h === 'object' && h.id) setFetchedHospital(h);
+      })
+      .finally(() => { if (!cancelled) setRouteDataLoading(false); });
+    return () => { cancelled = true; };
+  }, [params.doctorId, params.hospitalId, doctorProp]);
+
 
   // Fetch REAL slots for the selected date from the availability service.
   useEffect(() => {
@@ -227,6 +271,18 @@ export default function DoctorBooking({ doctor, hospital, onBack }) {
   }
 
   // ── BOOKING FLOW ──────────────────────────────────────────────────────────
+
+  // Show spinner while self-fetching doctor/hospital data (standalone route mode)
+  if (routeDataLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-cyan-600 animate-spin" />
+          <p className="text-slate-500 text-sm">Loading doctor information…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

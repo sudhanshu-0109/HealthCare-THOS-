@@ -123,6 +123,11 @@ const AppRouter = () => {
         </Route>
 
         <Route path="/patient/dashboard" element={<PatientDashboard />} />
+        <Route path="/patient/appointments" element={<PatientDashboard />} />
+        <Route path="/patient/prescriptions" element={<PatientDashboard />} />
+        <Route path="/patient/lab" element={<PatientDashboard />} />
+        <Route path="/patient/emergency" element={<PatientDashboard />} />
+        <Route path="/patient/notifications" element={<PatientDashboard />} />
         <Route path="/hospitals" element={<PatientDashboard />} />
 
         {/* Phase 5, 6, 7 Routes */}
@@ -150,7 +155,9 @@ const AppRouter = () => {
       {/*   DoctorDashboard is self-contained with DashboardShell            */}
       <Route element={<ProtectedRoute allowedRoles={['DOCTOR']} />}>
         <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-        <Route path="/doctor/queue" element={<DoctorQueue />} />
+        <Route path="/doctor/appointments" element={<DoctorDashboard />} />
+        <Route path="/doctor/history" element={<DoctorDashboard />} />
+        <Route path="/doctor/queue" element={<DoctorDashboard />} />
         <Route path="/doctor/consultation/:appointmentId" element={<ConsultationScreen />} />
         <Route path="/doctor/passport/:patientId" element={<PatientProfileView />} />
         {/* Phase 16: Online Consultation */}
@@ -158,13 +165,17 @@ const AppRouter = () => {
       </Route>
 
       {/* ── Hospital Admin routes (protected, role=HOSPITAL_ADMIN) ─────── */}
-      {/*   HospitalAdminDashboard is a self-contained tab SPA (DashboardShell */}
-      {/*   drives tabs via local state, not the URL), so a single route is    */}
-      {/*   the canonical entry. The former /admin/{departments,staff,...}     */}
-      {/*   sub-routes were reachable only from dead code and always rendered  */}
-      {/*   Overview regardless of the path — removed to keep URLs honest.     */}
+      {/*   HospitalAdminDashboard routes with sub-tab URL support         */}
       <Route element={<ProtectedRoute allowedRoles={['HOSPITAL_ADMIN']} />}>
         <Route path="/admin/dashboard" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/appointments" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/queue" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/doctors" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/departments" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/billing" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/pharmacy" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/lab" element={<HospitalAdminDashboard />} />
+        <Route path="/admin/ambulance" element={<HospitalAdminDashboard />} />
       </Route>
 
       {/* ── Lab Staff routes (protected, role=LAB_STAFF) ────────────────── */}

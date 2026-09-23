@@ -14,6 +14,7 @@ const CONSULTATION_SELECT = {
   id: true,
   appointmentId: true,
   queueTokenId: true,
+  onlineSessionId: true,
   doctorId: true,
   patientId: true,
   hospitalId: true,
@@ -140,6 +141,7 @@ export const completeConsultation = async (consultationId, doctorId) => {
 
   // Atomically: mark Consultation COMPLETED + Appointment COMPLETED
   // + QueueToken COMPLETED only if one exists (offline consultations)
+  // + OnlineSession COMPLETED if this is an online consultation
   const updated = await prisma.$transaction(async (tx) => {
     const c = await tx.consultation.update({
       where: { id: consultationId },
@@ -156,6 +158,13 @@ export const completeConsultation = async (consultationId, doctorId) => {
       where: { id: consultation.appointmentId },
       data: { status: 'COMPLETED' },
     });
+    // For online consultations: mark the OnlineSession as COMPLETED
+    if (consultation.onlineSessionId) {
+      await tx.onlineSession.update({
+        where: { id: consultation.onlineSessionId },
+        data: { status: 'COMPLETED' },
+      }).catch(() => {}); // best-effort — don't fail the transaction
+    }
     return c;
   });
 

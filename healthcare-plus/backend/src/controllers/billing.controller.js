@@ -5,6 +5,7 @@
 import * as billingService from '../services/billing.service.js';
 import { isMockMode } from '../services/razorpay.service.js';
 import { env } from '../config/env.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 /**
  * GET /api/billing/config
@@ -12,7 +13,7 @@ import { env } from '../config/env.js';
  * is exposed — never the secret. `isMock` lets the client skip the real gateway
  * when no credentials are configured.
  */
-export const getConfig = async (req, res) => {
+export const getConfig = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
@@ -20,14 +21,14 @@ export const getConfig = async (req, res) => {
       isMock: isMockMode,
     },
   });
-};
+});
 
 /**
  * POST /api/billing/pay
  * Initiate a payment: creates Bill + Razorpay order.
  * sourceType determines which service handles the callback on success.
  */
-export const initiatePayment = async (req, res) => {
+export const initiatePayment = asyncHandler(async (req, res) => {
   const { sourceType, sourceId, hospitalId, items } = req.body;
   const patientId = req.user.id;
 
@@ -40,13 +41,13 @@ export const initiatePayment = async (req, res) => {
   });
 
   res.json({ success: true, data: result });
-};
+});
 
 /**
  * POST /api/billing/verify
  * Verify payment signature and mark Bill as PAID.
  */
-export const verifyPayment = async (req, res) => {
+export const verifyPayment = asyncHandler(async (req, res) => {
   const { billId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
   const result = await billingService.verifyAndCompletePayment({
@@ -57,4 +58,5 @@ export const verifyPayment = async (req, res) => {
   });
 
   res.json({ success: true, data: result });
-};
+});
+

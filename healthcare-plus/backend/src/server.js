@@ -8,6 +8,7 @@ import http from 'http';
 import app from './app.js';
 import { env } from './config/env.js';
 import { initializeSocket } from './sockets/index.js';
+import { ensureDailyDemoAppointments } from './services/demoAppointments.service.js';
 
 const server = http.createServer(app);
 
@@ -20,6 +21,18 @@ server.listen(env.PORT, () => {
   console.log(`   Port:        ${env.PORT}`);
   console.log(`   Environment: ${env.NODE_ENV}`);
   console.log(`   Health:      http://localhost:${env.PORT}/api/health\n`);
+
+  // Ensure daily demo appointments on server boot
+  ensureDailyDemoAppointments().catch((err) => {
+    console.warn('[DemoAppointments] Initialization warning:', err.message);
+  });
+
+  // Re-check every 6 hours so changing calendar dates stay fresh
+  setInterval(() => {
+    ensureDailyDemoAppointments().catch((err) => {
+      console.warn('[DemoAppointments] Periodic maintenance warning:', err.message);
+    });
+  }, 6 * 60 * 60 * 1000);
 });
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────

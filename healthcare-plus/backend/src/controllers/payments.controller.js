@@ -6,12 +6,13 @@
  */
 
 import * as billingService from '../services/billing.service.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 /**
  * POST /api/payments/verify
  * Patient verifies their payment after Razorpay checkout completes.
  */
-export const verifyPayment = async (req, res) => {
+export const verifyPayment = asyncHandler(async (req, res) => {
   const { billId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
   const result = await billingService.verifyAndCompletePayment({
@@ -22,7 +23,7 @@ export const verifyPayment = async (req, res) => {
   });
 
   res.json({ success: true, data: result });
-};
+});
 
 /**
  * Razorpay webhook — signature-verified safety net.

@@ -100,7 +100,7 @@ const expireStaleHolds = async (doctorId, scheduledDate) => {
  */
 export const getSlotsWithStatus = async (doctorId, dateStr) => {
   const date = toMidnightUTC(dateStr);
-  const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
+  const dayOfWeek = date.getUTCDay(); // 0=Sun, 6=Sat (UTC-safe)
 
   // Expire stale holds first (lazy expiry)
   await expireStaleHolds(doctorId, date);

@@ -8,7 +8,12 @@ import * as queueService from '../services/queue.service';
 import { joinDoctorQueue, onSocketEvent } from '../services/socket';
 import api from '../services/api';
 
-const toDateStr = (d) => d.toISOString().split('T')[0];
+const toDateStr = (d) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function useDoctorQueue() {
   const [queue, setQueue] = useState([]);

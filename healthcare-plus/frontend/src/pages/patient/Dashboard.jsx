@@ -4,8 +4,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { haversineKm } from '../../utils/distance';
-import { openHospitalDirections } from '../../utils/navigation';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Home, User, Calendar, Pill, FlaskConical, CreditCard,
   Bell, AlertTriangle, Heart, Search, Star, MapPin, Clock, Stethoscope,
@@ -619,7 +618,8 @@ function AppointmentsTab() {
     return a.status === filter;
   });
 
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   return (
     <div className="p-4 sm:p-6 pb-24 lg:pb-6">
@@ -672,7 +672,10 @@ function AppointmentsTab() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-slate-900 text-sm">
-                        {apt.doctor?.user?.fullName ? `Dr. ${apt.doctor.user.fullName}` : apt.doctorName || 'Doctor'}
+                        {(() => {
+                          const raw = apt.doctor?.user?.fullName || apt.doctorName || 'Doctor';
+                          return raw.startsWith('Dr.') ? raw : `Dr. ${raw}`;
+                        })()}
                       </p>
                       {isOnline && (
                         <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
@@ -1373,8 +1376,26 @@ function EmergencyDispatchTab({ onSOSSent }) {
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
-  const [activeItem, setActiveItem] = useState('home');
+
+  const getInitialTab = () => {
+    const p = location.pathname.toLowerCase();
+    if (p.includes('appointment')) return 'appointments';
+    if (p.includes('prescription')) return 'prescriptions';
+    if (p.includes('lab')) return 'lab';
+    if (p.includes('billing')) return 'billing';
+    if (p.includes('emergency')) return 'emergency';
+    if (p.includes('notification')) return 'notifications';
+    if (p.includes('passport')) return 'passport';
+    return 'home';
+  };
+  const [activeItem, setActiveItem] = useState(getInitialTab);
+
+  useEffect(() => {
+    const tab = getInitialTab();
+    if (tab) setActiveItem(tab);
+  }, [location.pathname]);
   const [activeEmergencyId, setActiveEmergencyId] = useState(null);
   const [isCheckingEmergency, setIsCheckingEmergency] = useState(true);
   // Live unread count drives the sidebar/bottom-nav badge; fetched + kept in

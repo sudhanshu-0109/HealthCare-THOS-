@@ -60,9 +60,12 @@ export default function DoctorVideoConsultation() {
         setSession(s);
         if (s.status === 'IN_PROGRESS' || s.status === 'DOCTOR_JOINED') {
           setCallStarted(true);
+          // Session already running (e.g. page refresh) — re-start WebRTC immediately
+          startCall();
         }
       })
       .catch((err) => setError(err.response?.data?.message || err.message));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId]);
 
   // Load Consultation details when call starts (so doctor can take notes)
@@ -90,11 +93,12 @@ export default function DoctorVideoConsultation() {
     const onEnded = ({ appointmentId: id }) => {
       if (id !== appointmentId) return;
       endCall();
-      navigate(`/doctor/consultation/${appointmentId}`, { replace: true });
+      setCallStarted(false);
+      setShowClinicalPanel(true);
     };
     s.on('consultation:session-ended', onEnded);
     return () => s.off('consultation:session-ended', onEnded);
-  }, [appointmentId, endCall, navigate]);
+  }, [appointmentId, endCall]);
 
   const handleStartCall = useCallback(async () => {
     setStarting(true);
@@ -116,15 +120,29 @@ export default function DoctorVideoConsultation() {
     try {
       await onlineSessionService.endSession(appointmentId, 'Doctor ended the session');
       endCall();
-      navigate(`/doctor/consultation/${appointmentId}`, { replace: true });
+      // Stay on page so doctor can write notes & prescriptions before completing
+      setCallStarted(false);
+      setShowClinicalPanel(true); // auto-open clinical panel after call ends
     } catch (err) {
       console.error('[DoctorVideoConsultation] endSession error:', err.message);
       endCall();
-      navigate(`/doctor/consultation/${appointmentId}`, { replace: true });
+      setCallStarted(false);
+      setShowClinicalPanel(true);
     } finally {
       setEnding(false);
     }
-  }, [appointmentId, endCall, navigate]);
+  }, [appointmentId, endCall]);
+
+  const handleCompleteConsultation = useCallback(async () => {
+    if (!consultation) return;
+    if (!window.confirm('Mark this consultation as complete? You will not be able to edit it afterwards.')) return;
+    try {
+      await consultationsService.completeConsultation(consultation.id);
+      navigate('/doctor/dashboard', { replace: true });
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to complete consultation.');
+    }
+  }, [consultation, navigate]);
 
   const handleConsultationSave = async (data) => {
     if (!consultation) return;
@@ -276,7 +294,7 @@ export default function DoctorVideoConsultation() {
               onClick={handleEndCall}
               disabled={ending}
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-red-600 hover:bg-red-500 disabled:opacity-50 flex items-center justify-center transition-all shadow-lg shadow-red-900/50 mx-2"
-              title="End Call & Go to Notes"
+              title="End Video Call (stay on page to complete notes)"
             >
               {ending ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <PhoneOff className="w-6 h-6 text-white" />}
             </button>
@@ -316,12 +334,21 @@ export default function DoctorVideoConsultation() {
                 ) : null}
               </div>
             </div>
-            <button 
-              onClick={() => setShowClinicalPanel(false)} 
-              className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-lg"
-            >
-              <PanelRightClose className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCompleteConsultation}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                title="Mark consultation as complete and go to dashboard"
+              >
+                <CheckCircle className="w-3.5 h-3.5" /> Complete Consultation
+              </button>
+              <button 
+                onClick={() => setShowClinicalPanel(false)} 
+                className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-lg"
+              >
+                <PanelRightClose className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}

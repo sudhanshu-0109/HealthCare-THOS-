@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Building2, Users, Calendar, Activity, CreditCard, AlertTriangle,
   Settings, BarChart3, TrendingUp, TrendingDown, Plus, Search,
@@ -213,7 +214,7 @@ function OverviewTab() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-slate-900 text-xs truncate">{a.patient?.fullName || 'Patient'}</p>
                   <p className="text-xs text-slate-400">
-                    Dr. {a.doctor?.user?.fullName} • {a.scheduledTime}
+                    {a.doctor?.user?.fullName?.startsWith('Dr.') ? a.doctor?.user?.fullName : `Dr. ${a.doctor?.user?.fullName}`} • {a.scheduledTime}
                   </p>
                 </div>
                 <StatusBadge status={a.status} size="xs" />
@@ -911,9 +912,31 @@ function SettingsTab() {
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function HospitalAdminDashboard() {
+  const location = useLocation();
   const { user } = useAuthStore();
   const isReceptionist = user?.role === 'RECEPTIONIST';
-  const [activeItem, setActiveItem] = useState(isReceptionist ? 'queue' : 'overview');
+
+  const getInitialTab = () => {
+    const p = location.pathname.toLowerCase();
+    if (p.includes('appointment')) return 'appointments';
+    if (p.includes('queue')) return 'queue';
+    if (p.includes('doctor')) return 'doctors';
+    if (p.includes('department')) return 'departments';
+    if (p.includes('billing')) return 'overview';
+    if (p.includes('pharmacy')) return 'pharmacy';
+    if (p.includes('labtest') || p.includes('lab')) return 'labtests';
+    if (p.includes('medicine')) return 'medicines';
+    if (p.includes('ambulance') || p.includes('driver')) return 'ambulance';
+    if (p.includes('emergency')) return 'emergency';
+    return isReceptionist ? 'queue' : 'overview';
+  };
+
+  const [activeItem, setActiveItem] = useState(getInitialTab);
+
+  useEffect(() => {
+    const tab = getInitialTab();
+    if (tab) setActiveItem(tab);
+  }, [location.pathname]);
 
   const renderContent = () => {
     switch (activeItem) {

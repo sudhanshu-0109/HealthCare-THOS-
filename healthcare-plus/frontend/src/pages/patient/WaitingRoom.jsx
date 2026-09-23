@@ -1,4 +1,4 @@
-﻿/**
+/**
  * pages/patient/WaitingRoom.jsx — Patient waiting room for online consultations (Phase 16).
  *
  * Patient enters this page after payment is confirmed for an ONLINE appointment.
@@ -19,6 +19,7 @@ const STATUS_LABELS = {
   PATIENT_JOINED: "You've joined — waiting for doctor",
   DOCTOR_JOINED: 'Doctor is ready — call will start soon',
   IN_PROGRESS: 'Consultation in progress',
+  ENDED: 'Consultation ended',
   COMPLETED: 'Consultation completed',
   CANCELLED: 'Appointment cancelled',
   EXPIRED: 'Session expired',
@@ -173,7 +174,7 @@ export default function WaitingRoom() {
               </div>
               <div>
                 <p className="text-white/50 text-xs">Doctor</p>
-                <p className="text-white text-sm font-medium">Dr. {doctorName}</p>
+                <p className="text-white text-sm font-medium">{doctorName?.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`}</p>
                 <p className="text-white/40 text-xs">{doctorSpec}</p>
               </div>
             </div>

@@ -6,6 +6,7 @@
 
 import * as queueService from '../services/queue.service.js';
 import prisma from '../prisma/client.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 /**
  * Helper: get the Doctor profile ID for the authenticated doctor user.
@@ -16,7 +17,7 @@ const getDoctorId = async (userId) => {
   return doctor.id;
 };
 
-export const getDoctorQueue = async (req, res) => {
+export const getDoctorQueue = asyncHandler(async (req, res) => {
   const role = req.user.role;
   let doctorId;
 
@@ -49,39 +50,39 @@ export const getDoctorQueue = async (req, res) => {
   const { date } = req.query;
   const queue = await queueService.getDoctorQueue(doctorId, date);
   res.json({ success: true, data: queue });
-};
+});
 
-export const getPatientQueuePosition = async (req, res) => {
+export const getPatientQueuePosition = asyncHandler(async (req, res) => {
   const data = await queueService.getPatientQueuePosition(req.params.appointmentId, req.user.id);
   res.json({ success: true, data });
-};
+});
 
-export const callNext = async (req, res) => {
+export const callNext = asyncHandler(async (req, res) => {
   const doctorId = await getDoctorId(req.user.id);
   const data = await queueService.callNext(doctorId);
   res.json({ success: true, data });
-};
+});
 
-export const startConsultation = async (req, res) => {
+export const startConsultation = asyncHandler(async (req, res) => {
   const doctorId = await getDoctorId(req.user.id);
   const data = await queueService.startConsultation(req.params.id, doctorId);
   res.json({ success: true, data });
-};
+});
 
-export const completeConsultation = async (req, res) => {
+export const completeConsultation = asyncHandler(async (req, res) => {
   const doctorId = await getDoctorId(req.user.id);
   const data = await queueService.completeConsultation(req.params.id, doctorId);
   res.json({ success: true, data });
-};
+});
 
-export const skipPatient = async (req, res) => {
+export const skipPatient = asyncHandler(async (req, res) => {
   const doctorId = await getDoctorId(req.user.id);
   const data = await queueService.skipPatient(req.params.id, doctorId);
   res.json({ success: true, data });
-};
+});
 
-export const requeueSkipped = async (req, res) => {
+export const requeueSkipped = asyncHandler(async (req, res) => {
   const doctorId = await getDoctorId(req.user.id);
   const data = await queueService.requeueSkipped(req.params.id, doctorId);
   res.json({ success: true, data });
-};
+});

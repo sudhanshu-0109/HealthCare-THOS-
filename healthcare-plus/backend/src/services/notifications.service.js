@@ -55,22 +55,24 @@ export const notify = async (userId, { type, title, message, relatedId = null })
     console.warn('[Notifications] Socket push failed:', pushErr.message);
   }
 
-  // Conditional email delivery (4 high-value types only)
+  // Conditional email delivery (4 high-value types only) — background fire-and-forget
   if (EMAIL_TYPES.has(type)) {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, fullName: true },
-      });
-      if (user) {
-        const { sendGenericNotificationEmail } = await import('./email.service.js');
-        if (typeof sendGenericNotificationEmail === 'function') {
-          await sendGenericNotificationEmail(user, { title, message, type });
+    (async () => {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true, fullName: true },
+        });
+        if (user) {
+          const { sendGenericNotificationEmail } = await import('./email.service.js');
+          if (typeof sendGenericNotificationEmail === 'function') {
+            await sendGenericNotificationEmail(user, { title, message, type });
+          }
         }
+      } catch (emailErr) {
+        console.warn('[Notifications] Background email delivery failed:', emailErr.message);
       }
-    } catch (emailErr) {
-      console.warn('[Notifications] Email delivery failed:', emailErr.message);
-    }
+    })();
   }
 
   return notification;

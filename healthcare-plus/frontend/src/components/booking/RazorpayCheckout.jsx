@@ -90,7 +90,7 @@ export default function RazorpayCheckout({
       setTimeout(async () => {
         await handleVerify('mock_payment_id', 'mock_signature');
         setMockPaying(false);
-      }, 1500);
+      }, 1000);
       return;
     }
 

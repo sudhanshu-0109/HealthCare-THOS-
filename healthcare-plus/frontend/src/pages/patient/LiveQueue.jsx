@@ -24,7 +24,7 @@ export default function LiveQueue() {
             <h1 className="font-bold text-slate-900">Live Queue</h1>
             {doctor && (
               <p className="text-sm text-slate-500">
-                Dr. {doctor?.user?.fullName} · {appointment?.scheduledTime}
+                {doctor?.user?.fullName?.startsWith('Dr.') ? doctor?.user?.fullName : `Dr. ${doctor?.user?.fullName}`} · {appointment?.scheduledTime}
               </p>
             )}
           </div>

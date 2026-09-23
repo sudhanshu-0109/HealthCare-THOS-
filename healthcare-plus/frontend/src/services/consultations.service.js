@@ -16,5 +16,5 @@ export const getConsultationHistory = (patientId) =>
   api.get(`/consultations/history/${patientId}`);
 
 export const getConsultationByAppointment = (appointmentId) =>
-  api.get("/consultations/by-appointment/");
+  api.get(`/consultations/by-appointment/${appointmentId}`);
 
